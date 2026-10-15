@@ -864,7 +864,12 @@ function portalJsonp(params,timeoutMs=60000,baseOverride=''){
     const requestParams={...(params||{})};
     const actionName=String(requestParams.acao||'').toLowerCase();
     const sessionToken=String(getSession()?.authToken||'').trim();
-    if(sessionToken && nucleoActionNeedsCentralConfirmation(actionName) && !nucleoCentralDataConfirmed()){
+    if(
+      sessionToken &&
+      actionName!=='portal_save_config' &&
+      nucleoActionNeedsCentralConfirmation(actionName) &&
+      !nucleoCentralDataConfirmed()
+    ){
       cleanup();
       reject(new Error('Dados ainda não confirmados pela base central. Aguarde o indicador ficar verde e tente novamente.'));
       return;
@@ -1086,7 +1091,7 @@ async function portalUpdateRoSheetConfirmed(ro,campos){
     origem:roOriginFromNumber(ro,''),
     campos:JSON.stringify(campos||{}),
     ator:getSession()?.name||'Núcleo'
-  },25000);
+  },90000);
   if(!res?.sucesso)throw new Error(res?.erro||'A planilha não confirmou a atualização.');
   return res;
 }
@@ -1267,11 +1272,23 @@ function applyPortalBackendSnapshot(snapshot){
 }
 async function syncPortalBackend(showMessage=false,options={}){
   if(portalBackendSyncInProgress)return false;
+
   if(!portalBackendEnabled()){
-    if(showMessage)alert('Configure primeiro a URL do Apps Script em Administração → Integração.');
-    updateBackendStatus(false,'Apps Script não configurado.');
+    try{
+      await nucleoEnsureApiConfigured();
+    }catch(e){
+      if(showMessage)alert('Não foi possível configurar o Apps Script TESTE: '+(e?.message||e));
+      updateBackendStatus(false,e?.message||'Apps Script TESTE não configurado.');
+      return false;
+    }
+  }
+
+  if(!portalBackendEnabled()){
+    if(showMessage)alert('Configure primeiro a URL do Apps Script TESTE.');
+    updateBackendStatus(false,'Apps Script TESTE não configurado.');
     return false;
   }
+
   const foreground=!!(showMessage||options.foreground);
   portalBackendSyncInProgress=true;
   nucleoSetCentralSyncState('syncing','Atualizando com a base central. Os dados exibidos até a confirmação são apenas cache local.');
@@ -8003,16 +8020,13 @@ async function saveTriageRecord(){
       updateNucleoLoading('Atualizando a linha de '+(record.responsibleSector||roNumber)+' na planilha...','Processando');
 
       try{
-        await Promise.race([
-          portalUpdateRoSheetConfirmed(roNumber,{
-            unidade:roUnitValue,
-            setor:record.responsibleSector||'',
-            setorAnterior:record.previousResponsibleSector||record.responsibleSector||'',
-            pessoa:decision==='directed'?(record.responsibleUserName||'Todo o setor'):'',
-            status:decision==='directed'?'Enviado':decision==='record'?(decisionRule.id==='falta_caixa'?'Falta de caixa':'Registro'):decision==='obsolete'?'Obsoleto':'Cancelada'
-          }),
-          new Promise((_,reject)=>setTimeout(()=>reject(new Error('Tempo excedido ao atualizar a planilha.')),18000))
-        ]);
+        await portalUpdateRoSheetConfirmed(roNumber,{
+          unidade:roUnitValue,
+          setor:record.responsibleSector||'',
+          setorAnterior:record.previousResponsibleSector||record.responsibleSector||'',
+          pessoa:decision==='directed'?(record.responsibleUserName||'Todo o setor'):'',
+          status:decision==='directed'?'Enviado':decision==='record'?(decisionRule.id==='falta_caixa'?'Falta de caixa':'Registro'):decision==='obsolete'?'Obsoleto':'Cancelada'
+        });
       }catch(syncErr){
         console.warn('[NUCLEO TRIAGEM] decisão salva localmente, mas planilha não confirmou',syncErr);
         syncWarnings.push(
@@ -16209,11 +16223,26 @@ async function syncNow(){
   syncNow.inProgress=true;
   nucleoSetCentralSyncState('syncing','Sincronização manual em andamento. Os dados locais ainda não estão confirmados.');
   const syncMsg=document.getElementById('syncMsg');
-  const s=getSavedIntegrationSettings();
+
+  let s=getSavedIntegrationSettings();
+
+  try{
+    if(!s.apiUrl || !portalBackendEnabled()){
+      await nucleoEnsureApiConfigured();
+      s=getSavedIntegrationSettings();
+    }
+  }catch(e){
+    syncMsg.textContent='Não foi possível confirmar o Apps Script TESTE: '+(e?.message||e)+'.';
+    syncMsg.className='statusline';
+    hideNucleoLoading();
+    syncNow.inProgress=false;
+    return;
+  }
+
   await showNucleoLoading('Buscando '+integrationPeriodLabel(s)+' nas abas Interna e Externa...','Sincronizando com a planilha');
 
   if(!s.apiUrl){
-    syncMsg.textContent='Configure primeiro a URL do Web App/API em Administração.';
+    syncMsg.textContent='A URL do Apps Script TESTE ainda não foi configurada.';
     syncMsg.className='statusline';
     hideNucleoLoading();
     syncNow.inProgress=false;
