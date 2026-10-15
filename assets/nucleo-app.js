@@ -14531,12 +14531,12 @@ const stages=[{"id": "plan", "number": "01", "name": "Planejar", "subtitle": "En
 let detailReturnView='ros';
 let selected=ros[0],activeStage=0;let answers={};
 
-function pdcaExternalExists(ro){
-  const tri=getRoTriageRecord(ro);
+function pdcaExternalExists(ro,preloadedMap=null){
+  const tri=getRoTriageRecord(ro,preloadedMap);
   return tri?.pdcaExternal===true || String(tri?.pdcaSource||'').toLowerCase()==='external';
 }
-function pdcaSituationLabel(ro){
-  if(pdcaExternalExists(ro))return 'PDCA externo';
+function pdcaSituationLabel(ro,preloadedMap=null){
+  if(pdcaExternalExists(ro,preloadedMap))return 'PDCA externo';
   const status=String(ro?.status||'');
   const pdca=String(ro?.pdca||'');
   if(pdca==='Enviado'||status==='PDCA enviado')return 'PDCA enviado';
@@ -14727,13 +14727,13 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
     const pdca=String(r.pdca||'');
     const noPdca=['Cancelada','Somente para registro'].includes(status);
     const contest=status==='Em contestação';
-    const externalPdca=pdcaExternalExists(r);
+    const externalPdca=pdcaExternalExists(r,renderTriageMap);
     const alreadySent=pdca==='Enviado' || status==='PDCA enviado' || externalPdca;
     const tri=getRoTriageRecord(r,renderTriageMap);
     const responsibleSector=String(tri?.responsibleSector||tri?.setorDirecionado||r.__assignedSector||r.setorResponsavelPlanilha||r.raw?.__setorResponsavel||r.setorResponsavel||r.setor||'—').trim()||'—';
-    const pdcaSituation=pdcaSituationLabel(r);
+    const pdcaSituation=pdcaSituationLabel(r,renderTriageMap);
     const displayStatus=assignedRoStatus(r,renderTriageMap);
-    const displayDecisionLabel=nucleoAssignedDecisionLabel(r,tri,displayStatus);
+    const displayDecisionLabel=nucleoAssignedDecisionLabel(r,tri,displayStatus,renderTriageMap);
 
     let operationalActions='';
     if(!admin){
@@ -15590,9 +15590,10 @@ function showList(){
 function populateAssignedRoFilters(){
   const sectorEl=document.getElementById('assignedSectorFilter');
   const unitEl=document.getElementById('assignedUnitFilter');
+  const assignedRows=getTriageRecords().filter(r=>r.triagemStatus!=='new');
   if(sectorEl){
     const current=sectorEl.value||'all';
-    const sectors=nucleoVisibleManagerSectors(isManager(),managedSectorsForCurrentUser(),getTriageRecords().filter(r=>r.triagemStatus!=='new').map(r=>r.setorDirecionado));
+    const sectors=nucleoVisibleManagerSectors(isManager(),managedSectorsForCurrentUser(),assignedRows.map(r=>r.setorDirecionado));
     sectorEl.setAttribute('aria-label',isManager()?'Setor sob minha gestão':'Setor responsável');
     sectorEl.title=isManager()?'Escolha o setor que deseja acompanhar':'Filtrar por setor';
     sectorEl.innerHTML='<option value="all">'+(isManager()?'Todos os meus setores':'Todos os setores')+'</option>'+sectors.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
@@ -15600,8 +15601,7 @@ function populateAssignedRoFilters(){
   }
   if(unitEl){
     const current=unitEl.value||'all';
-    const units=[...new Set(getTriageRecords()
-      .filter(r=>r.triagemStatus!=='new')
+    const units=[...new Set(assignedRows
       .map(r=>String(r.unidade||'').trim()).filter(Boolean))]
       .sort((a,b)=>a.localeCompare(b,'pt-BR'));
     unitEl.innerHTML='<option value="all">Todas as unidades</option>'+units.map(u=>`<option value="${escapeHtml(u)}">${escapeHtml(u)}</option>`).join('');
@@ -17007,7 +17007,7 @@ function nucleoShowTriageBuild(){const host=document.getElementById('triageModal
 document.addEventListener('DOMContentLoaded',nucleoShowTriageBuild);
 nucleoShowTriageBuild();
 
-function nucleoAssignedDecisionLabel(ro,tri,status){const saved=resolvedTriageForRo(ro,getSavedTriageMap());const decision=saved?.decision&&!saved.importedFromSheet?saved:tri;const raw=normalizeAnswer(ro?.statusPlanilha||ro?.status||ro?.raw?.__statusOperacional||'');if(decision?.decisionId==='falta_caixa'||raw==='falta de caixa'||raw==='falta de caixas')return decision?.decisionLabel||'Falta de caixa';return decision?.decision&&decision.decision!=='directed'?(decision.decisionLabel||nucleoDecisionForRecord(ro,decision)?.label||status):status;}
+function nucleoAssignedDecisionLabel(ro,tri,status,preloadedMap=null){const saved=resolvedTriageForRo(ro,preloadedMap instanceof Map?preloadedMap:getSavedTriageMap());const decision=saved?.decision&&!saved.importedFromSheet?saved:tri;const raw=normalizeAnswer(ro?.statusPlanilha||ro?.status||ro?.raw?.__statusOperacional||'');if(decision?.decisionId==='falta_caixa'||raw==='falta de caixa'||raw==='falta de caixas')return decision?.decisionLabel||'Falta de caixa';return decision?.decision&&decision.decision!=='directed'?(decision.decisionLabel||nucleoDecisionForRecord(ro,decision)?.label||status):status;}
 
 function nucleoVisibleManagerSectors(manager,managed,available){return [...new Set((manager?managed:available).map(x=>String(x||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));}
 
