@@ -769,10 +769,61 @@ function portalApiBase(){
   ).trim().replace(/\/+$/,'');
 }
 async function nucleoCheckApiUrl(url){
-  if(!nucleoValidApiUrl(url))throw new Error('Informe a URL do aplicativo da Web do Apps Script, terminada em /exec.');
-  const result=await portalJsonp({acao:'portal_public_config'},20000,url);
-  if(!result?.sucesso||!result.config)throw new Error('O endereço não confirmou uma conexão válida com o Núcleo. A conexão atual foi mantida.');
+  const candidate=String(url||'').trim();
+  if(!nucleoValidApiUrl(candidate)){
+    throw new Error('Informe a URL do aplicativo da Web do Apps Script TESTE, terminada em /exec.');
+  }
+
+  const env=await portalJsonp({acao:'teste_gemini_config'},20000,candidate);
+  if(!env?.sucesso || String(env?.ambiente||'').toUpperCase()!=='TESTE'){
+    throw new Error('A URL informada não confirmou o ambiente TESTE. A conexão foi recusada para proteger a produção.');
+  }
+
+  const result=await portalJsonp({acao:'portal_public_config'},20000,candidate);
+  if(!result?.sucesso||!result.config){
+    throw new Error('O endereço TESTE não confirmou uma conexão válida com o Núcleo.');
+  }
   return result;
+}
+
+async function nucleoEnsureApiConfigured(){
+  const current=portalApiBase();
+
+  if(current){
+    try{
+      const confirmed=await nucleoCheckApiUrl(current);
+      nucleoConfirmedApiUrl=current;
+      return {url:current,result:confirmed};
+    }catch(e){
+      console.warn('A URL salva não foi aceita como ambiente TESTE.',e);
+      nucleoConfirmedApiUrl='';
+    }
+  }
+
+  const informed=window.prompt(
+    'Configuração inicial do Núcleo TESTE\n\nCole a URL do aplicativo da Web do Apps Script TESTE (terminada em /exec).\n\nA URL será validada antes de ser salva. Nenhuma URL de produção será usada como fallback.',
+    ''
+  );
+
+  if(informed===null)throw new Error('Configuração da URL do Apps Script TESTE cancelada.');
+
+  const candidate=String(informed||'').trim();
+  const confirmed=await nucleoCheckApiUrl(candidate);
+
+  let dedicated={};
+  let admin={};
+  try{dedicated=JSON.parse(localStorage.getItem(INTEGRATION_PERSIST_KEY)||'{}')||{}}catch(e){}
+  try{admin=JSON.parse(localStorage.getItem(ADMIN_CONFIG_KEY)||'{}')||{}}catch(e){}
+
+  dedicated={...dedicated,apiUrl:candidate,savedAt:new Date().toISOString()};
+  admin={...admin,apiUrl:candidate};
+
+  localStorage.setItem(INTEGRATION_PERSIST_KEY,JSON.stringify(dedicated));
+  localStorage.setItem('ro-sync-settings',JSON.stringify(dedicated));
+  localStorage.setItem(ADMIN_CONFIG_KEY,JSON.stringify(admin));
+
+  nucleoConfirmedApiUrl=candidate;
+  return {url:candidate,result:confirmed};
 }
 function portalBackendEnabled(){
   return /^https:\/\/script\.google\.com\/macros\/s\//i.test(portalApiBase());
@@ -2895,15 +2946,14 @@ async function saveSectorConfiguration(){
 async function syncPublicPortalConfig(){
   nucleoPublicConfigReady=false;
   try{
-    const base=portalApiBase();
-    if(!base)throw new Error('URL do Apps Script TESTE não configurada neste navegador.');
+    const setup=await nucleoEnsureApiConfigured();
+    const base=setup.url;
+    const res=setup.result;
 
-    const res=await portalJsonp({acao:'portal_public_config'},20000,base);
-    if(!res?.sucesso||!res.config)throw new Error(res?.erro||'A configuração central não respondeu.');
+    if(!res?.sucesso||!res.config){
+      throw new Error(res?.erro||'A configuração central TESTE não respondeu.');
+    }
 
-    // AMBIENTE TESTE: a URL já confirmada neste navegador é a autoridade.
-    // Nunca seguir automaticamente config.apiUrl devolvida pelo backend,
-    // pois a cópia migrada pode conter a URL antiga de PRODUÇÃO.
     nucleoConfirmedApiUrl=base;
 
     localStorage.setItem(
@@ -2928,8 +2978,13 @@ async function syncPublicPortalConfig(){
     try{refreshLoginSectorByUnit()}catch(e){}
     return true;
   }catch(e){
-    console.warn('Não foi possível carregar a configuração central antes do login.',e);
+    console.warn('Não foi possível carregar a configuração central TESTE antes do login.',e);
     nucleoPublicConfigReady=false;
+    const msg=document.getElementById('loginMessage');
+    if(msg){
+      msg.classList.remove('hidden');
+      msg.textContent='Configuração do ambiente TESTE não confirmada: '+(e?.message||e);
+    }
     return false;
   }
 }
