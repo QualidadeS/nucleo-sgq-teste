@@ -7371,16 +7371,21 @@ function getSavedTriageMap(){
 
 function getTriageRecords(){
   const saved=getSavedTriageMap();
+  const deletedKeys=getDeletedTriageKeys();
+
   return getAllRoRecords().map(ro=>{
-    const tri=resolvedTriageForRo(ro,saved)||{};
+    const base=String(triageBaseRoNumber(ro)||'').trim();
+    const exact=String(triageKeyOf(ro)||'').trim();
+    const deletedInTest=deletedKeys.has(base)||(exact&&deletedKeys.has(exact));
+
+    const tri=deletedInTest?{}:(resolvedTriageForRo(ro,saved)||{});
     const baseSituation=baseTriageSituation(ro);
 
-    // A planilha continua sendo a fonte principal quando já refletiu a decisão.
-    // Enquanto a planilha ainda não atualizou, uma decisão MANUAL do SGQ
-    // já salva no Núcleo também tira a R.O. da fila "A triar".
-    let decision=tri.decision||baseSituation.decision;
+    // No TESTE, uma limpeza persistente vence a decisão herdada da planilha
+    // original. Assim a R.O. volta para "Aguardando triagem" sem alterar a fonte.
+    let decision=deletedInTest?'':(tri.decision||baseSituation.decision);
 
-    if(!decision && tri?.decision && !tri?.importedFromSheet){
+    if(!decision && !deletedInTest && tri?.decision && !tri?.importedFromSheet){
       decision=tri.decision;
     }
 
@@ -7394,10 +7399,11 @@ function getTriageRecords(){
       ...ro,
       triagem:tri,
       classificacaoSGQ:tri.classification||'',
-      setorDirecionado:tri.responsibleSector||'',
+      setorDirecionado:deletedInTest?'':(tri.responsibleSector||''),
       pdcaObrigatorio:decision==='directed'&&tri.pdcaRequired!==false,
       prazoPdca:tri.pdcaDeadline||'',
-      triagemStatus
+      triagemStatus,
+      __triageDeletedInTest:deletedInTest
     };
   });
 }
@@ -7522,7 +7528,7 @@ function renderTriage(){
         </div>
       </td>
     </tr>`;
-  }).join(''):`<tr><td colspan="8" style="text-align:center;color:#667085;padding:28px">Nenhuma R.O. real carregada. Sincronize com a planilha para carregar Interna e Externa.</td></tr>`;
+  }).join(''):`<tr><td colspan="8" style="text-align:center;color:#667085;padding:28px">Nenhuma R.O. aguardando triagem corresponde aos filtros atuais.</td></tr>`;
 }
 
 function showTriage(){
