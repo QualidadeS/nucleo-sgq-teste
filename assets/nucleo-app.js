@@ -673,7 +673,7 @@ function processDeadlineAlerts(showMessage=false){
   });
   localStorage.setItem(DEADLINE_ALERTS_KEY,JSON.stringify(state));if(showMessage)alert(created?created+' alerta(s) atualizado(s).':'Nenhum novo alerta de prazo.');refreshNotificationBell();
 }
-const NUCLEO_DEFAULT_API_URL='https://script.google.com/macros/s/AKfycbyUG0UtKvvb8cNyqs7K8VmuADRp0x0m7wDwMsg0XEaj_b32t20HPBWEV6Hkh-BE6AY_Sw/exec';
+const NUCLEO_DEFAULT_API_URL=''; // TESTE: nunca usar backend de produção como fallback
 const PORTAL_BACKEND_STATE_KEY='portal-sgq-backend-state-v1';
 const PORTAL_BACKEND_LAST_SYNC_KEY='portal-sgq-backend-last-sync-v1';
 let portalBackendSyncInProgress=false;
@@ -745,8 +745,28 @@ function nucleoActionNeedsCentralConfirmation(action){
 
 let nucleoConfirmedApiUrl='';
 function nucleoValidApiUrl(value){return /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value||'').trim());}
+function nucleoPersistedApiUrl(){
+  const candidates=[];
+  try{
+    const dedicated=JSON.parse(localStorage.getItem(INTEGRATION_PERSIST_KEY)||'{}')||{};
+    candidates.push(dedicated.apiUrl);
+  }catch(e){}
+  try{
+    const admin=JSON.parse(localStorage.getItem(ADMIN_CONFIG_KEY)||'{}')||{};
+    candidates.push(admin.apiUrl);
+  }catch(e){}
+  const valid=candidates
+    .map(v=>String(v||'').trim())
+    .find(nucleoValidApiUrl);
+  return valid||'';
+}
 function portalApiBase(){
-  return String(nucleoConfirmedApiUrl||NUCLEO_DEFAULT_API_URL||'').trim().replace(/\/+$/,'');
+  return String(
+    nucleoConfirmedApiUrl||
+    nucleoPersistedApiUrl()||
+    NUCLEO_DEFAULT_API_URL||
+    ''
+  ).trim().replace(/\/+$/,'');
 }
 async function nucleoCheckApiUrl(url){
   if(!nucleoValidApiUrl(url))throw new Error('Informe a URL do aplicativo da Web do Apps Script, terminada em /exec.');
@@ -2875,17 +2895,34 @@ async function saveSectorConfiguration(){
 async function syncPublicPortalConfig(){
   nucleoPublicConfigReady=false;
   try{
-    let res=await portalJsonp({acao:'portal_public_config'},20000,NUCLEO_DEFAULT_API_URL);
+    const base=portalApiBase();
+    if(!base)throw new Error('URL do Apps Script TESTE não configurada neste navegador.');
+
+    const res=await portalJsonp({acao:'portal_public_config'},20000,base);
     if(!res?.sucesso||!res.config)throw new Error(res?.erro||'A configuração central não respondeu.');
-    const target=String(res?.config?.apiUrl||'').trim();
-    if(target && target!==portalApiBase()){
-      res=await nucleoCheckApiUrl(target);
-      nucleoConfirmedApiUrl=target;
-    }
-    if(!res?.sucesso||!res.config)throw new Error('A configuração central não foi confirmada.');
-    // Antes do login, também não mescla configuração administrativa antiga deste navegador.
-    localStorage.setItem('nucleo-unit-public-sectors',JSON.stringify(res.config.sectorListsByUnit||{}));
-    localStorage.setItem(ADMIN_CONFIG_KEY,JSON.stringify({...res.config,apiUrl:portalApiBase()}));
+
+    // AMBIENTE TESTE: a URL já confirmada neste navegador é a autoridade.
+    // Nunca seguir automaticamente config.apiUrl devolvida pelo backend,
+    // pois a cópia migrada pode conter a URL antiga de PRODUÇÃO.
+    nucleoConfirmedApiUrl=base;
+
+    localStorage.setItem(
+      'nucleo-unit-public-sectors',
+      JSON.stringify(res.config.sectorListsByUnit||{})
+    );
+    localStorage.setItem(
+      ADMIN_CONFIG_KEY,
+      JSON.stringify({...res.config,apiUrl:base})
+    );
+
+    const persisted={
+      ...res.config,
+      apiUrl:base,
+      savedAt:String(res.config.__savedAt||new Date().toISOString())
+    };
+    localStorage.setItem(INTEGRATION_PERSIST_KEY,JSON.stringify(persisted));
+    localStorage.setItem('ro-sync-settings',JSON.stringify(persisted));
+
     nucleoPublicConfigReady=true;
     refreshSectorSelectors();
     try{refreshLoginSectorByUnit()}catch(e){}
@@ -10748,7 +10785,7 @@ async function saveIntegrationSettingsConfirmed(){
     await nucleoCheckApiUrl(candidate);
     const sync=saveIntegrationSettings(true);
     if(!sync)return false;
-    const res=await portalJsonp({acao:'portal_save_config',dados:JSON.stringify(getAdminConfig()),ator:getSession()?.name||'SGQ'},60000,currentBase);
+    const res=await portalJsonp({acao:'portal_save_config',dados:JSON.stringify(getAdminConfig()),ator:getSession()?.name||'SGQ'},60000,candidate);
     if(!res?.sucesso)throw new Error(res?.erro||'A base central não confirmou a integração.');
     nucleoConfirmedApiUrl=candidate;
     if(st)st.textContent='Integração confirmada e salva na base central.';
