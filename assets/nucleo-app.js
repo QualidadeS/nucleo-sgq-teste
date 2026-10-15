@@ -774,15 +774,16 @@ async function nucleoCheckApiUrl(url){
     throw new Error('Informe a URL do aplicativo da Web do Apps Script TESTE, terminada em /exec.');
   }
 
-  const env=await portalJsonp({acao:'teste_gemini_config'},20000,candidate);
-  if(!env?.sucesso || String(env?.ambiente||'').toUpperCase()!=='TESTE'){
+  // Validação permanente usando a própria rota pública oficial do Núcleo.
+  const result=await portalJsonp({acao:'portal_public_config'},20000,candidate);
+  if(!result?.sucesso||!result.config){
+    throw new Error('O endereço não confirmou uma conexão válida com o Núcleo TESTE.');
+  }
+
+  if(String(result?.ambiente||result?.config?.ambiente||'').toUpperCase()!=='TESTE'){
     throw new Error('A URL informada não confirmou o ambiente TESTE. A conexão foi recusada para proteger a produção.');
   }
 
-  const result=await portalJsonp({acao:'portal_public_config'},20000,candidate);
-  if(!result?.sucesso||!result.config){
-    throw new Error('O endereço TESTE não confirmou uma conexão válida com o Núcleo.');
-  }
   return result;
 }
 
