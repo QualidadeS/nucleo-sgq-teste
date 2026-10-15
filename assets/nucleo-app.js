@@ -1108,7 +1108,8 @@ const NUCLEO_SHARED_GLOBAL_KEYS=new Set([
   'nucleo-sector-aliases-v1',
   'ro-pdca-presentations-v1',
   'nucleo-ro-origin-registry-v1',
-  'nucleo-hidden-assigned-directions-v1'
+  'nucleo-hidden-assigned-directions-v1',
+  'nucleo-deleted-triage-keys-v1'
 ]);
 const NUCLEO_SHARED_USER_KEYS=new Set([
   'ro-pdca-notifications-v1',
@@ -7174,6 +7175,13 @@ function getTriageRecordForRoSector(roNumber,sector,map=getSavedTriageMap()){
 function resolvedTriageForRo(ro,map=getSavedTriageMap()){
   if(!ro)return null;
   const base=String(triageBaseRoNumber(ro)||'').trim();
+  const exactKey=String(triageKeyOf(ro)||'').trim();
+  const deletedKeys=getDeletedTriageKeys();
+
+  // No ambiente TESTE, uma limpeza confirmada precisa vencer a situação
+  // herdada da planilha original. A planilha-fonte não é alterada pelo teste.
+  if(deletedKeys.has(base) || (exactKey && deletedKeys.has(exactKey)))return null;
+
   const baseSituation=baseTriageSituation(ro);
   const manual=getTriageRecordsForRoNumber(base,map).filter(t=>t?.decision&&!t.importedFromSheet).sort((a,b)=>String(b.triagedAt||'').localeCompare(String(a.triagedAt||'')));
   const exactManual=map.get(String(triageKeyOf(ro)||''));
@@ -7228,6 +7236,24 @@ function getDeletedTriageKeys(){
 }
 function saveDeletedTriageKeys(set){
   try{localStorage.setItem(DELETED_TRIAGE_KEYS_KEY,JSON.stringify([...set]))}catch(e){}
+}
+async function saveDeletedTriageKeysConfirmed(set){
+  saveDeletedTriageKeys(set);
+  const value=JSON.stringify([...set]);
+  const id='global:'+DELETED_TRIAGE_KEYS_KEY;
+  const record={
+    id,
+    key:DELETED_TRIAGE_KEYS_KEY,
+    value,
+    scope:'global',
+    userKey:'',
+    updatedAt:new Date().toISOString(),
+    updatedBy:getSession()?.name||'SGQ'
+  };
+  if(portalBackendEnabled()){
+    await portalBackendSaveConfirmed('shared_state',id,record);
+  }
+  return true;
 }
 
 function getSavedTriageMap(){
@@ -8042,7 +8068,12 @@ async function saveTriageRecord(){
       try{await portalBackendSaveConfirmed('triage',record.roKey,record);}catch(error){centralTriageSaved=false;syncWarnings.push('A base central não confirmou a classificação e o setor: '+error.message);}
 
       const deletedKeys=getDeletedTriageKeys();
-      if(deletedKeys.delete(String(record.roKey||'')))saveDeletedTriageKeys(deletedKeys);
+      let tombstoneChanged=false;
+      if(deletedKeys.delete(String(record.roKey||'')))tombstoneChanged=true;
+      if(deletedKeys.delete(String(record.roNumber||roNumber||'')))tombstoneChanged=true;
+      if(tombstoneChanged){
+        try{await saveDeletedTriageKeysConfirmed(deletedKeys);}catch(e){console.warn('Não foi possível limpar o marcador de exclusão da triagem.',e);}
+      }
     }
   }
 
@@ -10676,7 +10707,8 @@ function refreshAdminCleanupPreview(){
     return;
   }
 
-  const tri=getSavedTriageMap().get(key);
+  const cleanupRo=findRoByAnyNumber(key,'');
+  const tri=cleanupRo?resolvedTriageForRo(cleanupRo,getSavedTriageMap()):null;
   const pdcas=adminCleanupLinkedPdca(key);
   const actionCount=pdcas.reduce((sum,p)=>sum+allPdcaActionsForRecord(p).length,0);
 
@@ -10722,17 +10754,16 @@ async function adminDeleteTriageForRo(skipConfirm=false){
   if(!skipConfirm){
     const ok=confirm(
       'Excluir o direcionamento/triagem de '+key+'?\n\n'+
-      'A R.O. voltará para "Aguardando triagem". A R.O. original não será excluída.'
+      'A R.O. original da planilha será preservada. A limpeza valerá somente no ambiente TESTE.'
     );
     if(!ok)return false;
   }
 
   try{
-    // A própria limpeza garante que a base foi sincronizada antes de alterar dados.
     if(!nucleoCentralDataConfirmed()){
       const synced=await syncPortalBackend(false,{foreground:true});
       if(!synced || !nucleoCentralDataConfirmed()){
-        throw new Error('Não foi possível confirmar a base central antes da limpeza.');
+        throw new Error('Não foi possível confirmar a base TESTE antes da limpeza.');
       }
     }
 
@@ -10740,31 +10771,19 @@ async function adminDeleteTriageForRo(skipConfirm=false){
     const ro=findRoByAnyNumber(key,'');
     const baseSituation=ro?baseTriageSituation(ro):{sector:'',decision:''};
 
-    // Localiza todas as possíveis chaves da mesma R.O.
     const records=getTriageRecordsForRoNumber(key,map);
-    const localKeys=[...map.keys()].filter(k=>triageRoNumberPart(k)===key);
-
-    const centralKeys=new Set([
-      ...localKeys,
-      ...records.map(r=>String(r?.roKey||'')).filter(Boolean)
-    ]);
-
-    if(map.has(key))centralKeys.add(key);
-
-    // Se a planilha indica um setor direcionado, inclui também a chave composta
-    // mesmo quando o cache local não trouxe o registro central correspondente.
+    const centralKeys=new Set(
+      [...map.keys()].filter(k=>triageRoNumberPart(k)===key)
+    );
+    records.forEach(r=>{
+      if(r?.roKey)centralKeys.add(String(r.roKey));
+    });
     if(baseSituation?.sector){
       centralKeys.add(triageCompositeKey(key,baseSituation.sector));
     }
+    if(map.has(key))centralKeys.add(key);
 
-    const sectors=new Set(
-      records
-        .map(r=>String(r?.responsibleSector||r?.previousResponsibleSector||'').trim())
-        .filter(Boolean)
-    );
-    if(baseSituation?.sector)sectors.add(String(baseSituation.sector).trim());
-
-    // Remove cada registro de triagem da base central.
+    // Remove registros reais da coleção triage da base TESTE.
     for(const triageKey of centralKeys){
       const before=await portalJsonp({
         acao:'portal_get_record',
@@ -10774,109 +10793,49 @@ async function adminDeleteTriageForRo(skipConfirm=false){
 
       if(before?.registro){
         await nucleoDeleteTriageConfirmed(triageKey);
-
-        const after=await portalJsonp({
-          acao:'portal_get_record',
-          colecao:'triage',
-          id:String(triageKey)
-        },15000).catch(()=>null);
-
-        if(after?.registro){
-          throw new Error('A base central não confirmou a exclusão de '+triageKey+'.');
-        }
       }
     }
 
-    // Limpa o direcionamento na planilha.
-    if(sectors.size){
-      for(const previousSector of sectors){
-        await portalUpdateRoSheetConfirmed(key,{
-          setor:'',
-          setorAnterior:previousSector,
-          pessoa:'',
-          status:'',
-          dataEnvio:''
-        });
-      }
-    }else{
-      await portalUpdateRoSheetConfirmed(key,{
-        setor:'',
-        pessoa:'',
-        status:'',
-        dataEnvio:''
-      });
-    }
+    // Tombstone global: impede que a planilha original reconstrua a triagem
+    // no ambiente TESTE após F5/relogin.
+    const deletedKeys=getDeletedTriageKeys();
+    deletedKeys.add(key);
+    [...centralKeys].forEach(k=>deletedKeys.add(String(k)));
+    await saveDeletedTriageKeysConfirmed(deletedKeys);
 
-    // Remove todas as chaves locais da mesma R.O.
+    // Limpa somente o cache/modelo do TESTE. Não altera a planilha original.
     [...map.keys()].forEach(k=>{
       if(triageRoNumberPart(k)===key)map.delete(k);
     });
     localStorage.setItem(TRIAGE_KEY,JSON.stringify([...map.values()]));
 
-    // Registra temporariamente a exclusão para impedir reconstrução visual
-    // enquanto a releitura da planilha ainda está chegando.
-    const deletedKeys=getDeletedTriageKeys();
-    deletedKeys.add(key);
-    [...centralKeys].forEach(k=>deletedKeys.add(String(k)));
-    saveDeletedTriageKeys(deletedKeys);
-
     if(ro){
-      ro.setor='Não direcionado';
-      ro.setorResponsavelPlanilha='';
-      ro.pessoaResponsavel='';
+      ro.__triageDeletedInTest=true;
       ro.status='Aguardando triagem';
-      ro.statusOperacional='';
-      ro.dataEnvioOperacional='';
-      if(ro.raw){
-        ro.raw.__setorResponsavel='';
-        ro.raw.__pessoaResponsavel='';
-        ro.raw.__statusOperacional='';
-        ro.raw.__dataEnvioOperacional='';
-      }
     }
 
-    // Atualiza imediatamente a interface.
+    try{await syncPortalBackend(false,{foreground:true})}catch(e){}
+
+    // Reaplica tombstone central depois do snapshot, caso o shared_state tenha chegado junto.
+    const finalDeleted=getDeletedTriageKeys();
+    finalDeleted.add(key);
+    [...centralKeys].forEach(k=>finalDeleted.add(String(k)));
+    saveDeletedTriageKeys(finalDeleted);
+
     try{renderTriage()}catch(e){}
     try{refreshRoSummary()}catch(e){}
     try{refreshMenuNotificationBadges()}catch(e){}
     refreshAdminCleanupPreview();
 
-    // Recarrega a fonte oficial e só então remove o bloqueio temporário.
-    try{
-      await syncImportedRosFromConfiguredSources({silent:true,force:true});
-    }catch(e){
-      console.warn('Falha ao reler R.O.s após a limpeza.',e);
+    const verifyMap=getSavedTriageMap();
+    const verifyRo=findRoByAnyNumber(key,'');
+    const verify=verifyRo?resolvedTriageForRo(verifyRo,verifyMap):null;
+    if(verify?.decision){
+      throw new Error('A base TESTE ainda está apresentando a R.O. como triada após a limpeza.');
     }
 
-    try{
-      await syncPortalBackend(false,{foreground:true});
-    }catch(e){
-      console.warn('Falha ao reler base central após a limpeza.',e);
-    }
-
-    const refreshedRo=findRoByAnyNumber(key,'');
-    const refreshedSituation=refreshedRo?baseTriageSituation(refreshedRo):{decision:'',sector:''};
-    const refreshedMap=getSavedTriageMap();
-    const remaining=getTriageRecordsForRoNumber(key,refreshedMap)
-      .filter(r=>r?.decision);
-
-    if(refreshedSituation?.decision || remaining.length){
-      throw new Error(
-        'A exclusão foi enviada, mas a R.O. ainda voltou como triada após a releitura. '+
-        'Situação da planilha: '+(refreshedSituation?.decision||'sem decisão')+
-        (refreshedSituation?.sector?' / setor '+refreshedSituation.sector:'')+'.'
-      );
-    }
-
-    const finalDeleted=getDeletedTriageKeys();
-    finalDeleted.delete(key);
-    [...centralKeys].forEach(k=>finalDeleted.delete(String(k)));
-    saveDeletedTriageKeys(finalDeleted);
-
-    refreshAdminCleanupPreview();
-    if(!skipConfirm)alert('Direcionamento/triagem excluído e confirmado.');
+    if(!skipConfirm)alert('Direcionamento/triagem removido do ambiente TESTE.');
     return true;
-
   }catch(e){
     console.error('[LIMPEZA TESTE] falha ao excluir triagem',e);
     alert('Não foi possível excluir o direcionamento/triagem.\n\n'+String(e?.message||e));
