@@ -7057,7 +7057,7 @@ function finishExternalTreatment(id){
 const TRIAGE_KEY='ro-pdca-triage-v2';
 const DELETED_TRIAGE_KEYS_KEY='nucleo-deleted-triage-keys-v1';
 const HIDDEN_ASSIGNED_KEYS_KEY='nucleo-hidden-assigned-directions-v1';
-try{localStorage.removeItem(DELETED_TRIAGE_KEYS_KEY)}catch(e){}
+// Mantém exclusões temporárias de teste entre recargas até a confirmação da fonte oficial.
 let currentTriageRoId='';
 let currentEditingTriageKey='';
 
@@ -7290,8 +7290,11 @@ function getSavedTriageMap(){
   // Setor/Pessoa/Status preenchidos na planilha.
   // O registro salvo manualmente no Núcleo continua tendo prioridade.
   try{
+    const deletedKeys=getDeletedTriageKeys();
     getAllRoRecords().forEach(ro=>{
       const key=triageKeyOf(ro);
+      const baseKey=triageBaseRoNumber(ro);
+      if(deletedKeys.has(String(key)) || deletedKeys.has(String(baseKey)))return;
       // Uma exclusão antiga de duplicata visual não pode transformar a R.O. em não triada.
       // Se a planilha ainda comprova setor/status, o direcionamento deve ser reconstruído.
       if(!key || map.has(key))return;
@@ -10724,109 +10727,162 @@ async function adminDeleteTriageForRo(skipConfirm=false){
     if(!ok)return false;
   }
 
-  if(!nucleoCentralDataConfirmed()){
-    alert('A base central ainda não está confirmada. Aguarde o indicador ficar verde antes de executar a limpeza.');
-    return false;
-  }
+  try{
+    // A própria limpeza garante que a base foi sincronizada antes de alterar dados.
+    if(!nucleoCentralDataConfirmed()){
+      const synced=await syncPortalBackend(false,{foreground:true});
+      if(!synced || !nucleoCentralDataConfirmed()){
+        throw new Error('Não foi possível confirmar a base central antes da limpeza.');
+      }
+    }
 
-  const map=getSavedTriageMap();
-  const ro=findRoByAnyNumber(key,'');
-  const baseSituation=ro?baseTriageSituation(ro):{sector:'',decision:''};
+    const map=getSavedTriageMap();
+    const ro=findRoByAnyNumber(key,'');
+    const baseSituation=ro?baseTriageSituation(ro):{sector:'',decision:''};
 
-  // A mesma R.O. pode ter triagens salvas como RO ou RO::SETOR.
-  // A limpeza de testes precisa excluir TODAS as chaves vinculadas à R.O.
-  const records=getTriageRecordsForRoNumber(key,map);
-  const localKeys=[...map.keys()].filter(k=>triageRoNumberPart(k)===key);
-  const centralKeys=new Set([
-    ...localKeys,
-    ...records.map(r=>String(r?.roKey||'')).filter(Boolean)
-  ]);
+    // Localiza todas as possíveis chaves da mesma R.O.
+    const records=getTriageRecordsForRoNumber(key,map);
+    const localKeys=[...map.keys()].filter(k=>triageRoNumberPart(k)===key);
 
-  // Compatibilidade com registros antigos que foram salvos apenas com a chave base.
-  if(map.has(key))centralKeys.add(key);
+    const centralKeys=new Set([
+      ...localKeys,
+      ...records.map(r=>String(r?.roKey||'')).filter(Boolean)
+    ]);
 
-  const sectors=new Set(
-    records
-      .map(r=>String(r?.responsibleSector||r?.previousResponsibleSector||'').trim())
-      .filter(Boolean)
-  );
-  if(baseSituation?.sector)sectors.add(String(baseSituation.sector).trim());
+    if(map.has(key))centralKeys.add(key);
 
-  // Primeiro remove de forma CONFIRMADA da base central.
-  for(const triageKey of centralKeys){
-    try{
-      await nucleoDeleteTriageConfirmed(triageKey);
-    }catch(e){
-      // Se o registro já não existe na base central, a leitura seguinte decide.
-      const check=await portalJsonp({
+    // Se a planilha indica um setor direcionado, inclui também a chave composta
+    // mesmo quando o cache local não trouxe o registro central correspondente.
+    if(baseSituation?.sector){
+      centralKeys.add(triageCompositeKey(key,baseSituation.sector));
+    }
+
+    const sectors=new Set(
+      records
+        .map(r=>String(r?.responsibleSector||r?.previousResponsibleSector||'').trim())
+        .filter(Boolean)
+    );
+    if(baseSituation?.sector)sectors.add(String(baseSituation.sector).trim());
+
+    // Remove cada registro de triagem da base central.
+    for(const triageKey of centralKeys){
+      const before=await portalJsonp({
         acao:'portal_get_record',
         colecao:'triage',
         id:String(triageKey)
       },15000).catch(()=>null);
-      if(check?.registro)throw e;
-    }
-  }
 
-  // Depois limpa a planilha na(s) linha(s) correta(s), usando o setor anterior
-  // como identidade física. Isso evita apagar a linha errada quando a R.O. tem
-  // mais de um direcionamento.
-  if(sectors.size){
-    for(const previousSector of sectors){
+      if(before?.registro){
+        await nucleoDeleteTriageConfirmed(triageKey);
+
+        const after=await portalJsonp({
+          acao:'portal_get_record',
+          colecao:'triage',
+          id:String(triageKey)
+        },15000).catch(()=>null);
+
+        if(after?.registro){
+          throw new Error('A base central não confirmou a exclusão de '+triageKey+'.');
+        }
+      }
+    }
+
+    // Limpa o direcionamento na planilha.
+    if(sectors.size){
+      for(const previousSector of sectors){
+        await portalUpdateRoSheetConfirmed(key,{
+          setor:'',
+          setorAnterior:previousSector,
+          pessoa:'',
+          status:'',
+          dataEnvio:''
+        });
+      }
+    }else{
       await portalUpdateRoSheetConfirmed(key,{
         setor:'',
-        setorAnterior:previousSector,
         pessoa:'',
         status:'',
         dataEnvio:''
       });
     }
-  }else{
-    await portalUpdateRoSheetConfirmed(key,{
-      setor:'',
-      pessoa:'',
-      status:'',
-      dataEnvio:''
+
+    // Remove todas as chaves locais da mesma R.O.
+    [...map.keys()].forEach(k=>{
+      if(triageRoNumberPart(k)===key)map.delete(k);
     });
-  }
+    localStorage.setItem(TRIAGE_KEY,JSON.stringify([...map.values()]));
 
-  // Só limpa o cache local depois que base central e planilha confirmaram.
-  [...map.keys()].forEach(k=>{
-    if(triageRoNumberPart(k)===key)map.delete(k);
-  });
-  localStorage.setItem(TRIAGE_KEY,JSON.stringify([...map.values()]));
+    // Registra temporariamente a exclusão para impedir reconstrução visual
+    // enquanto a releitura da planilha ainda está chegando.
+    const deletedKeys=getDeletedTriageKeys();
+    deletedKeys.add(key);
+    [...centralKeys].forEach(k=>deletedKeys.add(String(k)));
+    saveDeletedTriageKeys(deletedKeys);
 
-  if(ro){
-    ro.setor='Não direcionado';
-    ro.setorResponsavelPlanilha='';
-    ro.pessoaResponsavel='';
-    ro.status='Aguardando triagem';
-    ro.statusOperacional='';
-    ro.dataEnvioOperacional='';
-    if(ro.raw){
-      ro.raw.__setorResponsavel='';
-      ro.raw.__pessoaResponsavel='';
-      ro.raw.__statusOperacional='';
-      ro.raw.__dataEnvioOperacional='';
+    if(ro){
+      ro.setor='Não direcionado';
+      ro.setorResponsavelPlanilha='';
+      ro.pessoaResponsavel='';
+      ro.status='Aguardando triagem';
+      ro.statusOperacional='';
+      ro.dataEnvioOperacional='';
+      if(ro.raw){
+        ro.raw.__setorResponsavel='';
+        ro.raw.__pessoaResponsavel='';
+        ro.raw.__statusOperacional='';
+        ro.raw.__dataEnvioOperacional='';
+      }
     }
-  }
 
-  // Recarrega da fonte oficial antes de afirmar que a limpeza terminou.
-  try{
-    await refreshLegacyRoCacheFromApi(true);
+    // Atualiza imediatamente a interface.
+    try{renderTriage()}catch(e){}
+    try{refreshRoSummary()}catch(e){}
+    try{refreshMenuNotificationBadges()}catch(e){}
+    refreshAdminCleanupPreview();
+
+    // Recarrega a fonte oficial e só então remove o bloqueio temporário.
+    try{
+      await syncImportedRosFromConfiguredSources({silent:true,force:true});
+    }catch(e){
+      console.warn('Falha ao reler R.O.s após a limpeza.',e);
+    }
+
+    try{
+      await syncPortalBackend(false,{foreground:true});
+    }catch(e){
+      console.warn('Falha ao reler base central após a limpeza.',e);
+    }
+
+    const refreshedRo=findRoByAnyNumber(key,'');
+    const refreshedSituation=refreshedRo?baseTriageSituation(refreshedRo):{decision:'',sector:''};
+    const refreshedMap=getSavedTriageMap();
+    const remaining=getTriageRecordsForRoNumber(key,refreshedMap)
+      .filter(r=>r?.decision);
+
+    if(refreshedSituation?.decision || remaining.length){
+      throw new Error(
+        'A exclusão foi enviada, mas a R.O. ainda voltou como triada após a releitura. '+
+        'Situação da planilha: '+(refreshedSituation?.decision||'sem decisão')+
+        (refreshedSituation?.sector?' / setor '+refreshedSituation.sector:'')+'.'
+      );
+    }
+
+    const finalDeleted=getDeletedTriageKeys();
+    finalDeleted.delete(key);
+    [...centralKeys].forEach(k=>finalDeleted.delete(String(k)));
+    saveDeletedTriageKeys(finalDeleted);
+
+    refreshAdminCleanupPreview();
+    if(!skipConfirm)alert('Direcionamento/triagem excluído e confirmado.');
+    return true;
+
   }catch(e){
-    console.warn('A limpeza foi confirmada, mas a releitura final das R.O.s falhou.',e);
+    console.error('[LIMPEZA TESTE] falha ao excluir triagem',e);
+    alert('Não foi possível excluir o direcionamento/triagem.\n\n'+String(e?.message||e));
+    return false;
   }
-
-  try{await syncPortalBackend(false)}catch(e){}
-  try{renderTriage()}catch(e){}
-  try{refreshRoSummary()}catch(e){}
-  try{refreshMenuNotificationBadges()}catch(e){}
-  refreshAdminCleanupPreview();
-
-  if(!skipConfirm)alert('Direcionamento/triagem excluído e confirmado na base central.');
-  return true;
 }
-
 async function adminDeletePdcaForRo(skipConfirm=false){
   if(!isAdmin())return false;
   const key=cleanupRoKey();
