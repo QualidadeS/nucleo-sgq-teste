@@ -7545,9 +7545,11 @@ function showTriage(){
 
 function activeOperationalUsers(){
   let contacts=[];try{contacts=JSON.parse(localStorage.getItem('nucleo-unit-contacts')||'[]');}catch(_){}
-  return [...new Map(getOperationalUsers().concat(contacts).map(u=>[u.email||u.name,u])).values()].filter(u=>
+  return [...new Map(getOperationalUsers().concat(contacts).map(u=>[String(u.email||u.name||'').trim().toLowerCase(),u])).values()].filter(u=>
     u &&
-    !nucleoPersonPermissions(u).sgq &&
+    u.active!==false &&
+    normalizeAnswer(u.active||'sim')!=='nao' &&
+    normalizeAnswer(u.status||'')!=='inactive' &&
     u.approvalStatus!=='pending' &&
     u.approvalStatus!=='rejected' &&
     String(u.name||'').trim() &&
@@ -7616,7 +7618,15 @@ function addTriageAssignment(sector='',selectedEmail='',reason='',originalSector
   box.appendChild(row);
   if(picker)picker.value='';
 }
-function refreshTriageResponsibleUsers(){ /* compatibilidade: responsáveis agora são definidos por setor, na própria linha */ }
+function refreshTriageResponsibleUsers(){
+  document.querySelectorAll('#triageAssignments .triage-assignment-row').forEach(row=>{
+    const sector=String(row.querySelector('.triage-assignment-sector')?.value||row.dataset.sector||'').trim();
+    const userSelect=row.querySelector('.triage-assignment-user');
+    if(!sector||!userSelect)return;
+    const current=String(userSelect.value||'').trim().toLowerCase();
+    userSelect.innerHTML=triageAssignmentUserOptions(sector,current);
+  });
+}
 
 function userMatchesDirectedPerson(tri){
   const email=String(tri?.responsibleUserEmail||'').trim().toLowerCase();
@@ -16607,9 +16617,18 @@ function openUnitUserAccess(encoded){
 
 function userHasUnitSector(user,unit,sector){
   const key=normalizeAnswer(sector||'');
-  if(unit==='todas')return normalizeAnswer(user.sector||'')===key||(user.sectorMemberships||[]).some(m=>normalizeAnswer(m.sector)===key);
-  if((user.sectorMemberships||[]).some(m=>m.unit===unit&&normalizeAnswer(m.sector)===key))return true;
-  return normalizePortalUnit(user.unit)===unit&&[user.sector,...(user.managedSectors||[])].some(s=>normalizeAnswer(s||'')===key);
+  const targetUnit=normalizePortalUnit(unit||'');
+  if(unit==='todas'||targetUnit==='todas'){
+    return normalizeAnswer(user.sector||'')===key ||
+      (user.sectorMemberships||[]).some(m=>normalizeAnswer(m.sector)===key) ||
+      (user.managedSectors||[]).some(s=>normalizeAnswer(s||'')===key);
+  }
+  if((user.sectorMemberships||[]).some(m=>
+    normalizePortalUnit(m.unit||'')===targetUnit &&
+    normalizeAnswer(m.sector)===key
+  ))return true;
+  return normalizePortalUnit(user.unit)===targetUnit &&
+    [user.sector,...(user.managedSectors||[])].some(s=>normalizeAnswer(s||'')===key);
 }
 
 function explicitPortalUnit(value){
