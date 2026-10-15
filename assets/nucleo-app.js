@@ -10390,12 +10390,12 @@ function sameSector(sector){
   return sameCanonicalSector(sector,currentSector());
 }
 
-function getRoTriageRecord(ro){
+function getRoTriageRecord(ro,preloadedMap=null){
   try{
     if(ro?.__triageRecord)return ro.__triageRecord;
     const base=String(ro?.numero||ro?.id||ro?.codigo||'').trim();
     if(!base)return null;
-    const map=getSavedTriageMap();
+    const map=preloadedMap instanceof Map?preloadedMap:getSavedTriageMap();
     return resolvedTriageForRo(ro,map);
   }catch(e){return null}
 }
@@ -14588,9 +14588,9 @@ async function setExternalPdca(numero,hasExternal,sector=''){
   }
 }
 
-function assignedRoStatus(r){
+function assignedRoStatus(r,preloadedMap=null){
   const raw=String(r?.status||'').trim().toLowerCase();
-  const tri=getRoTriageRecord(r)||{};
+  const tri=getRoTriageRecord(r,preloadedMap)||{};
   if(raw.includes('cancel')) return 'Cancelada';
   if(raw.includes('obsolet')) return 'Obsoleto';
   if(tri.decision==='record'||raw==='falta de caixa'||raw==='falta de caixas'||raw.includes('registro')) return 'Registro';
@@ -14608,10 +14608,10 @@ function assignedRoStatus(r){
   return 'Pendente';
 }
 
-function assignedRoDeadline(r){
-  const status=assignedRoStatus(r);
+function assignedRoDeadline(r,preloadedMap=null){
+  const status=assignedRoStatus(r,preloadedMap);
   if(status!=='Pendente') return '—';
-  const tri=getRoTriageRecord(r)||{};
+  const tri=getRoTriageRecord(r,preloadedMap)||{};
   // Pendência sem PDCA externo sempre vence na próxima terça. Se a triagem já
   // possui um prazo central salvo, preserva-o; caso contrário calcula para exibição.
   return String(tri.pdcaDeadline||tri.deadline||nextTuesdayIsoDate()).trim()||nextTuesdayIsoDate();
@@ -14633,9 +14633,15 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
   const filterSignature=JSON.stringify([q,f,roListMode,assignedSector,assignedOrigin,assignedUnit]);
   if(filterSignature!==roListFilterSignature){roListVisibleLimit=60;roListFilterSignature=filterSignature}
   const hiddenAssigned=roListMode==='assigned'?getHiddenAssignedKeys():null;
+
+  // A tela de R.O.s atribuídas precisa trabalhar com um único snapshot de triagem.
+  // getSavedTriageMap() reconstrói registros a partir das R.O.s; chamá-lo dentro
+  // dos loops fazia o custo crescer quadraticamente e podia congelar a página.
+  const renderTriageMap=roListMode==='assigned'?getSavedTriageMap():null;
+
   const assignedTriageByRo=new Map();
   if(roListMode==='assigned'){
-    getSavedTriageMap().forEach(t=>{
+    renderTriageMap.forEach(t=>{
       const number=String(t?.roNumber||String(t?.roKey||'').split('::')[0]||'').trim();
       if(!number)return;
       const entries=assignedTriageByRo.get(number)||[];
@@ -14647,13 +14653,16 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
   const assignedSource = roListMode==='assigned' ? ros.flatMap(r=>{
     const base=String(r.numero||r.id||r.codigo||'').trim();
     let records=(assignedTriageByRo.get(base)||[]).filter(t=>String(t.decision||'')!=='' && !hiddenAssigned.has(String(t.roKey||'')));
-    const confirmed=resolvedTriageForRo(r,getSavedTriageMap());
+    const confirmed=resolvedTriageForRo(r,renderTriageMap);
     if(confirmed?.decision&&confirmed.decision!=='directed')records=[confirmed];
     // Recuperação segura: se SGQ_TRIAGENS estiver vazio/desatualizado, mas a
     // própria R.O. importada ainda trouxer setor causa, ela continua atribuída.
     // Não exige status operacional aqui, pois versões anteriores chegaram a
     // limpar esse campo no cache e isso fazia a lista inteira desaparecer.
     if(!records.length){
+      const deletedKeys=getDeletedTriageKeys();
+      const deletedInTest=deletedKeys.has(base)||deletedKeys.has(String(triageKeyOf(r)||''));
+      if(deletedInTest)return [];
       const sheetSector=String(r.setorResponsavelPlanilha||r.raw?.__setorResponsavel||r.setor||'').trim();
       const norm=normalizeAnswer(sheetSector);
       if(sheetSector && !['nao direcionado','nao informado','sem setor','-'].includes(norm)){
@@ -14681,7 +14690,7 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
   const list=assignedSource.filter(nucleoManagerScopeAllows)
     .filter(r=>{
       if(roListMode!=='assigned')return canViewRO(r);
-      const tri=getRoTriageRecord(r);
+      const tri=getRoTriageRecord(r,renderTriageMap);
       // Uma R.O. é atribuída quando existe uma decisão central OU quando a própria
       // planilha ainda comprova o direcionamento. Isso evita esvaziar esta tela se
       // o cache de SGQ_TRIAGENS ainda não tiver sido restaurado/sincronizado.
@@ -14697,7 +14706,7 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
     .map(r=>isAdmin()?r:getOperationalRoView(r))
     .filter(r=>{
       if(roListMode==='assigned'){
-        const tri=getRoTriageRecord(r);
+        const tri=getRoTriageRecord(r,renderTriageMap);
         const rowSector=String(tri?.responsibleSector||tri?.setorDirecionado||r.setor||'').trim();
         const rowOrigin=String(r.origemBase||r.raw?.__origemBase||'').trim();
         const rowUnit=String(r.unidade||'').trim();
@@ -14706,7 +14715,7 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
         if(assignedUnit!=='all'&&!sameCanonicalUnit(rowUnit,assignedUnit))return false;
       }
       const text=nucleoRoSearchMatches(r,q);
-      const displayStatus=assignedRoStatus(r);
+      const displayStatus=assignedRoStatus(r,renderTriageMap);
       const statusKey={'Pendente':'pendente','PDCA externo':'pdca_externo','PDCA respondido':'pdca_respondido','PDCA apresentado':'pdca_apresentado','Cancelada':'cancelada','Registro':'registro','Obsoleto':'obsoleto'}[displayStatus]||'pendente';
       const filt=f==='todas'||f===statusKey;
       return text&&filt;
@@ -14720,10 +14729,10 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
     const contest=status==='Em contestação';
     const externalPdca=pdcaExternalExists(r);
     const alreadySent=pdca==='Enviado' || status==='PDCA enviado' || externalPdca;
-    const tri=getRoTriageRecord(r);
+    const tri=getRoTriageRecord(r,renderTriageMap);
     const responsibleSector=String(tri?.responsibleSector||tri?.setorDirecionado||r.__assignedSector||r.setorResponsavelPlanilha||r.raw?.__setorResponsavel||r.setorResponsavel||r.setor||'—').trim()||'—';
     const pdcaSituation=pdcaSituationLabel(r);
-    const displayStatus=assignedRoStatus(r);
+    const displayStatus=assignedRoStatus(r,renderTriageMap);
     const displayDecisionLabel=nucleoAssignedDecisionLabel(r,tri,displayStatus);
 
     let operationalActions='';
@@ -14760,7 +14769,7 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
       <td>${escapeHtml(r.unidade||'')}</td>
       <td>${escapeHtml(responsibleSector)}</td>
       <td><span class="status-badge">${escapeHtml(r.origemBase||'')}</span></td>
-      <td>${escapeHtml(assignedRoDeadline(r))}</td>
+      <td>${escapeHtml(assignedRoDeadline(r,renderTriageMap))}</td>
       <td>${statusControl}</td>
       <td class="ro-eye-cell"><div class="ro-row-actions"><button class="ro-eye-btn" type="button" onclick="openRoReport('${escapeHtml(r.numero)}')" title="Visualizar R.O." aria-label="Visualizar R.O. ${escapeHtml(r.numero)}">👁</button>${admin&&tri?.roKey?`<button class="ro-eye-btn ro-edit-btn" type="button" onclick="openAssignedSectorEdit('${escapeHtml(tri.roKey)}')" title="Editar setor causa" aria-label="Editar setor causa">✎</button><button class="ro-eye-btn ro-delete-btn" type="button" onclick="deleteAssignedDirection('${escapeHtml(tri.roKey)}')" title="Excluir este direcionamento" aria-label="Excluir este direcionamento">🗑</button>`:''}</div></td>
       ${operationalActions}
