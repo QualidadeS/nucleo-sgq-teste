@@ -10724,30 +10724,84 @@ async function adminDeleteTriageForRo(skipConfirm=false){
     if(!ok)return false;
   }
 
-  const map=getSavedTriageMap();
-  map.delete(key);
-  localStorage.setItem(TRIAGE_KEY,JSON.stringify([...map.values()]));
-  portalBackendDelete('triage',key);
+  if(!nucleoCentralDataConfirmed()){
+    alert('A base central ainda não está confirmada. Aguarde o indicador ficar verde antes de executar a limpeza.');
+    return false;
+  }
 
-  // Limpa o direcionamento operacional na planilha sem apagar a R.O.
-  try{
+  const map=getSavedTriageMap();
+  const ro=findRoByAnyNumber(key,'');
+  const baseSituation=ro?baseTriageSituation(ro):{sector:'',decision:''};
+
+  // A mesma R.O. pode ter triagens salvas como RO ou RO::SETOR.
+  // A limpeza de testes precisa excluir TODAS as chaves vinculadas à R.O.
+  const records=getTriageRecordsForRoNumber(key,map);
+  const localKeys=[...map.keys()].filter(k=>triageRoNumberPart(k)===key);
+  const centralKeys=new Set([
+    ...localKeys,
+    ...records.map(r=>String(r?.roKey||'')).filter(Boolean)
+  ]);
+
+  // Compatibilidade com registros antigos que foram salvos apenas com a chave base.
+  if(map.has(key))centralKeys.add(key);
+
+  const sectors=new Set(
+    records
+      .map(r=>String(r?.responsibleSector||r?.previousResponsibleSector||'').trim())
+      .filter(Boolean)
+  );
+  if(baseSituation?.sector)sectors.add(String(baseSituation.sector).trim());
+
+  // Primeiro remove de forma CONFIRMADA da base central.
+  for(const triageKey of centralKeys){
+    try{
+      await nucleoDeleteTriageConfirmed(triageKey);
+    }catch(e){
+      // Se o registro já não existe na base central, a leitura seguinte decide.
+      const check=await portalJsonp({
+        acao:'portal_get_record',
+        colecao:'triage',
+        id:String(triageKey)
+      },15000).catch(()=>null);
+      if(check?.registro)throw e;
+    }
+  }
+
+  // Depois limpa a planilha na(s) linha(s) correta(s), usando o setor anterior
+  // como identidade física. Isso evita apagar a linha errada quando a R.O. tem
+  // mais de um direcionamento.
+  if(sectors.size){
+    for(const previousSector of sectors){
+      await portalUpdateRoSheetConfirmed(key,{
+        setor:'',
+        setorAnterior:previousSector,
+        pessoa:'',
+        status:'',
+        dataEnvio:''
+      });
+    }
+  }else{
     await portalUpdateRoSheetConfirmed(key,{
       setor:'',
       pessoa:'',
       status:'',
       dataEnvio:''
     });
-  }catch(e){
-    console.warn('Triagem removida do Núcleo, mas a planilha não confirmou a limpeza.',e);
   }
 
-  // Atualiza o modelo local imediatamente.
-  const ro=findRoByAnyNumber(key,'');
+  // Só limpa o cache local depois que base central e planilha confirmaram.
+  [...map.keys()].forEach(k=>{
+    if(triageRoNumberPart(k)===key)map.delete(k);
+  });
+  localStorage.setItem(TRIAGE_KEY,JSON.stringify([...map.values()]));
+
   if(ro){
     ro.setor='Não direcionado';
     ro.setorResponsavelPlanilha='';
     ro.pessoaResponsavel='';
     ro.status='Aguardando triagem';
+    ro.statusOperacional='';
+    ro.dataEnvioOperacional='';
     if(ro.raw){
       ro.raw.__setorResponsavel='';
       ro.raw.__pessoaResponsavel='';
@@ -10756,11 +10810,20 @@ async function adminDeleteTriageForRo(skipConfirm=false){
     }
   }
 
+  // Recarrega da fonte oficial antes de afirmar que a limpeza terminou.
+  try{
+    await refreshLegacyRoCacheFromApi(true);
+  }catch(e){
+    console.warn('A limpeza foi confirmada, mas a releitura final das R.O.s falhou.',e);
+  }
+
+  try{await syncPortalBackend(false)}catch(e){}
   try{renderTriage()}catch(e){}
   try{refreshRoSummary()}catch(e){}
   try{refreshMenuNotificationBadges()}catch(e){}
   refreshAdminCleanupPreview();
-  if(!skipConfirm)alert('Direcionamento/triagem excluído.');
+
+  if(!skipConfirm)alert('Direcionamento/triagem excluído e confirmado na base central.');
   return true;
 }
 
