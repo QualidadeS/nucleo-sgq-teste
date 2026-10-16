@@ -2779,9 +2779,8 @@ body{padding-bottom:28px!important}
         <button class="side-item" id="navMySubmittedRos" type="button" onclick="showMySubmittedRos()"><span class="side-num">◎</span><span><b>R.O.s cadastradas por mim</b><small>Acompanhar registros</small></span></button> 
         <button class="side-item" id="navAssignedRos" type="button" onclick="showAssignedRos()"><span class="side-num">↳</span><span><b>R.O.s atribuídas</b><small>Ocorrências para atuação</small></span></button>
         <button class="side-item" id="navSent" onclick="showSentPdcas()"><span class="side-num">✓</span><span><b>PDCAs recebidos</b><small>Histórico de respostas</small></span><span id="pdcaSidebarBadge" class="side-pending-badge hidden">0</span></button>
-        <button class="side-item" id="navActions" type="button" onclick="showActionsDashboard()"><span class="side-num">✓</span><span><b>Ações</b><small>Minhas, atribuídas e PDCAs</small></span></button>
+        <button class="side-item side-independent-module" id="navExternalPdcas" onclick="nucleoDriveOpen('pdca')"><span class="side-num">↥</span><span><b>Importar PDCAs</b><small>Importação, histórico e pendências</small></span></button>
         <button class="side-item admin-only" id="navTriage" type="button" onclick="showTriage()" style="display:none"><span class="side-num">↳</span><span><b>Triagem de R.O.s</b><small>Classificar e direcionar</small></span><span id="triageSidebarBadge" class="side-pending-badge hidden">0</span></button>
-        <button class="side-item admin-only" id="navContests" type="button" onclick="showContestations()" style="display:none"><span class="side-num">?</span><span><b>Contestações</b><small>Analisar solicitações</small></span><span id="contestSidebarBadge" class="side-pending-badge hidden">0</span></button>
       </div>
     </div>
 
@@ -2797,10 +2796,13 @@ body{padding-bottom:28px!important}
     <div class="side-module" id="modulePersonal">
       <button class="side-module-head" type="button" onclick="toggleSideModule('modulePersonal')"><span class="side-num side-icon"><svg viewBox="0 0 24 24"><path d="M6 4h12v16H6z"/><path d="M9 8h6M9 12h6M9 16h4"/><path d="M9 4V2h6v2"/></svg></span><span><b>Meu acompanhamento</b><small>Pendências e perfil</small></span><span class="side-module-arrow">›</span></button>
       <div class="side-module-body">
+        <button class="side-item" id="navActions" type="button" onclick="showActionsDashboard()"><span class="side-num">✓</span><span><b>Ações</b><small>Minhas, atribuídas e PDCAs</small></span></button>
+        <button class="side-item admin-only" id="navContests" type="button" onclick="showContestations()" style="display:none"><span class="side-num">?</span><span><b>Contestações</b><small>Analisar solicitações</small></span><span id="contestSidebarBadge" class="side-pending-badge hidden">0</span></button>
         <button class="side-item" id="navPendingHub" type="button" onclick="showPendingHub()"><span class="side-num side-icon"><svg viewBox="0 0 24 24"><path d="M12 3a7 7 0 0 1 7 7v4l2 3H3l2-3v-4a7 7 0 0 1 7-7Z"/><path d="M9 20h6"/></svg></span><span><b>Pendências</b><small>Minha central</small></span></button>
-        <button class="side-item side-independent-module" id="navDocumentRequests" type="button" onclick="showAdminOperationalModule('documents')"><span class="side-num side-icon"><svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6V3Z"/><path d="M14 3v5h5M9 12h6M9 16h6"/></svg></span><span><b>Solicitação de Documentos</b><small>Pedir documentos ao SGQ</small></span></button>
       </div>
     </div>
+
+    <button class="side-item side-independent-module" id="navDocumentRequests" type="button" onclick="showAdminOperationalModule('documents')"><span class="side-num side-icon"><svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6V3Z"/><path d="M14 3v5h5M9 12h6M9 16h6"/></svg></span><span><b>Solicitação de Documentos</b><small>Pedidos de documentos ao SGQ</small></span></button>
 
     <div id="moduleManagement">
       
@@ -2808,8 +2810,6 @@ body{padding-bottom:28px!important}
         <button class="side-item side-independent-module" id="navEquipment" onclick="showAdminOperationalModule('equipment')"><span class="side-num side-icon"><svg viewBox="0 0 24 24"><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><circle cx="12" cy="12" r="5"/><path d="m15.5 8.5 2-2M6.5 17.5l2-2M8.5 8.5l-2-2M17.5 17.5l-2-2"/></svg></span><span><b>Equipamentos e metrologia</b><small>Ativos, calibrações e histórico</small></span></button>
         <button class="side-item side-independent-module" id="navTraining" onclick="showAdminOperationalModule('training')"><span class="side-num side-icon"><svg viewBox="0 0 24 24"><path d="m3 8 9-4 9 4-9 4-9-4Z"/><path d="M7 10.5V15c3 2 7 2 10 0v-4.5M21 8v7"/></svg></span><span><b>Treinamentos e competências</b><small>Treinamentos, reciclagens e histórico</small></span></button>
         <button class="side-item side-independent-module" id="navNcCapa" onclick="showAdminOperationalModule('nccapa')"><span class="side-num side-icon"><svg viewBox="0 0 24 24"><path d="M12 3 4 6v5c0 5 3.4 8.3 8 10 4.6-1.7 8-5 8-10V6l-8-3Z"/><path d="m8.5 12 2.2 2.2 4.8-5"/></svg></span><span><b>Não conformidades e CAPA</b><small>Relatório independente e ações</small></span></button>
-        <button class="side-item side-independent-module" id="navDocuments" onclick="showAdminOperationalModule('documents')"><span class="side-num side-icon"><svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6V3Z"/><path d="M14 3v5h5M9 12h6M9 16h6"/></svg></span><span><b>Solicitação de Documentos</b><small>Pedidos de documentos ao SGQ</small></span></button>
-        <button class="side-item side-independent-module" id="navExternalPdcas" onclick="nucleoDriveOpen('pdca')"><span class="side-num side-icon">↥</span><span><b>Importar PDCAs</b><small>Importação, histórico e pendências</small></span></button>
         <button class="side-item side-independent-module" id="navProcesses" onclick="showAdminOperationalModule('processes')"><span class="side-num side-icon"><svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="12" cy="18" r="2"/><path d="M8 6h8M7 8l4 8M17 8l-4 8"/></svg></span><span><b>Gestão de processos</b><small>IT, GSP, POP, LPP e documentos internos</small></span></button>
         <button class="side-item side-independent-module" id="navIndicators" type="button" onclick="showSgqIndicators()" style="display:none"><span class="side-num side-icon"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></span><span><b>Indicadores SGQ</b><small>Visão consolidada</small></span></button>
         <button class="side-item side-independent-module" id="navAnnouncements" type="button" onclick="showAnnouncementsAdmin()" style="display:none"><span class="side-num side-icon"><svg viewBox="0 0 24 24"><path d="M4 10v4h4l8 4V6l-8 4H4Z"/><path d="M8 14l2 6M19 9c1 1 1 5 0 6"/></svg></span><span><b>Comunicados</b><small>Avisos gerais do SGQ</small></span></button>
@@ -4617,7 +4617,7 @@ Cancelada</textarea></label>
 </main>
 </div>
 </div><div id="contestModal" class="modal hidden"><div class="modal-box"><h3>Contestar R.O.</h3><div class="label">Motivo da contestação</div><textarea id="contestText" placeholder="Explique por que a R.O. deve ser revista, cancelada ou redirecionada."></textarea><div class="label" style="margin-top:10px">Setor que considera correto (opcional)</div><input id="contestSector" placeholder="Ex.: Expedição"><div class="modal-actions"><button class="btn secondary" type="button" onclick="closeContest()">Cancelar</button><button class="btn danger" type="button" onclick="submitContest()">Enviar contestação</button></div></div></div>
-<script src="assets/nucleo-app.js?v=20261016-action-history-v32"></script>
+<script src="assets/nucleo-app.js?v=20261016-menu-v33"></script>
 
 <div id="presentationModal" class="presentation-modal">
   <div class="presentation-card">
