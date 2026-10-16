@@ -4593,6 +4593,34 @@ function unifiedActionCanSee(record){
   }
   return false;
 }
+
+function unifiedActionDateLabel(v){
+  if(!v)return '—';
+  try{
+    const d=new Date(v);
+    if(!Number.isNaN(d.getTime()))return d.toLocaleDateString('pt-BR');
+  }catch(e){}
+  return String(v||'—');
+}
+function unifiedActionDateTimeLabel(v){
+  if(!v)return '—';
+  try{
+    const d=new Date(v);
+    if(!Number.isNaN(d.getTime()))return d.toLocaleString('pt-BR');
+  }catch(e){}
+  return String(v||'—');
+}
+function unifiedActionUrgencyLabel(v){
+  const n=normalizeAnswer(v||'media');
+  if(n==='alta')return '🔴 Alta';
+  if(n==='baixa')return '🟢 Baixa';
+  return '🟡 Média';
+}
+function pdcaActionUrgency(status){
+  if(status?.code==='overdue')return 'alta';
+  if(status?.code==='review')return 'media';
+  return 'media';
+}
 function unifiedManualActionStatus(a){
   if(a?.completedAt)return {code:'done',label:'Concluída',reason:'Conclusão registrada.'};
   const d=parseBrDate(a?.deadline||'');
@@ -4612,6 +4640,12 @@ function openUnifiedActionModal(){
   document.getElementById('unifiedActionText').value='';
   document.getElementById('unifiedActionDeadline').value='';
   document.getElementById('unifiedActionNote').value='';
+  document.getElementById('unifiedActionType').value='Ação';
+  document.getElementById('unifiedActionProject').value='';
+  document.getElementById('unifiedActionSubject').value='';
+  document.getElementById('unifiedActionDependency').value='';
+  document.getElementById('unifiedActionUrgency').value='media';
+  document.getElementById('unifiedActionNextStep').value='';
 
   const mode=document.getElementById('unifiedActionMode');
   if(isAdmin()){
@@ -4637,22 +4671,34 @@ function closeUnifiedActionModal(){
 function refreshUnifiedActionTargetUi(){
   const mode=document.getElementById('unifiedActionMode')?.value||'self';
   const personWrap=document.getElementById('unifiedActionPersonWrap');
+  const personSectorWrap=document.getElementById('unifiedActionPersonSectorWrap');
   const sectorWrap=document.getElementById('unifiedActionSectorWrap');
   const unitWrap=document.getElementById('unifiedActionUnitWrap');
   const person=document.getElementById('unifiedActionPerson');
+  const personSector=document.getElementById('unifiedActionPersonSector');
   const sector=document.getElementById('unifiedActionSector');
   const unit=document.getElementById('unifiedActionUnit')?.value||currentUserUnit();
   const summary=document.getElementById('unifiedActionTargetSummary');
 
   if(personWrap)personWrap.classList.toggle('hidden',mode!=='person');
+  if(personSectorWrap)personSectorWrap.classList.toggle('hidden',mode!=='person');
   if(sectorWrap)sectorWrap.classList.toggle('hidden',mode!=='sector');
   if(unitWrap)unitWrap.classList.toggle('hidden',!(isAdmin()&&mode==='sector'));
 
-  if(mode==='person'&&person){
+  if(mode==='person'&&personSector){
     const users=unifiedActionAssignableUsers();
-    person.innerHTML='<option value="">Selecione...</option>'+users.map(u=>
-      `<option value="${escapeHtml(unifiedActionUserKey(u))}">${escapeHtml(u.name||u.email)} · ${escapeHtml(u.sector||'-')} · ${escapeHtml(canonicalUnitName(u.unit||''))}</option>`
-    ).join('');
+    const sectors=[...new Set(users.flatMap(u=>[
+      u.sector,
+      ...(Array.isArray(u.sectorMemberships)?u.sectorMemberships.map(m=>m.sector):[])
+    ]).map(x=>String(x||'').trim()).filter(Boolean))]
+      .sort((a,b)=>a.localeCompare(b,'pt-BR'));
+
+    const currentSector=personSector.value||'';
+    personSector.innerHTML='<option value="">Selecione o setor...</option>'+
+      sectors.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+    if(currentSector && [...personSector.options].some(o=>o.value===currentSector))personSector.value=currentSector;
+
+    refreshUnifiedActionPeopleBySector();
   }
 
   if(mode==='sector'&&sector){
@@ -4662,14 +4708,53 @@ function refreshUnifiedActionTargetUi(){
 
   if(summary){
     if(mode==='self')summary.textContent='A ação será criada somente para você.';
-    else if(mode==='person')summary.textContent=isManager()?'Você pode atribuir somente aos seus liderados.':'A ação será atribuída à pessoa selecionada.';
+    else if(mode==='person')summary.textContent=isManager()
+      ?'Escolha primeiro um setor sob sua gestão e depois o liderado.'
+      :'Escolha primeiro o setor e depois a pessoa responsável.';
     else summary.textContent='Será criada uma ação individual para cada usuário ativo do setor selecionado.';
   }
 }
+
+function refreshUnifiedActionPeopleBySector(){
+  const person=document.getElementById('unifiedActionPerson');
+  const sector=String(document.getElementById('unifiedActionPersonSector')?.value||'').trim();
+  if(!person)return;
+
+  if(!sector){
+    person.innerHTML='<option value="">Selecione primeiro o setor...</option>';
+    return;
+  }
+
+  const users=unifiedActionAssignableUsers()
+    .filter(u=>{
+      const sectors=[
+        u.sector,
+        ...(Array.isArray(u.sectorMemberships)?u.sectorMemberships.map(m=>m.sector):[])
+      ].filter(Boolean);
+      return sectors.some(s=>normalizeAnswer(s)===normalizeAnswer(sector));
+    })
+    .sort((a,b)=>String(a.name||a.email||'').localeCompare(String(b.name||b.email||''),'pt-BR'));
+
+  person.innerHTML='<option value="">Selecione a pessoa...</option>'+
+    users.map(u=>
+      `<option value="${escapeHtml(unifiedActionUserKey(u))}">${escapeHtml(u.name||u.email)} · ${escapeHtml(canonicalUnitName(u.unit||''))}</option>`
+    ).join('');
+
+  if(!users.length){
+    person.innerHTML='<option value="">Nenhuma pessoa ativa neste setor</option>';
+  }
+}
+
 async function saveUnifiedAction(){
   const text=String(document.getElementById('unifiedActionText')?.value||'').trim();
   const deadline=String(document.getElementById('unifiedActionDeadline')?.value||'').trim();
   const note=String(document.getElementById('unifiedActionNote')?.value||'').trim();
+  const type=String(document.getElementById('unifiedActionType')?.value||'Ação').trim();
+  const project=String(document.getElementById('unifiedActionProject')?.value||'').trim();
+  const subject=String(document.getElementById('unifiedActionSubject')?.value||'').trim();
+  const dependency=String(document.getElementById('unifiedActionDependency')?.value||'').trim();
+  const urgency=String(document.getElementById('unifiedActionUrgency')?.value||'media').trim();
+  const nextStep=String(document.getElementById('unifiedActionNextStep')?.value||'').trim();
   const mode=String(document.getElementById('unifiedActionMode')?.value||'self');
   if(!text){alert('Informe a ação.');return}
 
@@ -4687,12 +4772,21 @@ async function saveUnifiedAction(){
       unit:session.unit||''
     }];
   }else if(mode==='person'){
+    const selectedSector=String(document.getElementById('unifiedActionPersonSector')?.value||'').trim();
     const key=String(document.getElementById('unifiedActionPerson')?.value||'').trim().toLowerCase();
+    if(!selectedSector){alert('Selecione primeiro o setor da pessoa.');return}
     if(!key){alert('Selecione a pessoa.');return}
     if(!unifiedActionCanCreateFor(mode,key)){alert('Você não pode atribuir ação para esta pessoa.');return}
     const u=getOperationalUsers().find(x=>unifiedActionUserKey(x)===key);
     if(!u){alert('Pessoa não encontrada.');return}
-    assignees=[{key,name:u.name||u.email,sector:u.sector||'',unit:u.unit||''}];
+
+    const belongs=[
+      u.sector,
+      ...(Array.isArray(u.sectorMemberships)?u.sectorMemberships.map(m=>m.sector):[])
+    ].filter(Boolean).some(s=>normalizeAnswer(s)===normalizeAnswer(selectedSector));
+    if(!belongs){alert('A pessoa selecionada não pertence ao setor informado.');return}
+
+    assignees=[{key,name:u.name||u.email,sector:selectedSector,unit:u.unit||''}];
   }else if(mode==='sector'){
     if(!isAdmin()){alert('Somente o SGQ pode atribuir ações por grupo/setor.');return}
     const unit=String(document.getElementById('unifiedActionUnit')?.value||'matriz');
@@ -4718,6 +4812,12 @@ async function saveUnifiedAction(){
       action:text,
       deadline,
       note,
+      type,
+      project,
+      subject,
+      dependency,
+      urgency,
+      nextStep,
       assigneeKey:a.key,
       assigneeName:a.name,
       sector:a.sector||'',
@@ -4768,6 +4868,7 @@ function completeUnifiedManualAction(id){
     ...list[i],
     evidence:String(evidence).trim(),
     completedAt:new Date().toISOString(),
+    updatedAt:new Date().toISOString(),
     completedBy:getSession()?.name||getSession()?.email||'Usuário'
   };
   saveUnifiedManualActions(list);
@@ -4914,10 +5015,20 @@ function actionDashboardItems(){
       if(!visible)return;
       const pseudo={...p,answers:{...(p.answers||{}),p11:a.action,p12:a.deadline,p13:a.owner},acaoConferidaEm:a.completedAt||a.acaoConferidaEm};
       const status=inferActionStatus(pseudo);
+      const sourceRo=findRoByAnyNumber(p.ro||'',p.origemBase||p.sourceRoOrigin||'');
       items.push({
         source:'pdca',sourceLabel:'PDCA',
+        id:a.id||p.id||'PDCA',
+        createdAt:p.envio||p.dataEnvio||p.sentAt||'',
+        type:'Ação corretiva',
+        project:p.ro||'-',
+        subject:sourceRo?.cliente||p.cliente||p.titulo||p.title||'PDCA',
+        dependency:'',
+        urgency:pdcaActionUrgency(status),
+        nextStep:status.code==='review'?'Aguardar conferência do SGQ':status.code==='overdue'?'Regularizar ação atrasada':'Executar ação e registrar evidência',
+        updatedAt:a.completedAt||p.updatedAt||p.envio||'',
         p,actionRecord:a,
-        ro:p.ro||'-',setor:p.setor||'-',acao:a.action||'',
+        ro:p.ro||'-',setor:p.setor||assigned.join(', ')||'-',acao:a.action||'',
         responsavel:a.owner||p.responsavel||'-',
         responsibleSectors:assigned,prazo:a.deadline||'-',
         status,deadline:actionDeadlineInfo(pseudo),impacta5S:status.code==='overdue'
@@ -4931,8 +5042,17 @@ function actionDashboardItems(){
     items.push({
       source:a.source==='self'?'self':'assigned',
       sourceLabel:a.source==='self'?'Pessoal':'Atribuída',
+      id:a.id||'-',
+      createdAt:a.createdAt||'',
+      type:a.type||'Ação',
+      project:a.project||'—',
+      subject:a.subject||'—',
+      dependency:a.dependency||'—',
+      urgency:a.urgency||'media',
+      nextStep:a.nextStep||'—',
+      updatedAt:a.completedAt||a.updatedAt||a.createdAt||'',
       manualAction:a,
-      ro:'—',
+      ro:a.project||'—',
       setor:a.sector||'-',
       acao:a.action||'',
       responsavel:a.assigneeName||unifiedActionUserDisplay(a.assigneeKey),
@@ -4969,22 +5089,31 @@ async function registerActionEvidence(pdcaId,actionId){
 function populateActionsSectorFilter(){
   const wrap=document.getElementById('actionsSectorFilterWrap');
   const sel=document.getElementById('actionsSectorFilter');
+  const personWrap=document.getElementById('actionsPersonFilterWrap');
+  const personSel=document.getElementById('actionsPersonFilter');
   if(!wrap||!sel)return;
 
   const items=actionDashboardItems();
   const current=sel.value||'all';
 
-  // SGQ vê tudo; gestor vê setores gerenciados; usuário não precisa de filtro setorial.
   if(!isAdmin()&&!isManager()){
     wrap.style.display='none';
-    return;
+  }else{
+    wrap.style.display='';
+    const sectors=[...new Set(items.flatMap(x=>x.responsibleSectors||[]).filter(Boolean))]
+      .sort((a,b)=>a.localeCompare(b,'pt-BR'));
+    sel.innerHTML='<option value="all">Todos os setores</option>'+sectors.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+    if([...sel.options].some(o=>o.value===current))sel.value=current;
   }
 
-  wrap.style.display='';
-  const sectors=[...new Set(items.flatMap(x=>x.responsibleSectors||[]).filter(Boolean))]
-    .sort((a,b)=>a.localeCompare(b,'pt-BR'));
-  sel.innerHTML='<option value="all">Todos os setores</option>'+sectors.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
-  if([...sel.options].some(o=>o.value===current))sel.value=current;
+  if(personWrap&&personSel){
+    const people=[...new Set(items.map(x=>String(x.responsavel||'').trim()).filter(Boolean))]
+      .sort((a,b)=>a.localeCompare(b,'pt-BR'));
+    const currentPerson=personSel.value||'all';
+    personSel.innerHTML='<option value="all">Todas as pessoas</option>'+people.map(p=>`<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join('');
+    if([...personSel.options].some(o=>o.value===currentPerson))personSel.value=currentPerson;
+    personWrap.style.display=people.length?'':'none';
+  }
 }
 function unifiedActionRowButtons(x){
   if(x.source==='pdca'){
@@ -5022,6 +5151,8 @@ function renderActionsDashboard(){
   const search=normalizeAnswer(document.getElementById('actionsSearch')?.value||'');
   const sectorFilter=document.getElementById('actionsSectorFilter')?.value||'all';
   const originFilter=document.getElementById('actionsOriginFilter')?.value||'all';
+  const personFilter=document.getElementById('actionsPersonFilter')?.value||'all';
+  const urgencyFilter=document.getElementById('actionsUrgencyFilter')?.value||'all';
 
   const counts={pending:0,overdue:0,review:0,done:0};
   items.forEach(x=>{ if(counts[x.status.code]!==undefined) counts[x.status.code]++; });
@@ -5033,9 +5164,14 @@ function renderActionsDashboard(){
   let filtered=items.filter(x=>{
     if(statusFilter!=='all' && x.status.code!==statusFilter)return false;
     if(originFilter!=='all' && x.source!==originFilter)return false;
+    if(urgencyFilter!=='all' && normalizeAnswer(x.urgency)!==normalizeAnswer(urgencyFilter))return false;
+    if(personFilter!=='all' && normalizeAnswer(x.responsavel)!==normalizeAnswer(personFilter))return false;
     if((isAdmin()||isManager()) && sectorFilter!=='all' && !(x.responsibleSectors||[]).some(s=>normalizeAnswer(s)===normalizeAnswer(sectorFilter)))return false;
     if(search){
-      const hay=normalizeAnswer([x.sourceLabel,x.ro,x.setor,x.acao,x.responsavel,x.manualAction?.createdByName].join(' '));
+      const hay=normalizeAnswer([
+        x.id,x.sourceLabel,x.type,x.project,x.ro,x.subject,x.setor,x.acao,x.responsavel,
+        x.dependency,x.nextStep,x.manualAction?.createdByName
+      ].join(' '));
       if(!hay.includes(search))return false;
     }
     return true;
@@ -5052,16 +5188,21 @@ function renderActionsDashboard(){
   const body=document.getElementById('actionsDashboardBody');
   if(!body)return;
   body.innerHTML=filtered.length?filtered.map(x=>`<tr>
-    <td><span class="action-origin-badge ${escapeHtml(x.source)}">${escapeHtml(x.sourceLabel)}</span></td>
-    <td><b>${escapeHtml(x.ro)}</b></td>
-    <td>${escapeHtml(x.setor)}</td>
+    <td><b>${escapeHtml(x.id||'-')}</b></td>
+    <td>${escapeHtml(unifiedActionDateLabel(x.createdAt))}</td>
+    <td><span class="action-origin-badge ${escapeHtml(x.source)}">${escapeHtml(x.type||x.sourceLabel)}</span></td>
+    <td>${escapeHtml(x.project||x.ro||'—')}</td>
+    <td>${escapeHtml(x.subject||'—')}</td>
     <td><div class="action-main-text">${escapeHtml(x.acao)}</div>${x.manualAction?.note?`<div class="small" style="margin-top:4px">${escapeHtml(x.manualAction.note)}</div>`:''}</td>
-    <td>${escapeHtml(x.responsavel)}</td>
-    <td>${escapeHtml(x.prazo)}</td>
-    <td><span class="deadline-text ${x.deadline.cls}">${escapeHtml(x.deadline.text)}</span></td>
+    <td><b>${escapeHtml(x.responsavel)}</b></td>
+    <td>${escapeHtml(x.setor)}</td>
+    <td>${escapeHtml(x.dependency||'—')}</td>
+    <td><span class="urgency-pill ${escapeHtml(normalizeAnswer(x.urgency||'media'))}">${escapeHtml(unifiedActionUrgencyLabel(x.urgency))}</span></td>
     <td><span class="action-pill ${x.status.code}">${escapeHtml(x.status.label)}</span>${x.impacta5S?'<div class="five-s-impact">Impacta 5S</div>':x.source==='pdca'?'<div class="five-s-neutral">Sem impacto no 5S</div>':''}</td>
+    <td>${escapeHtml(x.nextStep||'—')}<div class="small deadline-text ${x.deadline.cls}" style="margin-top:4px">${escapeHtml(x.deadline.text)}</div></td>
+    <td>${escapeHtml(unifiedActionDateTimeLabel(x.updatedAt))}</td>
     <td><div class="unified-action-buttons">${unifiedActionRowButtons(x)}</div></td>
-  </tr>`).join(''):`<tr><td colspan="9" style="text-align:center;color:#667085;padding:24px">Nenhuma ação encontrada nesta visão.</td></tr>`;
+  </tr>`).join(''):`<tr><td colspan="14" style="text-align:center;color:#667085;padding:24px">Nenhuma ação encontrada nesta visão.</td></tr>`;
 }
 function showActionsDashboard(){
   if(!nucleoFeatureRequire('pdca','actions'))return;
@@ -5082,7 +5223,7 @@ function showActionsDashboard(){
   }catch(err){
     console.error('Erro ao carregar Ações:',err);
     const body=document.getElementById('actionsDashboardBody');
-    if(body)body.innerHTML='<tr><td colspan="9" style="padding:24px;text-align:center;color:#667085">Não foi possível carregar as ações nesta visualização.</td></tr>';
+    if(body)body.innerHTML='<tr><td colspan="14" style="padding:24px;text-align:center;color:#667085">Não foi possível carregar as ações nesta visualização.</td></tr>';
   }
 }
 
