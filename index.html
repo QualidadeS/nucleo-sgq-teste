@@ -2621,6 +2621,18 @@ body{padding-bottom:28px!important}
 #adminCleanupRo:focus{outline:2px solid rgba(22,119,196,.18);border-color:#4b9fe8}
 </style>
 
+
+<style id="unified-actions-v29-style">
+.unified-action-modal{max-width:760px}
+.action-origin-badge{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;font-size:10px;font-weight:800;white-space:nowrap}
+.action-origin-badge.pdca{background:#e8f4ff;color:#075f9b}
+.action-origin-badge.assigned{background:#f1ecff;color:#6941c6}
+.action-origin-badge.self{background:#edf8f2;color:#067647}
+.unified-action-buttons{display:flex;gap:6px;flex-wrap:wrap;min-width:130px}
+.action-main-text{font-weight:650;color:#243b53;line-height:1.4}
+#actionsDashboardView .action-controls{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+</style>
+
 </head><body><div id="nucleoTestEnvironmentBanner">AMBIENTE DE TESTE — NÃO É O NÚCLEO DE PRODUÇÃO</div>
 
 <div id="nucleoLoadingOverlay" role="status" aria-live="polite" aria-busy="true">
@@ -2719,8 +2731,7 @@ body{padding-bottom:28px!important}
         <button class="side-item" id="navMySubmittedRos" type="button" onclick="showMySubmittedRos()"><span class="side-num">◎</span><span><b>R.O.s cadastradas por mim</b><small>Acompanhar registros</small></span></button> 
         <button class="side-item" id="navAssignedRos" type="button" onclick="showAssignedRos()"><span class="side-num">↳</span><span><b>R.O.s atribuídas</b><small>Ocorrências para atuação</small></span></button>
         <button class="side-item" id="navSent" onclick="showSentPdcas()"><span class="side-num">✓</span><span><b>PDCAs recebidos</b><small>Histórico de respostas</small></span><span id="pdcaSidebarBadge" class="side-pending-badge hidden">0</span></button>
-        <button class="side-item" id="navActions" type="button" onclick="showActionsDashboard()"><span class="side-num">✓</span><span><b>Ações</b><small>Prazos e pendências</small></span></button>
-        <button class="side-item admin-only" id="navPendingActions" onclick="showPendingActions()" style="display:none"><span class="side-num">!</span><span><b>Ações pendentes</b><small>Conferência SGQ</small></span></button>
+        <button class="side-item" id="navActions" type="button" onclick="showActionsDashboard()"><span class="side-num">✓</span><span><b>Ações</b><small>Minhas, atribuídas e PDCAs</small></span></button>
         <button class="side-item admin-only" id="navTriage" type="button" onclick="showTriage()" style="display:none"><span class="side-num">↳</span><span><b>Triagem de R.O.s</b><small>Classificar e direcionar</small></span><span id="triageSidebarBadge" class="side-pending-badge hidden">0</span></button>
         <button class="side-item admin-only" id="navContests" type="button" onclick="showContestations()" style="display:none"><span class="side-num">?</span><span><b>Contestações</b><small>Analisar solicitações</small></span><span id="contestSidebarBadge" class="side-pending-badge hidden">0</span></button>
       </div>
@@ -3162,9 +3173,12 @@ body{padding-bottom:28px!important}
   <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
     <div>
       <h2 style="margin:0">Ações</h2>
-      <p class="small" style="margin:5px 0 0">Acompanhe responsáveis, prazos e situação das ações dos PDCAs.</p>
+      <p class="small" style="margin:5px 0 0">Ações de PDCA, ações atribuídas pela gestão e ações pessoais em uma única visão.</p>
     </div>
-    <span id="actionsScopeLabel" class="status-badge">Meu setor</span>
+    <div class="actions">
+      <span id="actionsScopeLabel" class="status-badge">Minha visão</span>
+      <button class="btn primary" type="button" onclick="openUnifiedActionModal()">＋ Nova ação</button>
+    </div>
   </div>
 
   <div class="actions-summary">
@@ -3195,17 +3209,27 @@ body{padding-bottom:28px!important}
         <option value="all">Todos os setores</option>
       </select>
     </div>
+    <div>
+      <div class="label">Origem</div>
+      <select id="actionsOriginFilter" onchange="renderActionsDashboard()">
+        <option value="all">Todas</option>
+        <option value="pdca">PDCA</option>
+        <option value="assigned">Atribuída</option>
+        <option value="self">Pessoal</option>
+      </select>
+    </div>
   </div>
 
   <div style="overflow:auto">
     <table class="action-table">
       <thead>
         <tr>
+          <th>Origem</th>
           <th>R.O.</th>
           <th>Setor</th>
           <th>Ação</th>
           <th>Responsável</th>
-          <th>Prazo informado</th>
+          <th>Prazo</th>
           <th>Vencimento</th>
           <th>Situação</th>
           <th>Ações</th>
@@ -3217,6 +3241,63 @@ body{padding-bottom:28px!important}
 </section>
 
 
+
+
+<div id="unifiedActionOverlay" class="triage-modal-overlay" onclick="if(event.target===this)closeUnifiedActionModal()">
+  <div class="triage-modal unified-action-modal">
+    <div class="triage-modal-head">
+      <div>
+        <h3 style="margin:0">Nova ação</h3>
+        <div id="unifiedActionScopeHelp" class="small">Defina a ação e para quem ela será atribuída.</div>
+      </div>
+      <button class="btn secondary" type="button" onclick="closeUnifiedActionModal()">Fechar</button>
+    </div>
+    <div class="triage-modal-body">
+      <div class="settings-grid">
+        <label class="full">
+          <div class="label">Ação *</div>
+          <textarea id="unifiedActionText" rows="3" placeholder="Descreva claramente o que precisa ser feito."></textarea>
+        </label>
+        <label>
+          <div class="label">Prazo</div>
+          <input id="unifiedActionDeadline" type="date">
+        </label>
+        <label id="unifiedActionModeWrap">
+          <div class="label">Atribuir para</div>
+          <select id="unifiedActionMode" onchange="refreshUnifiedActionTargetUi()">
+            <option value="self">Para mim</option>
+            <option value="person">Pessoa</option>
+            <option value="sector">Grupo / setor</option>
+          </select>
+        </label>
+        <label id="unifiedActionUnitWrap" class="hidden">
+          <div class="label">Unidade</div>
+          <select id="unifiedActionUnit" onchange="refreshUnifiedActionTargetUi()">
+            <option value="matriz">Matriz</option>
+            <option value="filial">Filial</option>
+          </select>
+        </label>
+        <label id="unifiedActionPersonWrap" class="hidden">
+          <div class="label">Pessoa *</div>
+          <select id="unifiedActionPerson"></select>
+        </label>
+        <label id="unifiedActionSectorWrap" class="hidden">
+          <div class="label">Grupo / setor *</div>
+          <select id="unifiedActionSector"></select>
+        </label>
+        <label class="full">
+          <div class="label">Observação</div>
+          <textarea id="unifiedActionNote" rows="2" placeholder="Contexto, orientação ou critério de conclusão (opcional)."></textarea>
+        </label>
+      </div>
+      <div id="unifiedActionTargetSummary" class="statusline" style="margin-top:12px"></div>
+      <div class="actions" style="justify-content:flex-end;margin-top:14px">
+        <button class="btn secondary" type="button" onclick="closeUnifiedActionModal()">Cancelar</button>
+        <button class="btn primary" type="button" onclick="saveUnifiedAction()">Criar ação</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <section id="triageView" class="card hidden">
   <div>
@@ -3788,7 +3869,7 @@ body{padding-bottom:28px!important}
   </div>
 </section>
 
-<section id="pendingActionsView" class="card hidden">
+<section id="pendingActionsView" class="card hidden" style="display:none!important">
   <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
     <div>
       <h2 style="margin:0">Ações pendentes</h2>
@@ -4338,7 +4419,7 @@ Cancelada</textarea></label>
 </main>
 </div>
 </div><div id="contestModal" class="modal hidden"><div class="modal-box"><h3>Contestar R.O.</h3><div class="label">Motivo da contestação</div><textarea id="contestText" placeholder="Explique por que a R.O. deve ser revista, cancelada ou redirecionada."></textarea><div class="label" style="margin-top:10px">Setor que considera correto (opcional)</div><input id="contestSector" placeholder="Ex.: Expedição"><div class="modal-actions"><button class="btn secondary" type="button" onclick="closeContest()">Cancelar</button><button class="btn danger" type="button" onclick="submitContest()">Enviar contestação</button></div></div></div>
-<script src="assets/nucleo-app.js?v=20261016-triage-consistency-v28"></script>
+<script src="assets/nucleo-app.js?v=20261016-unified-actions-v29"></script>
 
 <div id="presentationModal" class="presentation-modal">
   <div class="presentation-card">
