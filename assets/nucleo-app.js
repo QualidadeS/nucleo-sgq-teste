@@ -14618,31 +14618,31 @@ function assignedRoDeadline(r,preloadedMap=null){
 }
 
 function currentUserCanRespondAssignedRo(ro,tri){
-  const session=getSession()||{};
   if(!tri || tri.decision!=='directed')return false;
 
+  // SGQ/ADM pode responder qualquer R.O. já direcionada.
+  // Isso cobre também o caso em que o SGQ direciona a R.O. para si mesmo.
+  if(isAdmin())return true;
+
+  const session=getSession()||{};
   const assignedEmail=String(tri.responsibleUserEmail||'').trim().toLowerCase();
   const assignedName=normalizeAnswer(tri.responsibleUserName||'');
   const sessionEmail=String(session.email||'').trim().toLowerCase();
   const sessionName=normalizeAnswer(session.name||'');
 
-  // Pessoa específica selecionada na triagem.
   if(assignedEmail)return !!sessionEmail && assignedEmail===sessionEmail;
   if(assignedName)return !!sessionName && assignedName===sessionName;
 
-  // "Todo o setor": permite responder quando a pessoa logada pertence ao setor.
   const sector=String(tri.responsibleSector||'').trim();
   if(!sector)return false;
 
   if(normalizeAnswer(session.sector||'')===normalizeAnswer(sector))return true;
 
   const unit=explicitRecordUnit(ro)||roUnit(ro);
-  if((session.sectorMemberships||[]).some(m=>
+  return (session.sectorMemberships||[]).some(m=>
     normalizePortalUnit(m.unit||'')===normalizePortalUnit(unit||'') &&
     normalizeAnswer(m.sector||'')===normalizeAnswer(sector)
-  ))return true;
-
-  return false;
+  );
 }
 
 let roListVisibleLimit=60;
