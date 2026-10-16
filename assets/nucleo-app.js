@@ -7233,9 +7233,13 @@ function resolvedTriageForRo(ro,map=getSavedTriageMap()){
   const base=String(triageBaseRoNumber(ro)||'').trim();
   const exactKey=String(triageKeyOf(ro)||'').trim();
 
-  // Uma nova triagem feita no TESTE sempre vence um tombstone antigo.
-  // O tombstone existe somente para esconder a decisão herdada da planilha
-  // quando ainda não existe uma nova decisão manual no ambiente TESTE.
+  // Uma limpeza confirmada no TESTE vence qualquer triagem antiga que ainda
+  // esteja em cache/snapshot. Uma nova triagem válida remove o tombstone antes
+  // de salvar, então não há risco de bloquear uma decisão nova.
+  const deletedKeys=getDeletedTriageKeys();
+  if(deletedKeys.has(base) || (exactKey && deletedKeys.has(exactKey)))return null;
+
+  const baseSituation=baseTriageSituation(ro);
   const manual=getTriageRecordsForRoNumber(base,map)
     .filter(t=>t?.decision&&!t.importedFromSheet)
     .sort((a,b)=>String(b.triagedAt||'').localeCompare(String(a.triagedAt||'')));
@@ -7245,23 +7249,10 @@ function resolvedTriageForRo(ro,map=getSavedTriageMap()){
   if(exactManual?.decision&&!exactManual.importedFromSheet)return exactManual;
   if(manual.length)return manual[0];
 
-  const deletedKeys=getDeletedTriageKeys();
-  if(deletedKeys.has(base) || (exactKey && deletedKeys.has(exactKey)))return null;
-
-  const baseSituation=baseTriageSituation(ro);
-
-  // FONTE ÚNICA DA SITUAÇÃO DA R.O.: Setor (causa) + Status da planilha-base.
-  // SGQ_TRIAGENS fornece os detalhes da triagem (pessoa, motivo, prazo, PDCA),
-  // mas NÃO pode transformar Registro/Cancelada em triada nem fazer uma R.O.
-  // voltar para "Necessita triar" quando a base diz setor + Enviado.
+  // A planilha pode indicar situação antiga, mas somente quando não existe
+  // tombstone de limpeza no ambiente TESTE.
   if(baseSituation.decision){
-    let saved=null;
-    if(baseSituation.decision==='directed'){
-      saved=getTriageRecordForRoSector(base,baseSituation.sector,map);
-      if(saved && saved.decision && saved.decision!=='directed')saved=null;
-    }else{
-      saved=map.get(base)||getTriageRecordsForRoNumber(base,map).find(t=>t?.decision===baseSituation.decision)||null;
-    }
+    const saved=(exactKey&&map.get(exactKey))||map.get(base)||getTriageRecordsForRoNumber(base,map)[0]||null;
     return {
       ...(saved||{}),
       roKey:baseSituation.decision==='directed' ? triageCompositeKey(base,baseSituation.sector) : base,
@@ -7274,11 +7265,7 @@ function resolvedTriageForRo(ro,map=getSavedTriageMap()){
     };
   }
 
-  // Se a planilha ainda não refletiu a alteração, uma decisão MANUAL recém-salva
-  // pelo SGQ continua válida para a interface e para o contador de triagem.
-  // Registros puramente reconstruídos da planilha não ganham essa prioridade.
-  const exact=String(triageKeyOf(ro)||'').trim();
-  const saved=(exact&&map.get(exact))||map.get(base)||getTriageRecordsForRoNumber(base,map)[0]||null;
+  const saved=(exactKey&&map.get(exactKey))||map.get(base)||getTriageRecordsForRoNumber(base,map)[0]||null;
 
   if(saved?.decision && !saved?.importedFromSheet){
     return saved;
@@ -7442,10 +7429,11 @@ function getTriageRecords(){
       .filter(t=>t?.decision&&!t.importedFromSheet)
       .sort((a,b)=>String(b.triagedAt||'').localeCompare(String(a.triagedAt||'')))[0]||null;
 
-    // Tombstone só vale se não existir nova triagem manual no TESTE.
-    const deletedInTest=!manual && (deletedKeys.has(base)||(exact&&deletedKeys.has(exact)));
+    // Enquanto o tombstone existir, a limpeza vence qualquer registro antigo.
+    // A nova triagem remove o tombstone antes de salvar.
+    const deletedInTest=deletedKeys.has(base)||(exact&&deletedKeys.has(exact));
 
-    const tri=manual || (deletedInTest?{}:(resolvedTriageForRo(ro,saved)||{}));
+    const tri=deletedInTest?{}:(manual || (resolvedTriageForRo(ro,saved)||{}));
     const baseSituation=baseTriageSituation(ro);
 
     let decision=deletedInTest?'':(tri.decision||baseSituation.decision);
@@ -11029,22 +11017,33 @@ async function adminDeleteTriageForRo(skipConfirm=false){
 
     try{await syncPortalBackend(false,{foreground:true})}catch(e){}
 
-    // Reaplica tombstone central depois do snapshot, caso o shared_state tenha chegado junto.
+    // Reaplica tombstone depois do snapshot e remove qualquer triagem antiga
+    // que tenha voltado pelo cache/snapshot anterior.
     const finalDeleted=getDeletedTriageKeys();
     finalDeleted.add(key);
     [...centralKeys].forEach(k=>finalDeleted.add(String(k)));
     saveDeletedTriageKeys(finalDeleted);
+
+    const cleanMap=getSavedTriageMap();
+    [...cleanMap.keys()].forEach(k=>{
+      if(triageRoNumberPart(k)===key)cleanMap.delete(k);
+    });
+    localStorage.setItem(TRIAGE_KEY,JSON.stringify([...cleanMap.values()]));
 
     try{renderTriage()}catch(e){}
     try{refreshRoSummary()}catch(e){}
     try{refreshMenuNotificationBadges()}catch(e){}
     refreshAdminCleanupPreview();
 
-    const verifyMap=getSavedTriageMap();
+    const verifyDeleted=getDeletedTriageKeys();
     const verifyRo=findRoByAnyNumber(key,'');
-    const verify=verifyRo?resolvedTriageForRo(verifyRo,verifyMap):null;
+    const verify=verifyRo?resolvedTriageForRo(verifyRo,getSavedTriageMap()):null;
+
+    if(!verifyDeleted.has(key)){
+      throw new Error('O marcador de limpeza da R.O. não permaneceu ativo no TESTE.');
+    }
     if(verify?.decision){
-      throw new Error('A base TESTE ainda está apresentando a R.O. como triada após a limpeza.');
+      throw new Error('A R.O. ainda aparece como triada no TESTE após a limpeza.');
     }
 
     if(!skipConfirm)alert('Direcionamento/triagem removido do ambiente TESTE.');
