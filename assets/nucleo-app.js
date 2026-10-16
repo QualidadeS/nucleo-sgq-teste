@@ -1164,7 +1164,8 @@ const NUCLEO_SHARED_GLOBAL_KEYS=new Set([
   'ro-pdca-presentations-v1',
   'nucleo-ro-origin-registry-v1',
   'nucleo-hidden-assigned-directions-v1',
-  'nucleo-deleted-triage-keys-v1'
+  'nucleo-deleted-triage-keys-v1',
+  'nucleo-unified-actions-v1'
 ]);
 const NUCLEO_SHARED_USER_KEYS=new Set([
   'ro-pdca-notifications-v1',
@@ -4518,6 +4519,273 @@ function parseBrDate(v){
   const d=new Date(y,+m[2]-1,+m[1],23,59,59);
   return isNaN(d.getTime())?null:d;
 }
+
+const UNIFIED_ACTIONS_KEY='nucleo-unified-actions-v1';
+
+function getUnifiedManualActions(){
+  try{
+    const arr=JSON.parse(localStorage.getItem(UNIFIED_ACTIONS_KEY)||'[]');
+    return Array.isArray(arr)?arr:[];
+  }catch(e){return []}
+}
+function saveUnifiedManualActions(list){
+  localStorage.setItem(UNIFIED_ACTIONS_KEY,JSON.stringify(Array.isArray(list)?list:[]));
+}
+function unifiedActionUserKey(user){
+  return String(user?.email||user?.name||'').trim().toLowerCase();
+}
+function unifiedCurrentUserKey(){
+  const s=getSession()||{};
+  return String(s.email||s.name||'').trim().toLowerCase();
+}
+function unifiedActionUserDisplay(key){
+  const wanted=String(key||'').trim().toLowerCase();
+  const u=getOperationalUsers().find(x=>unifiedActionUserKey(x)===wanted);
+  return u?.name||u?.email||key||'-';
+}
+function unifiedActionUserSector(user){
+  return String(user?.sector||'').trim();
+}
+function unifiedActionIsActiveUser(u){
+  return u &&
+    u.active!==false &&
+    normalizeAnswer(u.active||'sim')!=='nao' &&
+    normalizeAnswer(u.status||'')!=='inactive' &&
+    u.approvalStatus!=='pending' &&
+    u.approvalStatus!=='rejected' &&
+    !nucleoPersonPermissions(u).sgq;
+}
+function unifiedActionAssignableUsers(){
+  const users=getOperationalUsers().filter(unifiedActionIsActiveUser);
+  if(isAdmin())return users;
+  if(isManager()){
+    const managed=managedSectorsForCurrentUser().map(normalizeAnswer);
+    return users.filter(u=>{
+      const sectors=[u.sector,...(u.managedSectors||[]),(u.sectorMemberships||[]).map(m=>m.sector)].flat().filter(Boolean);
+      return sectors.some(s=>managed.includes(normalizeAnswer(s)));
+    });
+  }
+  const self=unifiedCurrentUserKey();
+  return users.filter(u=>unifiedActionUserKey(u)===self);
+}
+function unifiedActionCanCreateFor(mode,targetUser=''){
+  if(isAdmin())return ['self','person','sector'].includes(mode);
+  if(isManager()){
+    if(mode==='self')return true;
+    if(mode!=='person')return false;
+    return unifiedActionAssignableUsers().some(u=>unifiedActionUserKey(u)===String(targetUser||'').toLowerCase());
+  }
+  return mode==='self';
+}
+function unifiedActionCanSee(record){
+  if(!record)return false;
+  if(isAdmin())return true;
+  const me=unifiedCurrentUserKey();
+  if(String(record.assigneeKey||'').toLowerCase()===me)return true;
+  if(String(record.createdByKey||'').toLowerCase()===me)return true;
+
+  if(isManager()){
+    const target=getOperationalUsers().find(u=>unifiedActionUserKey(u)===String(record.assigneeKey||'').toLowerCase());
+    if(target){
+      const targetSectors=[target.sector,...(target.sectorMemberships||[]).map(m=>m.sector)].filter(Boolean);
+      if(targetSectors.some(managesSector))return true;
+    }
+  }
+  return false;
+}
+function unifiedManualActionStatus(a){
+  if(a?.completedAt)return {code:'done',label:'Concluída',reason:'Conclusão registrada.'};
+  const d=parseBrDate(a?.deadline||'');
+  if(d){
+    const today=new Date();today.setHours(0,0,0,0);
+    const end=new Date(d.getFullYear(),d.getMonth(),d.getDate());
+    if(today>end)return {code:'overdue',label:'Atrasada',reason:'O prazo da ação venceu.'};
+  }
+  return {code:'pending',label:'Pendente',reason:'Aguardando conclusão.'};
+}
+function unifiedManualActionDeadline(a){
+  return actionDeadlineInfo({answers:{p12:a?.deadline||''}});
+}
+function openUnifiedActionModal(){
+  const ov=document.getElementById('unifiedActionOverlay');
+  if(!ov)return;
+  document.getElementById('unifiedActionText').value='';
+  document.getElementById('unifiedActionDeadline').value='';
+  document.getElementById('unifiedActionNote').value='';
+
+  const mode=document.getElementById('unifiedActionMode');
+  if(isAdmin()){
+    mode.innerHTML='<option value="self">Para mim</option><option value="person">Pessoa</option><option value="sector">Grupo / setor</option>';
+  }else if(isManager()){
+    mode.innerHTML='<option value="self">Para mim</option><option value="person">Liderado</option>';
+  }else{
+    mode.innerHTML='<option value="self">Para mim</option>';
+  }
+  mode.value='self';
+
+  const unit=document.getElementById('unifiedActionUnit');
+  if(unit)unit.value=currentUserUnit();
+
+  refreshUnifiedActionTargetUi();
+  ov.classList.add('open');
+  document.body.style.overflow='hidden';
+}
+function closeUnifiedActionModal(){
+  document.getElementById('unifiedActionOverlay')?.classList.remove('open');
+  document.body.style.overflow='';
+}
+function refreshUnifiedActionTargetUi(){
+  const mode=document.getElementById('unifiedActionMode')?.value||'self';
+  const personWrap=document.getElementById('unifiedActionPersonWrap');
+  const sectorWrap=document.getElementById('unifiedActionSectorWrap');
+  const unitWrap=document.getElementById('unifiedActionUnitWrap');
+  const person=document.getElementById('unifiedActionPerson');
+  const sector=document.getElementById('unifiedActionSector');
+  const unit=document.getElementById('unifiedActionUnit')?.value||currentUserUnit();
+  const summary=document.getElementById('unifiedActionTargetSummary');
+
+  if(personWrap)personWrap.classList.toggle('hidden',mode!=='person');
+  if(sectorWrap)sectorWrap.classList.toggle('hidden',mode!=='sector');
+  if(unitWrap)unitWrap.classList.toggle('hidden',!(isAdmin()&&mode==='sector'));
+
+  if(mode==='person'&&person){
+    const users=unifiedActionAssignableUsers();
+    person.innerHTML='<option value="">Selecione...</option>'+users.map(u=>
+      `<option value="${escapeHtml(unifiedActionUserKey(u))}">${escapeHtml(u.name||u.email)} · ${escapeHtml(u.sector||'-')} · ${escapeHtml(canonicalUnitName(u.unit||''))}</option>`
+    ).join('');
+  }
+
+  if(mode==='sector'&&sector){
+    const sectors=getConfiguredSectors(unit).slice().sort((a,b)=>a.localeCompare(b,'pt-BR'));
+    sector.innerHTML='<option value="">Selecione...</option>'+sectors.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+  }
+
+  if(summary){
+    if(mode==='self')summary.textContent='A ação será criada somente para você.';
+    else if(mode==='person')summary.textContent=isManager()?'Você pode atribuir somente aos seus liderados.':'A ação será atribuída à pessoa selecionada.';
+    else summary.textContent='Será criada uma ação individual para cada usuário ativo do setor selecionado.';
+  }
+}
+async function saveUnifiedAction(){
+  const text=String(document.getElementById('unifiedActionText')?.value||'').trim();
+  const deadline=String(document.getElementById('unifiedActionDeadline')?.value||'').trim();
+  const note=String(document.getElementById('unifiedActionNote')?.value||'').trim();
+  const mode=String(document.getElementById('unifiedActionMode')?.value||'self');
+  if(!text){alert('Informe a ação.');return}
+
+  const session=getSession()||{};
+  const creatorKey=unifiedCurrentUserKey();
+  const creatorName=session.name||session.email||'Usuário';
+  const now=new Date().toISOString();
+  let assignees=[];
+
+  if(mode==='self'){
+    assignees=[{
+      key:creatorKey,
+      name:creatorName,
+      sector:session.sector||'',
+      unit:session.unit||''
+    }];
+  }else if(mode==='person'){
+    const key=String(document.getElementById('unifiedActionPerson')?.value||'').trim().toLowerCase();
+    if(!key){alert('Selecione a pessoa.');return}
+    if(!unifiedActionCanCreateFor(mode,key)){alert('Você não pode atribuir ação para esta pessoa.');return}
+    const u=getOperationalUsers().find(x=>unifiedActionUserKey(x)===key);
+    if(!u){alert('Pessoa não encontrada.');return}
+    assignees=[{key,name:u.name||u.email,sector:u.sector||'',unit:u.unit||''}];
+  }else if(mode==='sector'){
+    if(!isAdmin()){alert('Somente o SGQ pode atribuir ações por grupo/setor.');return}
+    const unit=String(document.getElementById('unifiedActionUnit')?.value||'matriz');
+    const sector=String(document.getElementById('unifiedActionSector')?.value||'').trim();
+    if(!sector){alert('Selecione o grupo/setor.');return}
+    assignees=getOperationalUsers()
+      .filter(unifiedActionIsActiveUser)
+      .filter(u=>userHasUnitSector(u,unit,sector))
+      .map(u=>({key:unifiedActionUserKey(u),name:u.name||u.email,sector,unit:u.unit||unit}));
+    if(!assignees.length){alert('Não há usuários ativos neste setor.');return}
+  }else{
+    alert('Tipo de atribuição inválido.');
+    return;
+  }
+
+  const list=getUnifiedManualActions();
+  const groupId='ACTGRP-'+Date.now()+'-'+Math.random().toString(36).slice(2,7);
+  assignees.forEach((a,i)=>{
+    list.push({
+      id:'ACT-'+Date.now()+'-'+i+'-'+Math.random().toString(36).slice(2,7),
+      groupId:assignees.length>1?groupId:'',
+      source:mode==='self'?'self':'assigned',
+      action:text,
+      deadline,
+      note,
+      assigneeKey:a.key,
+      assigneeName:a.name,
+      sector:a.sector||'',
+      unit:a.unit||'',
+      createdByKey:creatorKey,
+      createdByName:creatorName,
+      createdAt:now,
+      completedAt:'',
+      completedBy:'',
+      evidence:''
+    });
+  });
+  saveUnifiedManualActions(list);
+
+  // Local/global shared_state persistence is handled automatically by the shared key.
+  assignees.forEach(a=>{
+    createNotification({
+      type:'action',
+      skipEmail:true,
+      audience:'user',
+      userKey:a.key,
+      sector:a.sector||'',
+      title:mode==='self'?'Nova ação pessoal':'Nova ação atribuída',
+      message:text+(deadline?' · Prazo: '+formatDateBR(deadline):'')
+    });
+  });
+
+  closeUnifiedActionModal();
+  renderActionsDashboard();
+  refreshUserPendingActionAlert();
+  alert(assignees.length>1?`Ação atribuída a ${assignees.length} pessoa(s).`:'Ação criada.');
+}
+function unifiedManualActionCanComplete(a){
+  const me=unifiedCurrentUserKey();
+  return String(a?.assigneeKey||'').toLowerCase()===me || isAdmin();
+}
+function completeUnifiedManualAction(id){
+  const list=getUnifiedManualActions();
+  const i=list.findIndex(a=>String(a.id)===String(id));
+  if(i<0)return;
+  if(!unifiedManualActionCanComplete(list[i])){alert('Esta ação não está atribuída a você.');return}
+
+  const evidence=prompt('Descreva brevemente o que foi feito / evidência da conclusão:',list[i].evidence||'');
+  if(evidence===null)return;
+  if(!String(evidence).trim()){alert('Informe a evidência ou resultado da ação.');return}
+
+  list[i]={
+    ...list[i],
+    evidence:String(evidence).trim(),
+    completedAt:new Date().toISOString(),
+    completedBy:getSession()?.name||getSession()?.email||'Usuário'
+  };
+  saveUnifiedManualActions(list);
+  renderActionsDashboard();
+  refreshUserPendingActionAlert();
+}
+function deleteUnifiedManualAction(id){
+  const list=getUnifiedManualActions();
+  const a=list.find(x=>String(x.id)===String(id));
+  if(!a)return;
+  const me=unifiedCurrentUserKey();
+  const allowed=isAdmin() || String(a.createdByKey||'').toLowerCase()===me;
+  if(!allowed){alert('Somente quem criou a ação ou o SGQ pode excluí-la.');return}
+  if(!confirm('Excluir esta ação?'))return;
+  saveUnifiedManualActions(list.filter(x=>String(x.id)!==String(id)));
+  renderActionsDashboard();
+  refreshUserPendingActionAlert();
+}
 function inferActionStatus(p){
   const a=p?.answers||{};
   if(p?.acaoConferidaEm){
@@ -4551,18 +4819,26 @@ function inferActionStatus(p){
   return {code:'pending',label:'Pendente',reason:'Ainda não há evidências suficientes de conclusão.'};
 }
 function userSectorPendingActions(){
-  const sector=currentSector();
-  if(!sector)return [];
   const out=[];
+  const sector=currentSector();
+
   getAllSentPdcas().forEach(p=>{
     allPdcaActionsForRecord(p).forEach(a=>{
       const assigned=parseResponsibleSectors(a.responsibleSectors?.length?a.responsibleSectors:a.owner);
       if(!assigned.some(s=>normalizeAnswer(s)===normalizeAnswer(sector)||(isManager()&&managesSector(s))))return;
       const pseudo={...p,answers:{...(p.answers||{}),p11:a.action,p12:a.deadline,p13:a.owner},acaoConferidaEm:a.completedAt||a.acaoConferidaEm};
       const status=inferActionStatus(pseudo);
-      if(status.code!=='done')out.push({p,actionRecord:a,status});
+      if(status.code!=='done')out.push({source:'pdca',p,actionRecord:a,status});
     });
   });
+
+  getUnifiedManualActions()
+    .filter(unifiedActionCanSee)
+    .forEach(a=>{
+      const status=unifiedManualActionStatus(a);
+      if(status.code!=='done')out.push({source:a.source,manualAction:a,status});
+    });
+
   return out;
 }
 function refreshUserPendingActionAlert(){
@@ -4629,6 +4905,8 @@ function actionDeadlineInfo(p){
 }
 function actionDashboardItems(){
   const sent=getSentPdca();const admin=isAdmin();const items=[];
+
+  // Ações originadas de PDCA.
   sent.forEach(p=>{
     allPdcaActionsForRecord(p).forEach(a=>{
       const assigned=parseResponsibleSectors(a.responsibleSectors?.length?a.responsibleSectors:a.owner);
@@ -4636,12 +4914,38 @@ function actionDashboardItems(){
       if(!visible)return;
       const pseudo={...p,answers:{...(p.answers||{}),p11:a.action,p12:a.deadline,p13:a.owner},acaoConferidaEm:a.completedAt||a.acaoConferidaEm};
       const status=inferActionStatus(pseudo);
-      items.push({p,actionRecord:a,ro:p.ro||'-',setor:p.setor||'-',acao:a.action||'',responsavel:a.owner||p.responsavel||'-',responsibleSectors:assigned,prazo:a.deadline||'-',status,deadline:actionDeadlineInfo(pseudo),impacta5S:status.code==='overdue'});
+      items.push({
+        source:'pdca',sourceLabel:'PDCA',
+        p,actionRecord:a,
+        ro:p.ro||'-',setor:p.setor||'-',acao:a.action||'',
+        responsavel:a.owner||p.responsavel||'-',
+        responsibleSectors:assigned,prazo:a.deadline||'-',
+        status,deadline:actionDeadlineInfo(pseudo),impacta5S:status.code==='overdue'
+      });
     });
   });
+
+  // Ações atribuídas / pessoais.
+  getUnifiedManualActions().filter(unifiedActionCanSee).forEach(a=>{
+    const status=unifiedManualActionStatus(a);
+    items.push({
+      source:a.source==='self'?'self':'assigned',
+      sourceLabel:a.source==='self'?'Pessoal':'Atribuída',
+      manualAction:a,
+      ro:'—',
+      setor:a.sector||'-',
+      acao:a.action||'',
+      responsavel:a.assigneeName||unifiedActionUserDisplay(a.assigneeKey),
+      responsibleSectors:a.sector?[a.sector]:[],
+      prazo:a.deadline||'-',
+      status,
+      deadline:unifiedManualActionDeadline(a),
+      impacta5S:false
+    });
+  });
+
   return items.filter(x=>x.acao);
 }
-
 async function registerActionEvidence(pdcaId,actionId){
   if(!nucleoFeatureRequire('pdca','completeAction'))return;
   const p=getAllSentPdcas().find(x=>String(x.id)===String(pdcaId));if(!p)return;
@@ -4666,32 +4970,72 @@ function populateActionsSectorFilter(){
   const wrap=document.getElementById('actionsSectorFilterWrap');
   const sel=document.getElementById('actionsSectorFilter');
   if(!wrap||!sel)return;
-  if(!isAdmin()){
+
+  const items=actionDashboardItems();
+  const current=sel.value||'all';
+
+  // SGQ vê tudo; gestor vê setores gerenciados; usuário não precisa de filtro setorial.
+  if(!isAdmin()&&!isManager()){
     wrap.style.display='none';
     return;
   }
+
   wrap.style.display='';
-  const sectors=[...new Set(getSentPdca().flatMap(p=>allPdcaActionsForRecord(p).flatMap(a=>parseResponsibleSectors(a.responsibleSectors?.length?a.responsibleSectors:a.owner))))].filter(Boolean).sort();
+  const sectors=[...new Set(items.flatMap(x=>x.responsibleSectors||[]).filter(Boolean))]
+    .sort((a,b)=>a.localeCompare(b,'pt-BR'));
   sel.innerHTML='<option value="all">Todos os setores</option>'+sectors.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+  if([...sel.options].some(o=>o.value===current))sel.value=current;
+}
+function unifiedActionRowButtons(x){
+  if(x.source==='pdca'){
+    const buttons=[];
+    if(x.p?.id)buttons.push(`<button class="btn secondary" type="button" onclick="openPdcaReport('${escapeHtml(x.p.id)}')">Ver PDCA</button>`);
+    if(x.status.code!=='done' && !isAdmin() && x.actionRecord?.id){
+      buttons.push(`<button class="btn primary" type="button" onclick="registerActionEvidence('${escapeHtml(x.p.id)}','${escapeHtml(x.actionRecord.id)}')">Registrar conclusão</button>`);
+    }
+    if(isAdmin() && x.status.code==='review' && x.p?.id){
+      buttons.push(`<button class="btn primary" type="button" onclick="confirmActionCompletion('${escapeHtml(x.p.id)}')">Confirmar conclusão</button>`);
+    }
+    if(canContestActionSector(x.p,x.actionRecord)){
+      const c=getActionSectorContest(x.actionRecord.id,currentSector());
+      if(c?.status==='pending')buttons.push('<span class="status-badge pending">Contestação em análise</span>');
+      else if(c?.status==='accepted')buttons.push('<span class="status-badge answered">Retirado da ação</span>');
+      else buttons.push(`<button class="btn secondary" type="button" onclick="contestActionSector('${escapeHtml(x.p.id)}','${escapeHtml(x.actionRecord.id)}')">Contestar</button>`);
+    }
+    return buttons.join('');
+  }
+
+  const a=x.manualAction||{};
+  const buttons=[];
+  if(x.status.code!=='done' && unifiedManualActionCanComplete(a)){
+    buttons.push(`<button class="btn primary" type="button" onclick="completeUnifiedManualAction('${escapeHtml(a.id)}')">Concluir</button>`);
+  }
+  const me=unifiedCurrentUserKey();
+  if(isAdmin() || String(a.createdByKey||'').toLowerCase()===me){
+    buttons.push(`<button class="btn secondary" type="button" onclick="deleteUnifiedManualAction('${escapeHtml(a.id)}')">Excluir</button>`);
+  }
+  return buttons.join('')||'<span class="small">Somente acompanhamento</span>';
 }
 function renderActionsDashboard(){
   const items=actionDashboardItems();
   const statusFilter=document.getElementById('actionsStatusFilter')?.value||'all';
   const search=normalizeAnswer(document.getElementById('actionsSearch')?.value||'');
   const sectorFilter=document.getElementById('actionsSectorFilter')?.value||'all';
+  const originFilter=document.getElementById('actionsOriginFilter')?.value||'all';
 
   const counts={pending:0,overdue:0,review:0,done:0};
   items.forEach(x=>{ if(counts[x.status.code]!==undefined) counts[x.status.code]++; });
-  document.getElementById('sumPending').textContent=counts.pending;
-  document.getElementById('sumOverdue').textContent=counts.overdue;
-  document.getElementById('sumReview').textContent=counts.review;
-  document.getElementById('sumDone').textContent=counts.done;
+  ['sumPending','sumOverdue','sumReview','sumDone'].forEach((id,i)=>{
+    const key=['pending','overdue','review','done'][i];
+    const el=document.getElementById(id);if(el)el.textContent=counts[key]||0;
+  });
 
   let filtered=items.filter(x=>{
     if(statusFilter!=='all' && x.status.code!==statusFilter)return false;
-    if(isAdmin() && sectorFilter!=='all' && !x.responsibleSectors.some(s=>normalizeAnswer(s)===normalizeAnswer(sectorFilter)))return false;
+    if(originFilter!=='all' && x.source!==originFilter)return false;
+    if((isAdmin()||isManager()) && sectorFilter!=='all' && !(x.responsibleSectors||[]).some(s=>normalizeAnswer(s)===normalizeAnswer(sectorFilter)))return false;
     if(search){
-      const hay=normalizeAnswer([x.ro,x.setor,x.acao,x.responsavel].join(' '));
+      const hay=normalizeAnswer([x.sourceLabel,x.ro,x.setor,x.acao,x.responsavel,x.manualAction?.createdByName].join(' '));
       if(!hay.includes(search))return false;
     }
     return true;
@@ -4699,32 +5043,25 @@ function renderActionsDashboard(){
 
   filtered.sort((a,b)=>{
     const da=a.deadline.days, db=b.deadline.days;
-    if(da===null && db===null)return 0;
+    if(da===null && db===null)return String(a.acao).localeCompare(String(b.acao),'pt-BR');
     if(da===null)return 1;
     if(db===null)return -1;
     return da-db;
   });
 
   const body=document.getElementById('actionsDashboardBody');
+  if(!body)return;
   body.innerHTML=filtered.length?filtered.map(x=>`<tr>
+    <td><span class="action-origin-badge ${escapeHtml(x.source)}">${escapeHtml(x.sourceLabel)}</span></td>
     <td><b>${escapeHtml(x.ro)}</b></td>
     <td>${escapeHtml(x.setor)}</td>
-    <td>${escapeHtml(x.acao)}</td>
+    <td><div class="action-main-text">${escapeHtml(x.acao)}</div>${x.manualAction?.note?`<div class="small" style="margin-top:4px">${escapeHtml(x.manualAction.note)}</div>`:''}</td>
     <td>${escapeHtml(x.responsavel)}</td>
     <td>${escapeHtml(x.prazo)}</td>
     <td><span class="deadline-text ${x.deadline.cls}">${escapeHtml(x.deadline.text)}</span></td>
-    <td><span class="action-pill ${x.status.code}">${escapeHtml(x.status.label)}</span>${x.impacta5S?'<div class="five-s-impact">Impacta 5S</div>':'<div class="five-s-neutral">Sem impacto no 5S</div>'}</td>
-    <td style="white-space:nowrap">
-      ${canContestActionSector(x.p,x.actionRecord)?(()=>{
-        const c=getActionSectorContest(x.actionRecord.id,currentSector());
-        return c?.status==='pending'
-          ? '<span class="status-badge pending">Contestação em análise</span>'
-          : c?.status==='accepted'
-            ? '<span class="status-badge answered">Retirado da ação</span>'
-            : `<button class="btn secondary" type="button" onclick="contestActionSector('${escapeHtml(x.p.id)}','${escapeHtml(x.actionRecord.id)}')">Contestar participação</button>`;
-      })():isAdmin()?'<span class="small">ADM</span>':'<span class="small">Setor responsável</span>'}
-    </td>
-  </tr>`).join(''):`<tr><td colspan="8" style="text-align:center;color:#667085;padding:24px">Nenhuma ação encontrada.</td></tr>`;
+    <td><span class="action-pill ${x.status.code}">${escapeHtml(x.status.label)}</span>${x.impacta5S?'<div class="five-s-impact">Impacta 5S</div>':x.source==='pdca'?'<div class="five-s-neutral">Sem impacto no 5S</div>':''}</td>
+    <td><div class="unified-action-buttons">${unifiedActionRowButtons(x)}</div></td>
+  </tr>`).join(''):`<tr><td colspan="9" style="text-align:center;color:#667085;padding:24px">Nenhuma ação encontrada nesta visão.</td></tr>`;
 }
 function showActionsDashboard(){
   if(!nucleoFeatureRequire('pdca','actions'))return;
@@ -4733,18 +5070,28 @@ function showActionsDashboard(){
 
   try{
     populateActionsSectorFilter();
-    var scope=document.getElementById('actionsScopeLabel');
+    const scope=document.getElementById('actionsScopeLabel');
     if(scope){
-      scope.textContent=isAdmin()?'Todos os setores':'Setor: '+(currentSector()||'-');
+      scope.textContent=isAdmin()
+        ?'SGQ · todas as ações'
+        :isManager()
+          ?'Gestor · minhas + liderados'
+          :'Minhas ações';
     }
     renderActionsDashboard();
   }catch(err){
     console.error('Erro ao carregar Ações:',err);
-    var body=document.getElementById('actionsDashboardBody');
-    if(body){
-      body.innerHTML='<tr><td colspan="7" style="padding:24px;text-align:center;color:#667085">Não foi possível carregar as ações nesta visualização.</td></tr>';
-    }
+    const body=document.getElementById('actionsDashboardBody');
+    if(body)body.innerHTML='<tr><td colspan="9" style="padding:24px;text-align:center;color:#667085">Não foi possível carregar as ações nesta visualização.</td></tr>';
   }
+}
+
+// Compatibilidade: a antiga tela "Ações pendentes" agora abre a área unificada.
+function showPendingActions(){
+  showActionsDashboard();
+}
+function renderPendingActions(){
+  renderActionsDashboard();
 }
 
 
