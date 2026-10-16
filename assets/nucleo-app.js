@@ -915,10 +915,13 @@ function portalJsonp(params,timeoutMs=60000,baseOverride=''){
 
     const parts=[];
     const requestParams={...(params||{})};
+    const cleanupBypass=requestParams.__testCleanup===true && isAdmin();
+    delete requestParams.__testCleanup;
     const actionName=String(requestParams.acao||'').toLowerCase();
     const sessionToken=String(getSession()?.authToken||'').trim();
     if(
       sessionToken &&
+      !cleanupBypass &&
       actionName!=='portal_save_config' &&
       nucleoActionNeedsCentralConfirmation(actionName) &&
       !nucleoCentralDataConfirmed()
@@ -10792,27 +10795,121 @@ function loadAdminConfig(){
 }
 
 
+async function adminCleanupEnsureTestBackend(){
+  if(!isAdmin())throw new Error('A limpeza de testes exige acesso SGQ/ADM.');
+  const base=portalApiBase();
+  if(!base)throw new Error('Apps Script TESTE não configurado.');
+
+  const confirmed=await nucleoCheckApiUrl(base);
+  if(String(confirmed?.ambiente||confirmed?.config?.ambiente||'').toUpperCase()!=='TESTE'){
+    throw new Error('A limpeza foi bloqueada porque o backend não confirmou o ambiente TESTE.');
+  }
+  return base;
+}
+
+async function adminCleanupMutation(params,timeout=60000){
+  await adminCleanupEnsureTestBackend();
+  const res=await portalJsonp({...params,__testCleanup:true},timeout);
+  if(!res?.sucesso)throw new Error(res?.erro||'A base TESTE não confirmou a operação.');
+  return res;
+}
+
+async function adminCleanupDeleteRecord(collection,id){
+  if(!id)return true;
+
+  const before=await portalJsonp({
+    acao:'portal_get_record',
+    colecao:String(collection),
+    id:String(id)
+  },15000).catch(()=>null);
+
+  if(!before?.registro)return true;
+
+  await adminCleanupMutation({
+    acao:'portal_delete',
+    colecao:String(collection),
+    id:String(id),
+    ator:getSession()?.name||'SGQ'
+  },60000);
+
+  const after=await portalJsonp({
+    acao:'portal_get_record',
+    colecao:String(collection),
+    id:String(id)
+  },15000).catch(()=>null);
+
+  if(after?.registro)throw new Error('A base TESTE ainda apresenta o registro '+id+' após a exclusão.');
+  return true;
+}
+
+async function adminCleanupSaveSharedState(key,value){
+  const id='global:'+String(key);
+  const record={
+    id,
+    key:String(key),
+    value:String(value??''),
+    scope:'global',
+    userKey:'',
+    updatedAt:new Date().toISOString(),
+    updatedBy:getSession()?.name||'SGQ'
+  };
+
+  await adminCleanupMutation({
+    acao:'portal_save',
+    colecao:'shared_state',
+    id,
+    dados:JSON.stringify(record),
+    ator:getSession()?.name||'SGQ'
+  },60000);
+
+  const verify=await portalJsonp({
+    acao:'portal_get_record',
+    colecao:'shared_state',
+    id
+  },15000).catch(()=>null);
+
+  if(!verify?.registro || String(verify.registro.value??'')!==String(value??'')){
+    throw new Error('A base TESTE não confirmou o marcador de limpeza.');
+  }
+  return true;
+}
+
 function cleanupRoKey(){
-  return String(document.getElementById('adminCleanupRo')?.value||'').trim();
+  const raw=String(document.getElementById('adminCleanupRo')?.value||'').trim();
+  if(!raw)return '';
+
+  const rows=getAllRoRecords();
+  const exact=rows.find(r=>String(r.numero||r.id||r.codigo||'').trim().toLowerCase()===raw.toLowerCase());
+  if(exact)return String(exact.numero||exact.id||exact.codigo||'').trim();
+
+  // Permite digitar somente o número, por exemplo 1193.
+  if(/^\d+$/.test(raw)){
+    const matches=rows.filter(r=>{
+      const number=String(r.numero||r.id||r.codigo||'');
+      const parts=number.match(/\d+/g)||[];
+      return parts.some(x=>Number(x)===Number(raw));
+    });
+    if(matches.length===1)return String(matches[0].numero||matches[0].id||matches[0].codigo||'').trim();
+  }
+
+  return raw;
 }
 
 function populateAdminCleanupRos(){
-  const sel=document.getElementById('adminCleanupRo');
-  if(!sel || !isAdmin())return;
+  const input=document.getElementById('adminCleanupRo');
+  const list=document.getElementById('adminCleanupRoList');
+  if(!input || !list || !isAdmin())return;
 
-  const current=sel.value||'';
   const rows=getAllRoRecords().slice().sort((a,b)=>
     String(a.numero||'').localeCompare(String(b.numero||''),'pt-BR',{numeric:true})
   );
 
-  sel.innerHTML='<option value="">Selecione uma R.O...</option>'+
-    rows.map(r=>{
-      const key=String(r.numero||r.id||r.codigo||'').trim();
-      const label=[key,r.cliente||'',r.origemBase||''].filter(Boolean).join(' · ');
-      return `<option value="${escapeHtml(key)}">${escapeHtml(label)}</option>`;
-    }).join('');
+  list.innerHTML=rows.map(r=>{
+    const key=String(r.numero||r.id||r.codigo||'').trim();
+    const label=[r.cliente||'',r.origemBase||''].filter(Boolean).join(' · ');
+    return `<option value="${escapeHtml(key)}" label="${escapeHtml(label)}"></option>`;
+  }).join('');
 
-  if(current && [...sel.options].some(o=>o.value===current))sel.value=current;
   refreshAdminCleanupPreview();
 }
 
@@ -10830,7 +10927,11 @@ function refreshAdminCleanupPreview(){
   }
 
   const cleanupRo=findRoByAnyNumber(key,'');
-  const tri=cleanupRo?resolvedTriageForRo(cleanupRo,getSavedTriageMap()):null;
+  if(!cleanupRo){
+    box.textContent='Nenhuma R.O. encontrada para "'+key+'".';
+    return;
+  }
+  const tri=resolvedTriageForRo(cleanupRo,getSavedTriageMap());
   const pdcas=adminCleanupLinkedPdca(key);
   const actionCount=pdcas.reduce((sum,p)=>sum+allPdcaActionsForRecord(p).length,0);
 
@@ -10882,12 +10983,9 @@ async function adminDeleteTriageForRo(skipConfirm=false){
   }
 
   try{
-    if(!nucleoCentralDataConfirmed()){
-      const synced=await syncPortalBackend(false,{foreground:true});
-      if(!synced || !nucleoCentralDataConfirmed()){
-        throw new Error('Não foi possível confirmar a base TESTE antes da limpeza.');
-      }
-    }
+    // A limpeza confirma diretamente que a URL atual é do ambiente TESTE.
+    // Não depende do estado visual global de sincronização do navegador.
+    await adminCleanupEnsureTestBackend();
 
     const map=getSavedTriageMap();
     const ro=findRoByAnyNumber(key,'');
@@ -10907,15 +11005,7 @@ async function adminDeleteTriageForRo(skipConfirm=false){
 
     // Remove registros reais da coleção triage da base TESTE.
     for(const triageKey of centralKeys){
-      const before=await portalJsonp({
-        acao:'portal_get_record',
-        colecao:'triage',
-        id:String(triageKey)
-      },15000).catch(()=>null);
-
-      if(before?.registro){
-        await nucleoDeleteTriageConfirmed(triageKey);
-      }
+      await adminCleanupDeleteRecord('triage',triageKey);
     }
 
     // Tombstone global: impede que a planilha original reconstrua a triagem
@@ -10923,7 +11013,8 @@ async function adminDeleteTriageForRo(skipConfirm=false){
     const deletedKeys=getDeletedTriageKeys();
     deletedKeys.add(key);
     [...centralKeys].forEach(k=>deletedKeys.add(String(k)));
-    await saveDeletedTriageKeysConfirmed(deletedKeys);
+    saveDeletedTriageKeys(deletedKeys);
+    await adminCleanupSaveSharedState(DELETED_TRIAGE_KEYS_KEY,JSON.stringify([...deletedKeys]));
 
     // Limpa somente o cache/modelo do TESTE. Não altera a planilha original.
     [...map.keys()].forEach(k=>{
@@ -10967,60 +11058,72 @@ async function adminDeleteTriageForRo(skipConfirm=false){
 async function adminDeletePdcaForRo(skipConfirm=false){
   if(!isAdmin())return false;
   const key=cleanupRoKey();
-  if(!key){alert('Selecione uma R.O.');return false;}
+  if(!key){alert('Digite ou selecione uma R.O.');return false;}
+
+  const ro=findRoByAnyNumber(key,'');
+  if(!ro){
+    alert('R.O. não encontrada. Digite o número completo ou apenas os dígitos.');
+    return false;
+  }
 
   const pdcas=adminCleanupLinkedPdca(key);
   if(!pdcas.length){
-    if(!skipConfirm)alert('Não há PDCA vinculado a esta R.O.');
+    if(!skipConfirm)alert('Não há PDCA de teste vinculado a esta R.O.');
     return true;
   }
 
   if(!skipConfirm){
     const ok=confirm(
       'Excluir '+pdcas.length+' PDCA(s) vinculado(s) a '+key+'?\n\n'+
-      'Também serão removidas as ações e a apresentação relacionadas. Esta operação é para limpeza de testes.'
+      'Também serão removidas as ações e a apresentação relacionadas SOMENTE no ambiente TESTE.\n'+
+      'A planilha original não será alterada.'
     );
     if(!ok)return false;
   }
 
-  // Remove coleções centrais.
-  pdcas.forEach(p=>{
-    allPdcaActionsForRecord(p).forEach(a=>{
-      if(a?.id)portalBackendDelete('pdca_actions',a.id);
-    });
-    if(p?.id)portalBackendDelete('pdca_sent',p.id);
-  });
-
-  removePdcaLocalRecords(key,pdcas);
-
-  // Limpa campos de PDCA na planilha mantendo a triagem/direcionamento.
-  const ro=findRoByAnyNumber(key,'');
-  const origin=String(ro?.origemBase||ro?.raw?.__origemBase||'');
   try{
-    const fields=origin==='Externa'
-      ? {prazoConclusao:'',status:'Pendente',dataEnvio:'',resultado:''}
-      : {pdcaEnviado:'',acaoPrevista:'',prazoConclusao:'',status:'Pendente',dataEnvio:''};
-    await portalUpdateRoSheetConfirmed(key,fields);
+    await adminCleanupEnsureTestBackend();
+
+    // Remove e confirma cada registro na base TESTE.
+    for(const p of pdcas){
+      for(const a of allPdcaActionsForRecord(p)){
+        if(a?.id)await adminCleanupDeleteRecord('pdca_actions',a.id);
+      }
+      if(p?.id)await adminCleanupDeleteRecord('pdca_sent',p.id);
+    }
+
+    removePdcaLocalRecords(key,pdcas);
+
+    // NÃO altera a planilha original. O TESTE usa apenas seu próprio overlay/cache.
+    if(ro){
+      ro.pdca='Obrigatório';
+      const tri=getRoTriageRecord(ro);
+      ro.status=tri?.decision==='directed'?'Aguardando resposta':'Aguardando triagem';
+      ro.pdcaEnviadoReclamanteEm='';
+      ro.reclamanteRecebeuPdca=false;
+    }
+
+    try{await syncPortalBackend(false,{foreground:true})}catch(e){}
+
+    try{renderSentPdcas()}catch(e){}
+    try{renderTriage()}catch(e){}
+    try{renderActionsDashboard()}catch(e){}
+    try{refreshRoSummary()}catch(e){}
+    try{refreshPdcaSidebarBadge()}catch(e){}
+    refreshAdminCleanupPreview();
+
+    const stillThere=adminCleanupLinkedPdca(key);
+    if(stillThere.length){
+      throw new Error('A base TESTE ainda apresenta PDCA vinculado a esta R.O. após a exclusão.');
+    }
+
+    if(!skipConfirm)alert('PDCA de teste excluído. A planilha original foi preservada.');
+    return true;
   }catch(e){
-    console.warn('PDCA removido do Núcleo, mas a planilha não confirmou a limpeza dos campos do PDCA.',e);
+    console.error('[LIMPEZA TESTE] falha ao excluir PDCA',e);
+    alert('Não foi possível excluir o PDCA de teste.\n\n'+String(e?.message||e));
+    return false;
   }
-
-  if(ro){
-    ro.pdca='Obrigatório';
-    ro.status=getSavedTriageMap().has(key)?'Aguardando resposta':'Aguardando triagem';
-    ro.pdcaEnviadoReclamanteEm='';
-    ro.reclamanteRecebeuPdca=false;
-  }
-
-  try{renderSentPdcas()}catch(e){}
-  try{renderTriage()}catch(e){}
-  try{renderActionsDashboard()}catch(e){}
-  try{refreshRoSummary()}catch(e){}
-  try{refreshPdcaSidebarBadge()}catch(e){}
-  refreshAdminCleanupPreview();
-
-  if(!skipConfirm)alert('PDCA de teste excluído.');
-  return true;
 }
 
 async function adminDeleteTestDataForRo(){
@@ -11034,11 +11137,13 @@ async function adminDeleteTestDataForRo(){
   );
   if(!ok)return;
 
-  await adminDeletePdcaForRo(true);
-  await adminDeleteTriageForRo(true);
+  const pdcaOk=await adminDeletePdcaForRo(true);
+  if(!pdcaOk)return;
+  const triageOk=await adminDeleteTriageForRo(true);
+  if(!triageOk)return;
 
   refreshAdminCleanupPreview();
-  alert('Dados de teste removidos. A R.O. foi mantida.');
+  alert('Dados de teste removidos. A R.O. e a planilha original foram preservadas.');
 }
 
 
