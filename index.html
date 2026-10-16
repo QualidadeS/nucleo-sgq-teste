@@ -2655,6 +2655,32 @@ body{padding-bottom:28px!important}
 #unifiedActionPersonWrap select{min-height:42px}
 </style>
 
+
+<style id="action-history-v32-style">
+.unified-dependency-box{border:1px solid #dbe4ee;border-radius:12px;padding:12px;background:#fbfcfd}
+#unifiedActionDependencySectors{min-height:130px}
+.dependency-chip-list{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.action-progress-wrap{margin-top:7px}
+.action-progress-bar{height:7px;border-radius:999px;background:#e5e7eb;overflow:hidden;margin:4px 0}
+.action-progress-bar span{display:block;height:100%;background:currentColor;opacity:.65;border-radius:inherit}
+.action-progress-bar.large{height:10px;margin:8px 0;max-width:420px}
+.unified-action-history-modal{max-width:900px}
+.action-detail-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+.action-detail-summary>div{border:1px solid #e4e7ec;border-radius:10px;padding:10px;background:#fbfcfd;display:flex;flex-direction:column;gap:4px}
+.action-detail-summary>div.full{grid-column:1/-1}
+.action-detail-summary span{font-size:11px;color:#667085}
+.action-timeline{position:relative;padding-left:24px}
+.action-timeline:before{content:"";position:absolute;left:8px;top:8px;bottom:8px;width:2px;background:#e4e7ec}
+.action-timeline-item{position:relative;padding:0 0 18px 14px}
+.action-timeline-dot{position:absolute;left:-21px;top:5px;width:10px;height:10px;border-radius:50%;background:#175cd3;border:2px solid white;box-shadow:0 0 0 2px #b2ddff}
+.action-timeline-content{border:1px solid #e4e7ec;border-radius:10px;padding:11px 12px;background:white}
+.action-timeline-head{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:12px}
+.action-timeline-head span{color:#667085}
+.action-timeline-text{margin-top:7px;white-space:pre-wrap}
+.action-timeline-meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.action-timeline-meta span{font-size:11px;background:#f2f4f7;border-radius:999px;padding:4px 7px;color:#475467}
+</style>
+
 </head><body><div id="nucleoTestEnvironmentBanner">AMBIENTE DE TESTE — NÃO É O NÚCLEO DE PRODUÇÃO</div>
 
 <div id="nucleoLoadingOverlay" role="status" aria-live="polite" aria-busy="true">
@@ -3307,10 +3333,12 @@ body{padding-bottom:28px!important}
         <label>
           <div class="label">Tipo</div>
           <select id="unifiedActionType">
-            <option value="Ação">Ação</option>
-            <option value="Ação corretiva">Ação corretiva</option>
             <option value="Contenção">Contenção</option>
-            <option value="Acompanhamento">Acompanhamento</option>
+            <option value="Ação Preventiva">Ação Preventiva</option>
+            <option value="Ação Corretiva">Ação Corretiva</option>
+            <option value="Investigação / Controle">Investigação / Controle</option>
+            <option value="Melhoria / Controle">Melhoria / Controle</option>
+            <option value="Atendimento ao Cliente">Atendimento ao Cliente</option>
             <option value="Melhoria">Melhoria</option>
           </select>
         </label>
@@ -3322,10 +3350,24 @@ body{padding-bottom:28px!important}
           <div class="label">Cliente / assunto</div>
           <input id="unifiedActionSubject" placeholder="Cliente, tema ou assunto">
         </label>
-        <label>
-          <div class="label">Dependência</div>
-          <input id="unifiedActionDependency" placeholder="Ex.: Direção, cliente, manutenção...">
-        </label>
+        <div class="full unified-dependency-box">
+          <div class="label">Dependências</div>
+          <div class="small" style="margin-bottom:8px">Pode selecionar mais de um setor e também adicionar cliente, fornecedor ou outra dependência externa.</div>
+          <div class="settings-grid">
+            <label>
+              <div class="label">Setores envolvidos</div>
+              <select id="unifiedActionDependencySectors" multiple size="6"></select>
+            </label>
+            <label>
+              <div class="label">Cliente / fornecedor / outro</div>
+              <textarea id="unifiedActionExternalDependencies" rows="6" placeholder="Uma dependência por linha. Ex.:
+Cliente WEG
+Fornecedor de etiquetas
+Diretoria"></textarea>
+            </label>
+          </div>
+          <div id="unifiedActionDependencyPreview" class="dependency-chip-list"></div>
+        </div>
         <label>
           <div class="label">Urgência</div>
           <select id="unifiedActionUrgency">
@@ -3337,6 +3379,22 @@ body{padding-bottom:28px!important}
         <label class="full">
           <div class="label">Próximo passo</div>
           <textarea id="unifiedActionNextStep" rows="2" placeholder="O que deve acontecer em seguida?"></textarea>
+        </label>
+        <label>
+          <div class="label">Andamento inicial</div>
+          <select id="unifiedActionProgress">
+            <option value="0">0% — Não iniciada</option>
+            <option value="10">10%</option>
+            <option value="25">25%</option>
+            <option value="50">50%</option>
+            <option value="75">75%</option>
+            <option value="90">90%</option>
+            <option value="100">100% — Concluída</option>
+          </select>
+        </label>
+        <label>
+          <div class="label">O que falta para terminar?</div>
+          <input id="unifiedActionRemaining" placeholder="Ex.: aguardar retorno do fornecedor">
         </label>
         <label id="unifiedActionModeWrap">
           <div class="label">Atribuir para</div>
@@ -3378,6 +3436,62 @@ body{padding-bottom:28px!important}
       <div class="actions" style="justify-content:flex-end;margin-top:14px">
         <button class="btn secondary" type="button" onclick="closeUnifiedActionModal()">Cancelar</button>
         <button class="btn primary" type="button" onclick="saveUnifiedAction()">Criar ação</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<div id="unifiedActionHistoryOverlay" class="triage-modal-overlay" onclick="if(event.target===this)closeUnifiedActionHistory()">
+  <div class="triage-modal unified-action-history-modal">
+    <div class="triage-modal-head">
+      <div>
+        <h3 id="unifiedActionHistoryTitle" style="margin:0">Acompanhamento da ação</h3>
+        <div id="unifiedActionHistorySubtitle" class="small"></div>
+      </div>
+      <button class="btn secondary" type="button" onclick="closeUnifiedActionHistory()">Fechar</button>
+    </div>
+    <div class="triage-modal-body">
+      <input id="unifiedActionHistoryId" type="hidden">
+
+      <div id="unifiedActionDetailSummary" class="action-detail-summary"></div>
+
+      <div class="settings-block" style="margin-top:16px">
+        <h4 style="margin:0 0 10px">Registrar atualização</h4>
+        <div class="settings-grid">
+          <label class="full">
+            <div class="label">O que foi feito / o que mudou *</div>
+            <textarea id="unifiedActionUpdateText" rows="3" placeholder="Ex.: Cliente retornou aprovando a arte; material entrou em produção."></textarea>
+          </label>
+          <label>
+            <div class="label">Andamento</div>
+            <select id="unifiedActionUpdateProgress">
+              <option value="0">0%</option>
+              <option value="10">10%</option>
+              <option value="25">25%</option>
+              <option value="50">50%</option>
+              <option value="75">75%</option>
+              <option value="90">90%</option>
+              <option value="100">100% — Concluída</option>
+            </select>
+          </label>
+          <label>
+            <div class="label">O que falta para terminar?</div>
+            <input id="unifiedActionUpdateRemaining" placeholder="Ex.: receber etiquetas e validar com Expedição">
+          </label>
+          <label class="full">
+            <div class="label">Próximo passo</div>
+            <textarea id="unifiedActionUpdateNextStep" rows="2" placeholder="Próxima atividade prevista"></textarea>
+          </label>
+        </div>
+        <div class="actions" style="justify-content:flex-end;margin-top:12px">
+          <button class="btn primary" type="button" onclick="saveUnifiedActionUpdate()">Salvar atualização</button>
+        </div>
+      </div>
+
+      <div class="settings-block" style="margin-top:16px">
+        <h4 style="margin:0 0 10px">Histórico da ação</h4>
+        <div id="unifiedActionTimeline" class="action-timeline"></div>
       </div>
     </div>
   </div>
@@ -4503,7 +4617,7 @@ Cancelada</textarea></label>
 </main>
 </div>
 </div><div id="contestModal" class="modal hidden"><div class="modal-box"><h3>Contestar R.O.</h3><div class="label">Motivo da contestação</div><textarea id="contestText" placeholder="Explique por que a R.O. deve ser revista, cancelada ou redirecionada."></textarea><div class="label" style="margin-top:10px">Setor que considera correto (opcional)</div><input id="contestSector" placeholder="Ex.: Expedição"><div class="modal-actions"><button class="btn secondary" type="button" onclick="closeContest()">Cancelar</button><button class="btn danger" type="button" onclick="submitContest()">Enviar contestação</button></div></div></div>
-<script src="assets/nucleo-app.js?v=20261016-person-sector-v31"></script>
+<script src="assets/nucleo-app.js?v=20261016-action-history-v32"></script>
 
 <div id="presentationModal" class="presentation-modal">
   <div class="presentation-card">
