@@ -14617,6 +14617,34 @@ function assignedRoDeadline(r,preloadedMap=null){
   return String(tri.pdcaDeadline||tri.deadline||nextTuesdayIsoDate()).trim()||nextTuesdayIsoDate();
 }
 
+function currentUserCanRespondAssignedRo(ro,tri){
+  const session=getSession()||{};
+  if(!tri || tri.decision!=='directed')return false;
+
+  const assignedEmail=String(tri.responsibleUserEmail||'').trim().toLowerCase();
+  const assignedName=normalizeAnswer(tri.responsibleUserName||'');
+  const sessionEmail=String(session.email||'').trim().toLowerCase();
+  const sessionName=normalizeAnswer(session.name||'');
+
+  // Pessoa específica selecionada na triagem.
+  if(assignedEmail)return !!sessionEmail && assignedEmail===sessionEmail;
+  if(assignedName)return !!sessionName && assignedName===sessionName;
+
+  // "Todo o setor": permite responder quando a pessoa logada pertence ao setor.
+  const sector=String(tri.responsibleSector||'').trim();
+  if(!sector)return false;
+
+  if(normalizeAnswer(session.sector||'')===normalizeAnswer(sector))return true;
+
+  const unit=explicitRecordUnit(ro)||roUnit(ro);
+  if((session.sectorMemberships||[]).some(m=>
+    normalizePortalUnit(m.unit||'')===normalizePortalUnit(unit||'') &&
+    normalizeAnswer(m.sector||'')===normalizeAnswer(sector)
+  ))return true;
+
+  return false;
+}
+
 let roListVisibleLimit=60;
 let roListFilterSignature='';
 function showMoreRos(){roListVisibleLimit+=60;render()}
@@ -14736,7 +14764,9 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
     const displayDecisionLabel=nucleoAssignedDecisionLabel(r,tri,displayStatus,renderTriageMap);
 
     let operationalActions='';
-    if(!admin){
+    const adminCanRespond=admin&&currentUserCanRespondAssignedRo(r,tri);
+
+    if(!admin || adminCanRespond){
       const respondDisabled=noPdca||contest||alreadySent;
       const contestDisabled=noPdca||contest;
 
@@ -14749,11 +14779,11 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
               ${alreadySent?'PDCA enviado':pdcaActionLabel(r.numero)}
             </button>
             ${(!alreadySent&&isPdcaStarted(r.numero))?'<span class="status-badge pending" style="align-self:center">Rascunho iniciado</span>':''}
-            <button class="btn secondary" type="button"
+            ${!admin?`<button class="btn secondary" type="button"
               ${contestDisabled?'disabled':''}
               onclick="contestRoFromList('${escapeHtml(r.numero)}')">
               ${contest?'Em contestação':'Contestar'}
-            </button>
+            </button>`:''}
           </div>
         </td>`;
     }else{
@@ -14780,9 +14810,10 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
     ? `Mostrando ${roListVisibleLimit} de ${list.length} R.O.s · <button class="btn secondary" type="button" onclick="showMoreRos()">Mostrar mais 60</button>`
     : (list.length?`Mostrando ${list.length} R.O.s`:'');
 
-  // A coluna "Ações" é exclusiva da visão operacional.
+  // Para ADM/SGQ, a ação de responder aparece somente nas R.O.s
+  // que foram direcionadas para a própria pessoa logada.
   document.querySelectorAll('.operational-action-col').forEach(el=>{
-    el.style.display=admin?'none':'';
+    if(!admin)el.style.display='';
   });
 }
 
@@ -14830,7 +14861,10 @@ function selectRoForOperationalAction(numero){
     alert('R.O. não encontrada ou indisponível.');
     return null;
   }
-  const ro=isAdmin()?base:getOperationalRoView(base);
+  const tri=getRoTriageRecord(base);
+  const ro=(isAdmin()&&currentUserCanRespondAssignedRo(base,tri))
+    ? getOperationalRoView({...base,__triageRecord:tri,__assignedSector:tri?.responsibleSector||''})
+    : (isAdmin()?base:getOperationalRoView(base));
   selected=ro;
   return ro;
 }
