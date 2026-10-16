@@ -331,7 +331,9 @@ function renderPdcaResponsibleSectorQuestion(it,stage,global,answered){
   return `<div class="question pdca-sector-question">
     <div class="pdca-question-head">
       <div class="small" style="font-weight:700">Pergunta ${global} de 26 · ${stage.name}</div>
-      <span class="status-badge ${answered?'answered':''}">${answered?'Respondida':'Obrigatória'}</span>
+      <div class="pdca-question-actions">
+        <span class="status-badge ${answered?'answered':''}">${answered?'Respondida':'Obrigatória'}</span>
+      </div>
     </div>
     <h4>${it[1]}</h4>
     <p>Selecione os setores da sua unidade que precisam executar ou acompanhar esta ação.</p>
@@ -15932,11 +15934,13 @@ function renderStage(){
     return `<div class="question ${lockedCurrent?'pdca-question-locked':''}">
       <div class="pdca-question-head">
         <div class="small" style="font-weight:700">Pergunta ${global} de 26 · ${s.name}</div>
-        <span class="status-badge ${answered?'answered':''}">${lockedCurrent?'Aguardando execução':answered?'Respondida':'Obrigatória'}</span>
+        <div class="pdca-question-actions">
+          <span class="status-badge ${answered?'answered':''}">${lockedCurrent?'Aguardando execução':answered?'Respondida':'Obrigatória'}</span>
+          <button class="mic-answer-btn" type="button" ${lockedCurrent?'disabled':''} onclick="dictatePdcaAnswer('${it[0]}',this)">🎤 Falar resposta</button>
+        </div>
       </div>
       <h4>${it[1]}</h4>
       <p>${it[2]}</p>
-      <div class="question-answer-tools"><button class="mic-answer-btn" type="button" ${lockedCurrent?'disabled':''} onclick="dictatePdcaAnswer('${it[0]}',this)">🎤 Falar resposta</button></div>
       <textarea id="answer_${it[0]}" spellcheck="true" ${lockedCurrent?'disabled':''}
         oninput="pdcaHandleAnswerInput('${it[0]}',this.value)"
         placeholder="${lockedCurrent?'Aguarde a conclusão da execução para responder.':'Escreva ou fale aqui sua resposta...'}">${answers[it[0]]||''}</textarea>
