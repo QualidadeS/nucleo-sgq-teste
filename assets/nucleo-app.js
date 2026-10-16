@@ -9974,10 +9974,11 @@ function clearSgqIndicatorFilters(){
   renderSgqIndicators();
 }
 
-function sgqIndicatorData(){
-  const triageMap=getSavedTriageMap();
+function sgqIndicatorData(preloadedMap=null,preloadedRos=null){
+  const triageMap=preloadedMap instanceof Map?preloadedMap:getSavedTriageMap();
   const filters=sgqIndicatorFilterState();
-  const rosAll=getAllRoRecords().filter(ro=>sgqIndicatorMatchesFilters(ro,triageMap,filters));
+  const sourceRos=Array.isArray(preloadedRos)?preloadedRos:getAllRoRecords();
+  const rosAll=sourceRos.filter(ro=>sgqIndicatorMatchesFilters(ro,triageMap,filters));
   const sent=getAllSentPdcas();
   const byRo=new Map();
   sent.forEach(p=>{
@@ -10053,7 +10054,8 @@ function sgqIndicatorData(){
     filters,
     statusCounts,
     totalRO,pendingPDCA,noPresentation,overduePDCA,
-    openActions,overdueActions,presented,doneActions,sectorMap,actionCounts
+    openActions,overdueActions,presented,doneActions,sectorMap,actionCounts,
+    triageMap,filteredRows:rosAll,sourceRows:sourceRos,sentPdcas:sent
   };
 }
 
@@ -10144,8 +10146,7 @@ function renderSgqCharts(d){
       </div>`).join(''):'<div class="small">Sem dados por setor.</div>';
   }
 
-  const triageMap=getSavedTriageMap();
-  const rows=getAllRoRecords().filter(ro=>sgqIndicatorMatchesFilters(ro,triageMap,d.filters));
+  const rows=Array.isArray(d.filteredRows)?d.filteredRows:[];
   const months=sgqIndicatorMonthlyData(rows);
   const maxMonth=Math.max(1,...months.map(x=>x.value||0));
   const monthBox=document.getElementById('sgqMonthlyBars');
@@ -10169,10 +10170,17 @@ function renderSgqCharts(d){
 
 function renderSgqIndicators(){
   if(!isAdmin()){showList();return}
-  nucleoRefreshIndicatorDecisions();
+
+  // Carrega a base uma única vez para esta renderização.
+  const allRows=getAllRoRecords();
+  const triageMap=getSavedTriageMap();
+
+  nucleoRefreshIndicatorDecisions(triageMap,allRows);
   nucleoRefreshIndicatorClassificationOptions();
-  const d=sgqIndicatorData();
+
+  const d=sgqIndicatorData(triageMap,allRows);
   nucleoRenderClassificationIndicators(d);
+
   const set=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v};
   set('kpiFilteredRO',d.filteredRO);
   set('kpiStatusAnalysis',d.statusCounts.analysis||0);
@@ -10227,8 +10235,9 @@ function renderSgqIndicators(){
   renderSgqCharts(d);
 }
 async function showSgqIndicators(){
- if(!nucleoFeatureRequire('indicators','consult'))return;
+  if(!nucleoFeatureRequire('indicators','consult'))return;
   if(!isAdmin()){showList();return}
+
   view('sgqIndicatorsView');
   setNav('indicators');
   populateSgqIndicatorUnits();
@@ -10237,9 +10246,12 @@ async function showSgqIndicators(){
   const loading=document.getElementById('sgqBySector');
   if(loading)loading.innerHTML='<div class="small">Calculando indicadores...</div>';
 
-  await showNucleoLoading('Analisando R.O.s, PDCAs e ações...','Calculando indicadores');
+  showNucleoLoading('Analisando R.O.s, PDCAs e ações...','Calculando indicadores');
+
   try{
-    await new Promise(resolve=>requestAnimationFrame(resolve));
+    // Duas pinturas antes do cálculo impedem o navegador de marcar a aba como travada
+    // antes de conseguir exibir a própria tela de indicadores.
+    await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
     renderSgqIndicators();
   }catch(e){
     console.error('Falha ao gerar indicadores SGQ:',e);
@@ -10248,7 +10260,6 @@ async function showSgqIndicators(){
     hideNucleoLoading();
   }
 }
-
 function getAllSentPdcas(){
   try{
     if(typeof getSentPdcas==='function'){
@@ -18080,8 +18091,9 @@ function nucleoRefreshIndicatorClassificationOptions(){
 }
 function nucleoRenderClassificationIndicators(data){
  const host=document.getElementById('sgqByClassification');if(!host)return;
- const map=getSavedTriageMap(),rows=new Map();
- getAllRoRecords().filter(ro=>sgqIndicatorMatchesFilters(ro,map,data.filters)).forEach(ro=>{
+ const map=data?.triageMap instanceof Map?data.triageMap:getSavedTriageMap(),rows=new Map();
+ const sourceRows=Array.isArray(data?.filteredRows)?data.filteredRows:[];
+ sourceRows.forEach(ro=>{
   const names=nucleoRoClassifications(ro,map);
   (names.length?names:['Sem classificação']).forEach(name=>{const key=normalizeAnswer(name);
   if(!rows.has(key))rows.set(key,{name,total:0,record:0,cancelled:0,obsolete:0,directed:0});
@@ -18114,33 +18126,102 @@ function nucleoAddDecisionRow(rule){
 }
 function nucleoCollectDecisionRules(){return [...document.getElementById('decisionRuleRows').children].map(row=>{const rule={id:row.dataset.decisionId};row.querySelectorAll('[data-rule]').forEach(input=>rule[input.dataset.rule]=input.type==='checkbox'?input.checked:input.dataset.rule==='deadlineDays'?(input.value===''?null:Number(input.value)):input.value.trim());return rule;});}
 function nucleoSectorDecisionIndicators(data){
- const map=getSavedTriageMap(),rows=new Map(),sent=getAllSentPdcas();
- getAllRoRecords().filter(ro=>sgqIndicatorMatchesFilters(ro,map,data.filters)).forEach(ro=>{
-  const resolved=resolvedTriageForRo(ro,map)||{};const assignments=resolved.decision==='directed'&&typeof getTriageRecordsForRoNumber==='function'?getTriageRecordsForRoNumber(String(ro.numero||ro.id),map).filter(t=>t.decision==='directed'):[];const unique=new Map();(assignments.length?assignments:[resolved]).forEach(t=>unique.set(sectorCompareKey(t.responsibleSector||t.decisionSector||''),t));
-  for(const tri of unique.values()){const sector=tri.decisionSector||tri.responsibleSector||effectiveRoSector(ro,map)||'Sem setor',key=sectorCompareKey(sector);
-  if(!rows.has(key))rows.set(key,{name:sector,total:0,cancelled:0,record:0,obsolete:0,pending:0,responded:0,presented:0,done:0,triage:0,decisions:new Map()});const row=rows.get(key);row.total++;
-  const status=tri.decision||sgqIndicatorStatusCode(ro,map),rule=nucleoDecisionForRecord(ro,tri),label=rule?.label||tri.decisionLabel||triageDecisionLabel(tri.decision);
-  row.decisions.set(label,(row.decisions.get(label)||0)+1);
-  if(['cancelled','record','obsolete'].includes(status)){row[status]++;continue;}
-  if(status!=='directed'){row[status==='done'?'done':'triage']++;continue;}
-  if(tri.pdcaRequired===false){row.done++;continue;}
-  const p=sent.filter(p=>String(p.ro||p.roId)===String(ro.numero||ro.id)&&(!p.setor&&!p.sector||sectorCompareKey(p.setor||p.sector)===sectorCompareKey(sector))&&(!explicitRecordUnit(p)||explicitRecordUnit(p)===explicitRecordUnit(ro))).sort((a,b)=>String(b.createdAt||b.dataHora||'').localeCompare(String(a.createdAt||a.dataHora||'')))[0];
-  const ps=pdcaStatusLabel(p);row[ps==='Apresentado'?'presented':ps==='Respondido'?'responded':ps==='Concluído'?'done':'pending']++;
- }
- });return [...rows.values()].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
+ const map=data?.triageMap instanceof Map?data.triageMap:getSavedTriageMap();
+ const rows=new Map();
+ const sent=Array.isArray(data?.sentPdcas)?data.sentPdcas:getAllSentPdcas();
+ const sourceRows=Array.isArray(data?.filteredRows)?data.filteredRows:[];
+
+ // Indexa PDCAs uma vez. Evita varrer toda a lista de PDCAs para cada R.O./setor.
+ const sentIndex=new Map();
+ sent.forEach(p=>{
+   const ro=String(p.ro||p.roId||'').trim();
+   if(!ro)return;
+   const sector=sectorCompareKey(p.setor||p.sector||'');
+   const unit=explicitRecordUnit(p)||'';
+   const keys=[
+     ro+'|'+sector+'|'+unit,
+     ro+'|'+sector+'|',
+     ro+'||'+unit,
+     ro+'||'
+   ];
+   keys.forEach(key=>{
+     const current=sentIndex.get(key);
+     if(!current || String(p.createdAt||p.dataHora||'')>String(current.createdAt||current.dataHora||'')){
+       sentIndex.set(key,p);
+     }
+   });
+ });
+
+ sourceRows.forEach(ro=>{
+  const resolved=resolvedTriageForRo(ro,map)||{};
+  const assignments=resolved.decision==='directed'&&typeof getTriageRecordsForRoNumber==='function'
+    ?getTriageRecordsForRoNumber(String(ro.numero||ro.id),map).filter(t=>t.decision==='directed')
+    :[];
+  const unique=new Map();
+  (assignments.length?assignments:[resolved]).forEach(t=>
+    unique.set(sectorCompareKey(t.responsibleSector||t.decisionSector||''),t)
+  );
+
+  for(const tri of unique.values()){
+    const sector=tri.decisionSector||tri.responsibleSector||effectiveRoSector(ro,map)||'Sem setor';
+    const key=sectorCompareKey(sector);
+    if(!rows.has(key))rows.set(key,{
+      name:sector,total:0,cancelled:0,record:0,obsolete:0,
+      pending:0,responded:0,presented:0,done:0,triage:0,decisions:new Map()
+    });
+    const row=rows.get(key);
+    row.total++;
+
+    const status=tri.decision||sgqIndicatorStatusCode(ro,map);
+    const rule=nucleoDecisionForRecord(ro,tri);
+    const label=rule?.label||tri.decisionLabel||triageDecisionLabel(tri.decision);
+    row.decisions.set(label,(row.decisions.get(label)||0)+1);
+
+    if(['cancelled','record','obsolete'].includes(status)){row[status]++;continue;}
+    if(status!=='directed'){row[status==='done'?'done':'triage']++;continue;}
+    if(tri.pdcaRequired===false){row.done++;continue;}
+
+    const roNumber=String(ro.numero||ro.id||'').trim();
+    const sectorKey=sectorCompareKey(sector);
+    const unit=explicitRecordUnit(ro)||'';
+    const p=
+      sentIndex.get(roNumber+'|'+sectorKey+'|'+unit) ||
+      sentIndex.get(roNumber+'|'+sectorKey+'|') ||
+      sentIndex.get(roNumber+'||'+unit) ||
+      sentIndex.get(roNumber+'||');
+
+    const ps=pdcaStatusLabel(p);
+    row[ps==='Apresentado'?'presented':ps==='Respondido'?'responded':ps==='Concluído'?'done':'pending']++;
+  }
+ });
+ return [...rows.values()].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
 }
 function nucleoRenderSectorDecisionIndicators(data){
  const host=document.getElementById('sgqBySector');if(!host)return;const rows=nucleoSectorDecisionIndicators(data);
  host.innerHTML=rows.length?'<div style="overflow:auto"><table style="width:100%;min-width:850px"><thead><tr><th>Setor</th><th>Total</th><th>Canceladas</th><th>Registro</th><th>Obsoletas</th><th>Pendentes</th><th>Respondidas</th><th>Apresentadas</th><th>Concluídas</th><th>A triar</th><th>Decisões</th></tr></thead><tbody>'+rows.map(row=>'<tr><td>'+escapeHtml(row.name)+'</td>'+['total','cancelled','record','obsolete','pending','responded','presented','done','triage'].map(key=>'<td>'+row[key]+'</td>').join('')+'<td>'+[...row.decisions].map(([label,count])=>escapeHtml(label)+': '+count).join('<br>')+'</td></tr>').join('')+'</tbody></table></div>':'<p class="small">Nenhuma ocorrência para os filtros.</p>';
 }
 
-function nucleoRefreshIndicatorDecisions(){
- const select=document.getElementById('sgqIndicatorDecision');if(!select)return;const current=select.value,map=new Map();
- for(const unit of nucleoPersonUnits(getSession()))for(const rule of nucleoDecisionRules(unit))map.set(rule.id,rule.label);
- for(const ro of getAllRoRecords()){const tri=getRoTriageRecord(ro)||{},rule=nucleoDecisionForRecord(ro,tri);if(rule)map.set(rule.id,rule.label);}
- select.innerHTML='<option value="all">Todas as decisões</option>'+[...map].map(([id,label])=>'<option value="'+escapeHtml(id)+'">'+escapeHtml(label)+'</option>').join('');if([...select.options].some(o=>o.value===current))select.value=current;
-}
+function nucleoRefreshIndicatorDecisions(preloadedMap=null,preloadedRows=null){
+ const select=document.getElementById('sgqIndicatorDecision');
+ if(!select)return;
+ const current=select.value,mapOptions=new Map();
+ const triageMap=preloadedMap instanceof Map?preloadedMap:getSavedTriageMap();
+ const rows=Array.isArray(preloadedRows)?preloadedRows:getAllRoRecords();
 
+ for(const unit of nucleoPersonUnits(getSession())){
+   for(const rule of nucleoDecisionRules(unit))mapOptions.set(rule.id,rule.label);
+ }
+
+ for(const ro of rows){
+   const tri=resolvedTriageForRo(ro,triageMap)||{};
+   const rule=nucleoDecisionForRecord(ro,tri);
+   if(rule)mapOptions.set(rule.id,rule.label);
+ }
+
+ select.innerHTML='<option value="all">Todas as decisões</option>'+
+   [...mapOptions].map(([id,label])=>'<option value="'+escapeHtml(id)+'">'+escapeHtml(label)+'</option>').join('');
+ if([...select.options].some(o=>o.value===current))select.value=current;
+}
 async function nucleoSaveDecisionRules(){
  if(!nucleoFeatureRequire('sectors','decisions'))return;
  const status=document.getElementById('decisionRuleStatus'),unit=document.getElementById('qualityConfigUnit').value;status.textContent='Salvando decisões na base central…';
