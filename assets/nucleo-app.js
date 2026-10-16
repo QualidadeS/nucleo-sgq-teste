@@ -14537,10 +14537,14 @@ function pdcaExternalExists(ro,preloadedMap=null){
 }
 function pdcaSituationLabel(ro,preloadedMap=null){
   if(pdcaExternalExists(ro,preloadedMap))return 'PDCA externo';
+  const sent=getPdcaReturnForRo(ro);
+  if(sent){
+    const presented=Boolean(sent.apresentadoEm) ||
+      (!sent.externalPdf && typeof getPdcaPresentationMap==='function' &&
+       getPdcaPresentationMap().has(String(sent.id||sent.pdcaId||'')));
+    return presented?'PDCA apresentado':'PDCA enviado';
+  }
   const status=String(ro?.status||'');
-  const pdca=String(ro?.pdca||'');
-  if(pdca==='Enviado'||status==='PDCA enviado')return 'PDCA enviado';
-  if(status==='Apresentada'||pdca==='Apresentado')return 'PDCA apresentado';
   if(['Cancelada','Somente para registro'].includes(status))return 'Não se aplica';
   return 'PDCA necessário';
 }
@@ -14752,11 +14756,16 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
   // Mantém busca e totais sobre a lista completa, mas cria apenas 60 linhas no DOM.
   rowsEl.innerHTML=list.slice(0,roListVisibleLimit).map(r=>{
     const status=String(r.status||'');
-    const pdca=String(r.pdca||'');
     const noPdca=['Cancelada','Somente para registro'].includes(status);
     const contest=status==='Em contestação';
     const externalPdca=pdcaExternalExists(r,renderTriageMap);
-    const alreadySent=pdca==='Enviado' || status==='PDCA enviado' || externalPdca;
+
+    // Só considerar "PDCA enviado" quando existir um PDCA REAL salvo para
+    // esta R.O. + setor. Campos antigos da R.O. podem trazer "Enviado" por
+    // outros motivos e não podem bloquear a resposta.
+    const realSentPdca=getPdcaReturnForRo(r);
+    const alreadySent=!!realSentPdca || externalPdca;
+
     const tri=getRoTriageRecord(r,renderTriageMap);
     const responsibleSector=String(tri?.responsibleSector||tri?.setorDirecionado||r.__assignedSector||r.setorResponsavelPlanilha||r.raw?.__setorResponsavel||r.setorResponsavel||r.setor||'—').trim()||'—';
     const pdcaSituation=pdcaSituationLabel(r,renderTriageMap);
