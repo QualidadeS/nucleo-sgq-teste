@@ -8105,7 +8105,32 @@ async function saveTriageRecord(){
   savedRecords.forEach(r=>{
     if(deletedNow.delete(String(r.roKey||'')))deletedNowChanged=true;
   });
-  if(deletedNowChanged)saveDeletedTriageKeys(deletedNow);
+
+  if(deletedNowChanged){
+    saveDeletedTriageKeys(deletedNow);
+
+    // O tombstone também precisa ser removido da BASE TESTE antes de seguir.
+    // Caso contrário o próximo snapshot central recoloca a R.O. como
+    // "Aguardando triagem", mesmo depois de o e-mail da nova triagem ter sido enviado.
+    try{
+      if(isAdmin()){
+        await adminCleanupSaveSharedState(
+          DELETED_TRIAGE_KEYS_KEY,
+          JSON.stringify([...deletedNow])
+        );
+      }else{
+        await saveDeletedTriageKeysConfirmed(deletedNow);
+      }
+    }catch(e){
+      console.warn('[NUCLEO TRIAGEM] não foi possível limpar o tombstone central',e);
+      alert(
+        'A nova triagem não foi finalizada porque o ambiente TESTE não confirmou a remoção do marcador de limpeza.\n\n'+
+        String(e?.message||e)
+      );
+      hideNucleoLoading(true);
+      return;
+    }
+  }
 
   // A decisão fica registrada localmente IMEDIATAMENTE.
   // Assim a R.O. deixa de contar como "A triar" assim que o SGQ salva.
@@ -8148,7 +8173,20 @@ async function saveTriageRecord(){
       if(deletedKeys.delete(String(record.roKey||'')))tombstoneChanged=true;
       if(deletedKeys.delete(String(record.roNumber||roNumber||'')))tombstoneChanged=true;
       if(tombstoneChanged){
-        try{await saveDeletedTriageKeysConfirmed(deletedKeys);}catch(e){console.warn('Não foi possível limpar o marcador de exclusão da triagem.',e);}
+        try{
+          saveDeletedTriageKeys(deletedKeys);
+          if(isAdmin()){
+            await adminCleanupSaveSharedState(
+              DELETED_TRIAGE_KEYS_KEY,
+              JSON.stringify([...deletedKeys])
+            );
+          }else{
+            await saveDeletedTriageKeysConfirmed(deletedKeys);
+          }
+        }catch(e){
+          centralTriageSaved=false;
+          syncWarnings.push('A base TESTE não confirmou a remoção do marcador antigo de limpeza: '+String(e?.message||e));
+        }
       }
     }
   }
@@ -8177,7 +8215,29 @@ async function saveTriageRecord(){
   // acontece em segundo plano e não mantém o usuário preso no carregamento.
   setTimeout(()=>{
     syncImportedRosFromConfiguredSources({silent:true,force:true})
-      .then(()=>{
+      .then(async ()=>{
+        try{
+          // Confirma novamente que uma triagem recém-criada não ficou
+          // mascarada por um tombstone antigo retornado pelo snapshot.
+          const freshDeleted=getDeletedTriageKeys();
+          let changed=false;
+          if(freshDeleted.delete(roNumber))changed=true;
+          savedRecords.forEach(r=>{
+            if(freshDeleted.delete(String(r.roKey||'')))changed=true;
+          });
+          if(changed){
+            saveDeletedTriageKeys(freshDeleted);
+            if(isAdmin()){
+              await adminCleanupSaveSharedState(
+                DELETED_TRIAGE_KEYS_KEY,
+                JSON.stringify([...freshDeleted])
+              );
+            }
+          }
+        }catch(e){
+          console.warn('[NUCLEO TRIAGEM] falha ao confirmar remoção final do tombstone',e);
+        }
+
         try{renderTriage()}catch(e){}
         try{refreshRoSummary()}catch(e){}
         try{refreshMenuNotificationBadges()}catch(e){}
