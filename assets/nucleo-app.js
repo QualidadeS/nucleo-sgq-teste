@@ -287,12 +287,27 @@ function parseResponsibleSectors(value){
   if(Array.isArray(value))return normalizeSectorList(value);
   return normalizeSectorList(String(value||'').split(/\s*\|\s*|[\n,;]+/));
 }
+function pdcaRegisteredUnit(){
+  const session=getSession()||{};
+  let unit=explicitPortalUnit(session.unit||'');
+  if(unit)return unit;
+
+  const email=String(session.email||'').trim().toLowerCase();
+  const user=email?getOperationalUsers().find(u=>String(u.email||'').trim().toLowerCase()===email):null;
+  unit=explicitPortalUnit(user?.unit||'');
+  if(unit)return unit;
+
+  return session.role==='quality'?'filial':'matriz';
+}
+function pdcaConfiguredSectors(){
+  return getConfiguredSectors(pdcaRegisteredUnit());
+}
 function renderSectorCheckboxes(selected,onchangeExpr,group){
   const selectedKeys=new Set(parseResponsibleSectors(selected).map(normalizeAnswer));
-  const sectors=getConfiguredSectors();
-  return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:7px;margin-top:9px">
-    ${sectors.map(s=>`<label style="display:flex;align-items:center;gap:8px;border:1px solid #dbe3ea;border-radius:9px;padding:8px 10px;background:#fff;cursor:pointer">
-      <input type="checkbox" data-sector-group="${escapeHtml(group)}" value="${escapeHtml(s)}" ${selectedKeys.has(normalizeAnswer(s))?'checked':''} onchange="${onchangeExpr}">
+  const sectors=pdcaConfiguredSectors();
+  return `<div class="pdca-sector-grid">
+    ${sectors.map(s=>`<label class="pdca-sector-option ${selectedKeys.has(normalizeAnswer(s))?'selected':''}">
+      <input type="checkbox" data-sector-group="${escapeHtml(group)}" value="${escapeHtml(s)}" ${selectedKeys.has(normalizeAnswer(s))?'checked':''} onchange="${onchangeExpr};this.closest('.pdca-sector-option')?.classList.toggle('selected',this.checked)">
       <span>${escapeHtml(s)}</span>
     </label>`).join('')}
   </div>`;
@@ -302,7 +317,7 @@ function collectSectorCheckboxes(group){
 }
 function updatePdcaMainResponsibleSectors(){
   answers.p13=collectSectorCheckboxes('pdca-p13').join(' | ');
-  updateCompletion();renderPdcaStageOverview();schedulePdcaDraftSave();refreshPdcaInlineAlerts();
+  updateCompletion();renderPdcaStageOverview();renderPdcaActions();schedulePdcaDraftSave();refreshPdcaInlineAlerts();
 }
 function updateExtraActionResponsibleSectors(id){
   const a=pdcaExtraActions.find(x=>x.id===id);if(!a)return;
@@ -312,15 +327,17 @@ function updateExtraActionResponsibleSectors(id){
   schedulePdcaDraftSave();
 }
 function renderPdcaResponsibleSectorQuestion(it,stage,global,answered){
-  return `<div class="question" style="border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin-bottom:12px;background:#fff">
-    <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">
+  const unit=pdcaRegisteredUnit();
+  return `<div class="question pdca-sector-question">
+    <div class="pdca-question-head">
       <div class="small" style="font-weight:700">Pergunta ${global} de 26 · ${stage.name}</div>
       <span class="status-badge ${answered?'answered':''}">${answered?'Respondida':'Obrigatória'}</span>
     </div>
-    <h4 style="margin:7px 0 4px">${it[1]}</h4>
-    <p style="margin:0;color:#667085">Selecione todos os setores que precisam executar ou acompanhar esta ação.</p>
-    <div class="small" style="margin-top:7px;padding:9px 10px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc">
-      Cada setor selecionado receberá a ação como pendência. Setores adicionais poderão contestar a participação; o SGQ decidirá se a vinculação permanece.
+    <h4>${it[1]}</h4>
+    <p>Selecione os setores da sua unidade que precisam executar ou acompanhar esta ação.</p>
+    <div class="pdca-unit-note">
+      <b>${unit==='filial'?'Unidade Linhares — Filial':'Unidade São Bento do Sul — Matriz'}</b>
+      <span>Seu acesso SGQ pode consultar outras unidades, mas as responsabilidades desta ação usam somente os setores da unidade em que você está cadastrada.</span>
     </div>
     ${renderSectorCheckboxes(answers.p13||'',"updatePdcaMainResponsibleSectors()",'pdca-p13')}
     <input id="answer_p13" type="hidden" value="${escapeHtml(answers.p13||'')}">
@@ -336,13 +353,33 @@ function removePdcaAction(id){pdcaExtraActions=pdcaExtraActions.filter(x=>x.id!=
 function updatePdcaAction(id,field,value){const a=pdcaExtraActions.find(x=>x.id===id);if(!a)return;a[field]=value;schedulePdcaDraftSave()}
 function renderPdcaActions(){
   const box=document.getElementById('pdcaActionsList');if(!box)return;
-  box.innerHTML=pdcaExtraActions.length?pdcaExtraActions.map((a,i)=>`
-    <div class="pdca-action-row">
-      <label><div class="label">Ação ${i+2}</div><textarea rows="2" oninput="updatePdcaAction('${a.id}','action',this.value)">${escapeHtml(a.action||'')}</textarea></label>
+
+  const mainAction=String(answers.p11||'').trim();
+  const mainDeadline=String(answers.p12||'').trim();
+  const mainSectors=parseResponsibleSectors(answers.p13||'');
+
+  const mainHtml=mainAction
+    ? `<div class="pdca-action-row pdca-main-action">
+        <div class="pdca-action-badge">Ação principal</div>
+        <div class="pdca-action-main-text">${escapeHtml(mainAction)}</div>
+        <div class="pdca-action-meta">
+          <span><b>Prazo</b>${escapeHtml(mainDeadline||'Não informado')}</span>
+          <span><b>Setores</b>${escapeHtml(mainSectors.join(' · ')||'Não informado')}</span>
+        </div>
+      </div>`
+    : `<div class="pdca-action-empty">
+        A ação principal aparecerá aqui automaticamente assim que a pergunta “Qual ação será executada?” for preenchida.
+      </div>`;
+
+  const extrasHtml=pdcaExtraActions.length?pdcaExtraActions.map((a,i)=>`
+    <div class="pdca-action-row pdca-extra-action">
+      <div class="pdca-action-row-head"><b>Ação ${i+2}</b><button class="btn secondary" type="button" onclick="removePdcaAction('${a.id}')">Remover</button></div>
+      <label><div class="label">O que será feito</div><textarea rows="2" oninput="updatePdcaAction('${a.id}','action',this.value)">${escapeHtml(a.action||'')}</textarea></label>
       <div><div class="label">Setores responsáveis</div>${renderSectorCheckboxes(a.responsibleSectors?.length?a.responsibleSectors:a.owner,`updateExtraActionResponsibleSectors('${a.id}')`,'extra-'+a.id)}</div>
       <label><div class="label">Prazo</div><input type="date" value="${escapeHtml(a.deadline||'')}" onchange="updatePdcaAction('${a.id}','deadline',this.value)"></label>
-      <button class="btn secondary" type="button" onclick="removePdcaAction('${a.id}')">Remover</button>
-    </div>`).join(''):'<div class="small" style="margin-top:10px">Nenhuma ação adicional.</div>';
+    </div>`).join(''):'';
+
+  box.innerHTML=mainHtml+extrasHtml;
 }
 function allPdcaActionsForRecord(p){
   const arr=[];const ans=p?.answers||{};
@@ -15760,13 +15797,38 @@ function dictatePdcaAnswer(id,button){
   };
   rec.start();
 }
+function pdcaExecutionCompleted(){
+  const status=normalizeAnswer(answers.p10||'');
+  if(!status)return false;
+  return /(conclu|finaliz|executad|implantad|realizad|encerrad|feito|atingid)/.test(status);
+}
+function pdcaStageLocked(index){
+  return index>=2 && !pdcaExecutionCompleted();
+}
+function pdcaLockedStageMessage(){
+  return 'Esta etapa será liberada quando o status da meta/ação indicar que a execução foi concluída. Enquanto estiver prevista ou em andamento, ainda não há resultado suficiente para checar eficácia ou padronizar.';
+}
+function pdcaHandleAnswerInput(id,value){
+  answers[id]=value;
+  if(id==='p10'){
+    if(!pdcaExecutionCompleted() && activeStage>=2)activeStage=1;
+    renderPdcaStageOverview();
+  }
+  if(['p11','p12'].includes(id))renderPdcaActions();
+  updateCompletion();
+  renderPdcaStageOverview();
+  schedulePdcaDraftSave();
+  refreshPdcaInlineAlerts();
+}
 function renderStage(){
   renderPdcaStageOverview();
   stageTabs.innerHTML=stages.map((s,i)=>{
+    const locked=pdcaStageLocked(i);
     const done=s.items.filter(it=>(answers[it[0]]||'').trim()).length;
-    return `<button class="stage-tab ${i===activeStage?'active':''}" onclick="activeStage=${i};renderStage()">${s.number} · ${s.name} <small>${done}/${s.items.length}</small></button>`;
+    return `<button class="stage-tab ${i===activeStage?'active':''} ${locked?'pdca-stage-locked':''}" ${locked?'disabled':''} onclick="activeStage=${i};renderStage()">${s.number} · ${s.name} <small>${locked?'Aguardando execução':done+'/'+s.items.length}</small></button>`;
   }).join('');
 
+  if(pdcaStageLocked(activeStage))activeStage=1;
   const s=stages[activeStage];
   stageTitle.textContent=s.number+' · '+s.name;
   stageSubtitle.textContent=s.subtitle;
@@ -15777,28 +15839,29 @@ function renderStage(){
   if(pos)pos.textContent=`Etapa ${activeStage+1} de ${stages.length}`;
   if(badge)badge.textContent=`${stageDone}/${s.items.length} respondidas`;
 
-  questions.innerHTML=s.items.map((it,i)=>{
+  const lockedCurrent=pdcaStageLocked(activeStage);
+  questions.innerHTML=(lockedCurrent?`<div class="pdca-stage-lock-banner"><b>Etapa aguardando execução</b><span>${escapeHtml(pdcaLockedStageMessage())}</span></div>`:'')+s.items.map((it,i)=>{
     const global=globalQuestionNumber(it[0]);
     const answered=(answers[it[0]]||'').trim().length>0;
     if(it[0]==='p13')return renderPdcaResponsibleSectorQuestion(it,s,global,answered);
-    return `<div class="question" style="border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin-bottom:12px;background:#fff">
-      <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">
+    return `<div class="question ${lockedCurrent?'pdca-question-locked':''}">
+      <div class="pdca-question-head">
         <div class="small" style="font-weight:700">Pergunta ${global} de 26 · ${s.name}</div>
-        <span class="status-badge ${answered?'answered':''}">${answered?'Respondida':'Obrigatória'}</span>
+        <span class="status-badge ${answered?'answered':''}">${lockedCurrent?'Aguardando execução':answered?'Respondida':'Obrigatória'}</span>
       </div>
-      <h4 style="margin:7px 0 4px">${it[1]}</h4>
-      <p style="margin:0 0 10px;color:#667085">${it[2]}</p>
-      <div class="question-answer-tools"><button class="mic-answer-btn" type="button" onclick="dictatePdcaAnswer('${it[0]}',this)">🎤 Falar resposta</button></div>
-      <textarea id="answer_${it[0]}" spellcheck="true"
-        oninput="answers['${it[0]}']=this.value;updateCompletion();renderPdcaStageOverview();schedulePdcaDraftSave();refreshPdcaInlineAlerts()"
-        placeholder="Escreva ou fale aqui sua resposta...">${answers[it[0]]||''}</textarea>
+      <h4>${it[1]}</h4>
+      <p>${it[2]}</p>
+      <div class="question-answer-tools"><button class="mic-answer-btn" type="button" ${lockedCurrent?'disabled':''} onclick="dictatePdcaAnswer('${it[0]}',this)">🎤 Falar resposta</button></div>
+      <textarea id="answer_${it[0]}" spellcheck="true" ${lockedCurrent?'disabled':''}
+        oninput="pdcaHandleAnswerInput('${it[0]}',this.value)"
+        placeholder="${lockedCurrent?'Aguarde a conclusão da execução para responder.':'Escreva ou fale aqui sua resposta...'}">${answers[it[0]]||''}</textarea>
       ${pdcaInlineAlertHtml(it[0])}
-      <div style="margin-top:10px"><div class="small" style="margin-bottom:5px">Evidência ou foto (opcional)</div><input type="file" style="font-size:12px"></div>
+      <div class="pdca-evidence-row"><div class="small">Evidência ou foto (opcional)</div><input type="file" ${lockedCurrent?'disabled':''}></div>
     </div>`;
   }).join('');
 
   prevStage.disabled=activeStage===0;
-  nextStage.disabled=activeStage===stages.length-1;
+  nextStage.disabled=activeStage===stages.length-1 || (activeStage===1&&!pdcaExecutionCompleted());
   updateCompletion();
   setNav(['plan','do','check','act'][activeStage]);
   setTimeout(()=>runPdcaQualityCheck(false),0);
@@ -15815,11 +15878,16 @@ function updateCompletion(){
   if(txt) txt.textContent=`${completed} de ${total} respondidas`;
   if(fill) fill.style.width=pct+'%';
   const requireAll=getRuleYes('rulePdcaRequireAll');
-  if(btn) btn.disabled=requireAll && completed!==total;
+  const executionDone=pdcaExecutionCompleted();
+  if(btn) btn.disabled=!executionDone || (requireAll && completed!==total);
   if(hint){
-    hint.textContent=requireAll
-      ? (completed===total?'PDCA completo. O envio está liberado.':`Faltam ${total-completed} resposta(s) para liberar o envio.`)
-      : (completed===total?'PDCA completo. O envio está liberado.':`Há ${total-completed} resposta(s) pendente(s), mas a regra atual permite o envio.`);
+    if(!executionDone){
+      hint.textContent='O PDCA permanece como rascunho enquanto a ação/meta estiver prevista ou em andamento. Conclua a execução para liberar Checar, Agir e o envio.';
+    }else{
+      hint.textContent=requireAll
+        ? (completed===total?'PDCA completo. O envio está liberado.':`Faltam ${total-completed} resposta(s) para liberar o envio.`)
+        : (completed===total?'PDCA completo. O envio está liberado.':`Há ${total-completed} resposta(s) pendente(s), mas a regra atual permite o envio.`);
+    }
   }
   const stage=stages[activeStage];
   const stageDone=stage.items.filter(it=>(answers[it[0]]||'').trim()).length;
@@ -16062,8 +16130,9 @@ function renderPdcaStageOverview(){
   box.innerHTML=stages.map((s,i)=>{
     const done=s.items.filter(it=>(answers[it[0]]||'').trim()).length;
     const active=i===activeStage;
-    return `<button type="button" onclick="activeStage=${i};renderStage()" style="text-align:left;border:1px solid ${active?'#1f4f82':'#d9e2ec'};background:${active?'#eef5ff':'#fff'};border-radius:10px;padding:10px 12px;cursor:pointer">
-      <div class="small" style="font-weight:700">Etapa ${i+1}</div><b>${escapeHtml(s.name)}</b><div class="small">${done}/${s.items.length} respondidas</div>
+    const locked=pdcaStageLocked(i);
+    return `<button type="button" ${locked?'disabled':''} onclick="activeStage=${i};renderStage()" class="pdca-overview-stage ${active?'active':''} ${locked?'locked':''}">
+      <div class="small" style="font-weight:700">Etapa ${i+1}</div><b>${escapeHtml(s.name)}</b><div class="small">${locked?'Aguardando execução':done+'/'+s.items.length+' respondidas'}</div>
     </button>`;
   }).join('');
 }
@@ -16075,7 +16144,14 @@ function goFirstMissingQuestion(){
   setTimeout(()=>{const el=document.getElementById('answer_'+missing[0].id);if(el){el.focus();el.scrollIntoView({behavior:'smooth',block:'center'});el.closest('.question')?.classList.add('missing');}},50);
 }
 
-function changeStage(d){activeStage=Math.max(0,Math.min(stages.length-1,activeStage+d));renderStage();window.scrollTo({top:0,behavior:'smooth'})}function openContest(){
+function changeStage(d){
+  const target=Math.max(0,Math.min(stages.length-1,activeStage+d));
+  if(pdcaStageLocked(target)){
+    alert(pdcaLockedStageMessage());
+    return;
+  }
+  activeStage=target;renderStage();window.scrollTo({top:0,behavior:'smooth'});
+}function openContest(){
   if(!nucleoFeatureRequire('ros','contest'))return;
   const modal=document.getElementById('contestModal');
   if(!modal){
