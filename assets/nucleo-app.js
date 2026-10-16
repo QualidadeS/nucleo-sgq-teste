@@ -7241,17 +7241,16 @@ function resolvedTriageForRo(ro,map=getSavedTriageMap()){
     .sort((a,b)=>String(b.triagedAt||'').localeCompare(String(a.triagedAt||'')));
   const exactManual=map.get(exactKey);
 
-  // A limpeza vence triagens antigas, mas uma RETRIAGEM feita depois da limpeza
-  // tem prioridade mesmo que um snapshot atrasado tente recolocar o tombstone.
-  const validRetriage=manual.find(t=>t?.retriagedAfterCleanup===true)||
-    (exactManual?.retriagedAfterCleanup===true?exactManual:null);
+  // Regra definitiva:
+  // se existe uma triagem MANUAL real no TESTE, ela vence qualquer tombstone antigo.
+  // O tombstone só representa "limpo" quando não existe mais triagem manual.
+  const manualReal=
+    (exactManual?.decision&&!exactManual.importedFromSheet?exactManual:null) ||
+    (manual.length?manual[0]:null);
 
-  if((deletedKeys.has(base) || (exactKey && deletedKeys.has(exactKey))) && !validRetriage)return null;
-  if(validRetriage)return validRetriage;
+  if(manualReal)return manualReal;
 
-  if(manual.length&&manual[0].decision!=='directed')return manual[0];
-  if(exactManual?.decision&&!exactManual.importedFromSheet)return exactManual;
-  if(manual.length)return manual[0];
+  if(deletedKeys.has(base) || (exactKey && deletedKeys.has(exactKey)))return null;
 
   // A planilha pode indicar situação antiga, mas somente quando não existe
   // tombstone de limpeza no ambiente TESTE.
@@ -7434,16 +7433,26 @@ function getTriageRecords(){
       .sort((a,b)=>String(b.triagedAt||'').localeCompare(String(a.triagedAt||'')))[0]||null;
 
     const hasCleanupTombstone=deletedKeys.has(base)||(exact&&deletedKeys.has(exact));
-    const validRetriage=manual?.retriagedAfterCleanup===true;
 
-    // Uma retriagem confirmada depois da limpeza vence tombstone antigo.
-    // Triagem antiga sem essa marca continua sendo bloqueada pela limpeza.
-    const deletedInTest=hasCleanupTombstone&&!validRetriage;
+    // Se existe triagem manual, a R.O. já foi efetivamente decidida no TESTE.
+    // O tombstone só vale quando a limpeza realmente deixou a R.O. sem triagem manual.
+    const deletedInTest=hasCleanupTombstone&&!manual;
 
-    const tri=deletedInTest?{}:(manual || (resolvedTriageForRo(ro,saved)||{}));
+    const tri=manual || (deletedInTest?{}:(resolvedTriageForRo(ro,saved)||{}));
     const baseSituation=baseTriageSituation(ro);
 
     let decision=deletedInTest?'':(tri.decision||baseSituation.decision);
+
+    // Autocorreção local: se chegaram juntos triagem manual e tombstone antigo,
+    // a triagem manual é a fonte válida para as telas.
+    if(manual && hasCleanupTombstone){
+      const repaired=getDeletedTriageKeys();
+      let repairedChanged=false;
+      if(repaired.delete(base))repairedChanged=true;
+      if(exact && repaired.delete(exact))repairedChanged=true;
+      if(manual?.roKey && repaired.delete(String(manual.roKey)))repairedChanged=true;
+      if(repairedChanged)saveDeletedTriageKeys(repaired);
+    }
 
     let triagemStatus='new';
     if(decision==='directed')triagemStatus='directed';
