@@ -8471,9 +8471,7 @@ function closeTriageDuplicateDetails(){
 
 function pdcaQualityIssues(){
   const a=answers||{},issues=[];
-  const editableQualityIds=new Set(
-    stages.flatMap((stage,index)=>pdcaStageLocked(index)?[]:stage.items.map(item=>item[0]))
-  );
+  const editableQualityIds=new Set(pdcaEditableQuestionIds());
   const text=(id)=>String(a[id]||'').trim();
   const norm=(v)=>normalizeAnswer(String(v||''));
   const add=(id,title,items,example='')=>{
@@ -8745,9 +8743,9 @@ function runPdcaQualityCheck(scrollToFirst=false){
   const issues=pdcaQualityIssues(),box=document.getElementById('pdcaQualityList'),sum=document.getElementById('pdcaQualitySummary');
   setTimeout(()=>{try{refreshPdcaInlineAlerts()}catch(e){}},0);
 
-  const editableIds=stages.flatMap((stage,index)=>pdcaStageLocked(index)?[]:stage.items.map(x=>x[0]));
+  const editableIds=pdcaEditableQuestionIds();
   const answered=editableIds.filter(id=>String(answers[id]||'').trim()).length;
-  const lockedCount=stages.flatMap((stage,index)=>pdcaStageLocked(index)?stage.items:[]).length;
+  const lockedCount=stages.flatMap(stage=>stage.items.map(x=>x[0])).filter(id=>pdcaQuestionLocked(id)).length;
 
   if(sum){
     const base=answered+'/'+editableIds.length+' respostas das etapas liberadas';
@@ -15907,6 +15905,49 @@ function pdcaExecutionCompleted(){
   if(!status)return false;
   return /(conclu|finaliz|executad|implantad|realizad|encerrad|feito|atingid)/.test(status);
 }
+function pdcaActionText(){
+  return normalizeAnswer(answers.p11||'');
+}
+function pdcaActionIsTrainingRelated(){
+  const a=pdcaActionText();
+  return /\b(treinar|treinamento|capacitar|capacitacao|capacitação|orientar|orientacao|orientação|instruir|instrucao|instrução|reciclar|reciclagem)\b/.test(a);
+}
+function pdcaQuestionDependency(id){
+  // CHECK/ACT depend on the execution being concluded.
+  const stageIndex=stages.findIndex(s=>s.items.some(item=>item[0]===id));
+  if(stageIndex>=2 && !pdcaExecutionCompleted()){
+    return {
+      locked:true,
+      label:'Aguardando execução',
+      reason:'Esta pergunta só faz sentido depois que a ação planejada for executada.'
+    };
+  }
+
+  // When the action itself IS the training/capacitation, these answers cannot
+  // exist before the action happens.
+  if(!pdcaExecutionCompleted() && pdcaActionIsTrainingRelated() && ['d1','d2','d3'].includes(id)){
+    const labels={
+      d1:'O treinamento ainda é a própria ação planejada.',
+      d2:'A compreensão da equipe só pode ser verificada depois do treinamento.',
+      d3:'O status do treinamento será atualizado conforme a ação for executada.'
+    };
+    return {
+      locked:true,
+      label:'Aguardando treinamento',
+      reason:labels[id]||'Esta resposta depende da execução da ação.'
+    };
+  }
+
+  return {locked:false,label:'',reason:''};
+}
+function pdcaQuestionLocked(id){
+  return pdcaQuestionDependency(id).locked;
+}
+function pdcaEditableQuestionIds(){
+  return stages.flatMap((stage,index)=>
+    pdcaStageLocked(index)?[]:stage.items.map(item=>item[0]).filter(id=>!pdcaQuestionLocked(id))
+  );
+}
 function pdcaStageLocked(index){
   return index>=2 && !pdcaExecutionCompleted();
 }
@@ -15921,6 +15962,10 @@ function pdcaHandleAnswerInput(id,value){
     setTimeout(()=>runPdcaQualityCheck(false),0);
   }
   if(['p11','p12'].includes(id))renderPdcaActions();
+  if(id==='p11'){
+    renderPdcaStageOverview();
+    setTimeout(()=>runPdcaQualityCheck(false),0);
+  }
   updateCompletion();
   renderPdcaStageOverview();
   schedulePdcaDraftSave();
@@ -15930,8 +15975,10 @@ function renderStage(){
   renderPdcaStageOverview();
   stageTabs.innerHTML=stages.map((s,i)=>{
     const locked=pdcaStageLocked(i);
-    const done=s.items.filter(it=>(answers[it[0]]||'').trim()).length;
-    return `<button class="stage-tab ${i===activeStage?'active':''} ${locked?'pdca-stage-locked':''}" ${locked?'disabled':''} onclick="activeStage=${i};renderStage()">${s.number} · ${s.name} <small>${locked?'Aguardando execução':done+'/'+s.items.length}</small></button>`;
+    const available=s.items.filter(it=>!pdcaQuestionLocked(it[0]));
+    const done=available.filter(it=>(answers[it[0]]||'').trim()).length;
+    const waiting=s.items.length-available.length;
+    return `<button class="stage-tab ${i===activeStage?'active':''} ${locked?'pdca-stage-locked':''}" ${locked?'disabled':''} onclick="activeStage=${i};renderStage()">${s.number} · ${s.name} <small>${locked?'Aguardando execução':done+'/'+available.length+(waiting?' · '+waiting+' aguardando ação':'')}</small></button>`;
   }).join('');
 
   if(pdcaStageLocked(activeStage))activeStage=1;
@@ -15939,32 +15986,38 @@ function renderStage(){
   stageTitle.textContent=s.number+' · '+s.name;
   stageSubtitle.textContent=s.subtitle;
 
-  const stageDone=s.items.filter(it=>(answers[it[0]]||'').trim()).length;
+  const stageAvailable=s.items.filter(it=>!pdcaQuestionLocked(it[0]));
+  const stageDone=stageAvailable.filter(it=>(answers[it[0]]||'').trim()).length;
   const pos=document.getElementById('stagePosition');
   const badge=document.getElementById('stageCompletionBadge');
   if(pos)pos.textContent=`Etapa ${activeStage+1} de ${stages.length}`;
-  if(badge)badge.textContent=`${stageDone}/${s.items.length} respondidas`;
+  if(badge)badge.textContent=`${stageDone}/${stageAvailable.length} disponíveis respondidas`;
 
   const lockedCurrent=pdcaStageLocked(activeStage);
   questions.innerHTML=(lockedCurrent?`<div class="pdca-stage-lock-banner"><b>Etapa aguardando execução</b><span>${escapeHtml(pdcaLockedStageMessage())}</span></div>`:'')+s.items.map((it,i)=>{
     const global=globalQuestionNumber(it[0]);
     const answered=(answers[it[0]]||'').trim().length>0;
+    const dependency=pdcaQuestionDependency(it[0]);
+    const questionLocked=lockedCurrent||dependency.locked;
+
     if(it[0]==='p13')return renderPdcaResponsibleSectorQuestion(it,s,global,answered);
-    return `<div class="question ${lockedCurrent?'pdca-question-locked':''}">
+
+    return `<div class="question ${questionLocked?'pdca-question-locked':''}">
       <div class="pdca-question-head">
         <div class="small" style="font-weight:700">Pergunta ${global} de 26 · ${s.name}</div>
         <div class="pdca-question-actions">
-          <span class="status-badge ${answered?'answered':''}">${lockedCurrent?'Aguardando execução':answered?'Respondida':'Obrigatória'}</span>
-          <button class="mic-answer-btn" type="button" ${lockedCurrent?'disabled':''} onclick="dictatePdcaAnswer('${it[0]}',this)">🎤 Falar resposta</button>
+          <span class="status-badge ${answered&&!questionLocked?'answered':''}">${questionLocked?escapeHtml(dependency.label||'Aguardando execução'):answered?'Respondida':'Obrigatória'}</span>
+          <button class="mic-answer-btn" type="button" ${questionLocked?'disabled':''} onclick="dictatePdcaAnswer('${it[0]}',this)">🎤 Falar resposta</button>
         </div>
       </div>
       <h4>${it[1]}</h4>
       <p>${it[2]}</p>
-      <textarea id="answer_${it[0]}" spellcheck="true" ${lockedCurrent?'disabled':''}
+      ${dependency.locked?`<div class="pdca-dependency-note"><b>Esta resposta ainda não é exigida.</b><span>${escapeHtml(dependency.reason)}</span></div>`:''}
+      <textarea id="answer_${it[0]}" spellcheck="true" ${questionLocked?'disabled':''}
         oninput="pdcaHandleAnswerInput('${it[0]}',this.value)"
-        placeholder="${lockedCurrent?'Aguarde a conclusão da execução para responder.':'Escreva ou fale aqui sua resposta...'}">${answers[it[0]]||''}</textarea>
-      ${pdcaInlineAlertHtml(it[0])}
-      <div class="pdca-evidence-row"><div class="small">Evidência ou foto (opcional)</div><input type="file" ${lockedCurrent?'disabled':''}></div>
+        placeholder="${questionLocked?'Esta pergunta será liberada automaticamente quando a ação correspondente for executada.':'Escreva ou fale aqui sua resposta...'}">${answers[it[0]]||''}</textarea>
+      ${questionLocked?'':pdcaInlineAlertHtml(it[0])}
+      <div class="pdca-evidence-row"><div class="small">Evidência ou foto (opcional)</div><input type="file" ${questionLocked?'disabled':''}></div>
     </div>`;
   }).join('');
 
@@ -16006,9 +16059,10 @@ function updateCompletion(){
   }
 
   const stage=stages[activeStage];
-  const stageDone=stage.items.filter(it=>(answers[it[0]]||'').trim()).length;
+  const availableStageItems=stage.items.filter(it=>!pdcaQuestionLocked(it[0]));
+  const stageDone=availableStageItems.filter(it=>(answers[it[0]]||'').trim()).length;
   const stageBadge=document.getElementById('stageCompletionBadge');
-  if(stageBadge)stageBadge.textContent=`${stageDone}/${stage.items.length} respondidas`;
+  if(stageBadge)stageBadge.textContent=`${stageDone}/${availableStageItems.length} disponíveis respondidas`;
 }
 function highlightMissing(){
   const required=pdcaInitialRequiredIds();
@@ -16242,11 +16296,13 @@ function globalQuestionNumber(id){
 function renderPdcaStageOverview(){
   const box=document.getElementById('pdcaStageOverview'); if(!box)return;
   box.innerHTML=stages.map((s,i)=>{
-    const done=s.items.filter(it=>(answers[it[0]]||'').trim()).length;
     const active=i===activeStage;
     const locked=pdcaStageLocked(i);
+    const available=s.items.filter(it=>!pdcaQuestionLocked(it[0]));
+    const done=available.filter(it=>(answers[it[0]]||'').trim()).length;
+    const waiting=s.items.length-available.length;
     return `<button type="button" ${locked?'disabled':''} onclick="activeStage=${i};renderStage()" class="pdca-overview-stage ${active?'active':''} ${locked?'locked':''}">
-      <div class="small" style="font-weight:700">Etapa ${i+1}</div><b>${escapeHtml(s.name)}</b><div class="small">${locked?'Aguardando execução':done+'/'+s.items.length+' respondidas'}</div>
+      <div class="small" style="font-weight:700">Etapa ${i+1}</div><b>${escapeHtml(s.name)}</b><div class="small">${locked?'Aguardando execução':done+'/'+available.length+' disponíveis'+(waiting?' · '+waiting+' dependente(s) da ação':'')}</div>
     </button>`;
   }).join('');
 }
