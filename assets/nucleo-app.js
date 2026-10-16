@@ -8471,9 +8471,15 @@ function closeTriageDuplicateDetails(){
 
 function pdcaQualityIssues(){
   const a=answers||{},issues=[];
+  const editableQualityIds=new Set(
+    stages.flatMap((stage,index)=>pdcaStageLocked(index)?[]:stage.items.map(item=>item[0]))
+  );
   const text=(id)=>String(a[id]||'').trim();
   const norm=(v)=>normalizeAnswer(String(v||''));
-  const add=(id,title,items,example='')=>issues.push({id,level:'warn',title,text:title,items,example});
+  const add=(id,title,items,example='')=>{
+    if(id!=='extra'&&!editableQualityIds.has(id))return;
+    issues.push({id,level:'warn',title,text:title,items,example});
+  };
 
   const numberWords=[
     'zero','um','uma','dois','duas','tres','três','quatro','cinco','seis','sete','oito','nove','dez',
@@ -8738,10 +8744,22 @@ function pdcaQualityIssues(){
 function runPdcaQualityCheck(scrollToFirst=false){
   const issues=pdcaQualityIssues(),box=document.getElementById('pdcaQualityList'),sum=document.getElementById('pdcaQualitySummary');
   setTimeout(()=>{try{refreshPdcaInlineAlerts()}catch(e){}},0);
-  const allIds=stages.flatMap(s=>s.items.map(x=>x[0]));
-  const answered=allIds.filter(id=>String(answers[id]||'').trim()).length;
-  if(sum)sum.textContent=issues.length?answered+'/26 respondidas · '+issues.length+' ponto(s) para revisar.':answered+'/26 respondidas · Nenhum alerta de qualidade encontrado.';
-  if(box)box.innerHTML=issues.length?issues.slice(0,10).map(x=>`<div class="pdca-quality-item warn">${pdcaIssueHtml(x)}</div>`).join(''):'<div class="pdca-quality-item ok">✓ As respostas preenchidas passaram nas verificações automáticas atuais.</div>';
+
+  const editableIds=stages.flatMap((stage,index)=>pdcaStageLocked(index)?[]:stage.items.map(x=>x[0]));
+  const answered=editableIds.filter(id=>String(answers[id]||'').trim()).length;
+  const lockedCount=stages.flatMap((stage,index)=>pdcaStageLocked(index)?stage.items:[]).length;
+
+  if(sum){
+    const base=answered+'/'+editableIds.length+' respostas das etapas liberadas';
+    const locked=lockedCount?' · Checar/Agir aguardando conclusão da ação':'';
+    sum.textContent=issues.length
+      ? base+' · '+issues.length+' ponto(s) para revisar'+locked+'.'
+      : base+' · Nenhum alerta de qualidade'+locked+'.';
+  }
+
+  if(box)box.innerHTML=issues.length
+    ? issues.slice(0,10).map(x=>`<div class="pdca-quality-item warn">${pdcaIssueHtml(x)}</div>`).join('')
+    : `<div class="pdca-quality-item ok">✓ As respostas das etapas liberadas passaram nas verificações atuais.${lockedCount?' Checar e Agir serão analisados somente depois da conclusão da ação.':''}</div>`;
   if(scrollToFirst&&issues[0]?.id&&issues[0].id!=='extra'){
     const target=stages.findIndex(s=>s.items.some(i=>i[0]===issues[0].id));
     if(target>=0){activeStage=target;renderStage();setTimeout(()=>document.getElementById('answer_'+issues[0].id)?.scrollIntoView({behavior:'smooth',block:'center'}),80)}
@@ -15900,6 +15918,7 @@ function pdcaHandleAnswerInput(id,value){
   if(id==='p10'){
     if(!pdcaExecutionCompleted() && activeStage>=2)activeStage=1;
     renderPdcaStageOverview();
+    setTimeout(()=>runPdcaQualityCheck(false),0);
   }
   if(['p11','p12'].includes(id))renderPdcaActions();
   updateCompletion();
