@@ -14587,7 +14587,7 @@ function updateRncHeaderValue(i,v){
   refreshRncTemplatePreview();
 }
 
-function renderRncHeaderLayoutEditor(t){const a=t.headerLayout||defaultRncHeaderLayout();const rows=[...new Set(a.map(x=>Number(x.row)||1))].sort((x,y)=>x-y);return `<div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:10px"><button type="button" class="btn secondary" onclick="addRncHeaderCell()">+ Célula</button><button type="button" class="btn secondary" onclick="addRncHeaderRow()">+ Linha</button></div>`+rows.map(row=>`<div style="border:1px solid #d7deea;border-radius:12px;padding:10px;background:#f8fafc"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><b style="font-size:12px">Linha ${row}</b><button type="button" class="btn secondary" style="padding:6px 9px" onclick="addRncHeaderCell(${row})">+ célula nesta linha</button></div><div style="display:grid;gap:8px">${a.map((x,i)=>({x,i})).filter(o=>(Number(o.x.row)||1)===row).map(({x,i})=>`<div style="border:1px solid #e3e8f1;border-radius:10px;padding:10px;background:#fff"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:8px"><b style="font-size:12px">${escapeHtml(x.label||x.value||('Célula '+(i+1)))}</b><div style="display:flex;gap:5px;flex-wrap:wrap"><button type="button" class="btn secondary" style="padding:5px 8px" onclick="mergeRncHeaderCell(${i})">Mesclar →</button><button type="button" class="btn secondary" style="padding:5px 8px" onclick="splitRncHeaderCell(${i})">Dividir</button><button type="button" class="btn danger" style="padding:5px 8px" onclick="removeRncHeaderCellById('${x.id}',event)">Excluir</button></div></div><div style="display:grid;grid-template-columns:minmax(140px,1.3fr) minmax(140px,1fr) 90px 90px 115px;gap:7px;align-items:end"><label><span class="small">Texto / rótulo</span><input value="${escapeHtml(x.label||'')}" oninput="updateRncHeaderField(${i},'label',this.value)"></label><label><span class="small">Valor</span><input value="${escapeHtml(
+function renderRncHeaderLayoutEditor(t){const a=t.headerLayout||defaultRncHeaderLayout();const rows=[...new Set(a.map(x=>Number(x.row)||1))].sort((x,y)=>x-y);return `<div class="small" style="margin-bottom:8px;padding:8px 10px;border:1px solid #dbe4ee;border-radius:8px;background:#f8fafc"><b>Mesclagem:</b> horizontal une com a célula à direita. A mesclagem vertical só é permitida quando as bordas estão alinhadas. Se a célula estiver mesclada para cima/baixo, <b>Dividir</b> desfaz primeiro a mesclagem vertical.</div><div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:10px"><button type="button" class="btn secondary" onclick="addRncHeaderCell()">+ Célula</button><button type="button" class="btn secondary" onclick="addRncHeaderRow()">+ Linha</button></div>`+rows.map(row=>`<div style="border:1px solid #d7deea;border-radius:12px;padding:10px;background:#f8fafc"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><b style="font-size:12px">Linha ${row}</b><button type="button" class="btn secondary" style="padding:6px 9px" onclick="addRncHeaderCell(${row})">+ célula nesta linha</button></div><div style="display:grid;gap:8px">${a.map((x,i)=>({x,i})).filter(o=>(Number(o.x.row)||1)===row).map(({x,i})=>`<div style="border:1px solid #e3e8f1;border-radius:10px;padding:10px;background:#fff"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:8px"><b style="font-size:12px">${escapeHtml(x.label||x.value||('Célula '+(i+1)))}</b><div style="display:flex;gap:5px;flex-wrap:wrap"><button type="button" class="btn secondary" style="padding:5px 8px" onclick="mergeRncHeaderCell(${i})">Mesclar →</button><button type="button" class="btn secondary" style="padding:5px 8px" onclick="splitRncHeaderCell(${i})">Dividir</button><button type="button" class="btn danger" style="padding:5px 8px" onclick="removeRncHeaderCellById('${x.id}',event)">Excluir</button></div></div><div style="display:grid;grid-template-columns:minmax(140px,1.3fr) minmax(140px,1fr) 90px 90px 115px;gap:7px;align-items:end"><label><span class="small">Texto / rótulo</span><input value="${escapeHtml(x.label||'')}" oninput="updateRncHeaderField(${i},'label',this.value)"></label><label><span class="small">Valor</span><input value="${escapeHtml(
   x.source==='code' ? (t.code||'') :
   x.source==='revision' ? (t.revision||'') :
   x.source==='title' ? (t.title||'') :
@@ -14648,8 +14648,120 @@ function removeRncHeaderCellById(id,ev){
   refreshRncTemplatePreview();
 }
 
-function mergeRncHeaderCell(i){const a=rncHeaderFields(),x=a[i];if(!x)return;const row=a.filter(v=>(Number(v.row)||1)===(Number(x.row)||1)),pos=row.findIndex(v=>v.id===x.id),right=row[pos+1];if(!right)return alert('Não há célula à direita para mesclar.');x.width=(Number(x.width)||20)+(Number(right.width)||20);const ri=a.findIndex(v=>v.id===right.id);if(ri>=0)a.splice(ri,1);saveRncHeaderFields(a)}
-function splitRncHeaderCell(i){const a=rncHeaderFields(),x=a[i];if(!x)return;const w=Math.max(6,Number(x.width)||20);x.width=w/2;const ni=a.findIndex(v=>v.id===x.id)+1;a.splice(ni,0,{id:nextRncHeaderId(),row:Number(x.row)||1,label:'',value:'',source:'@',width:w/2,height:Number(x.height)||7,align:x.align||'left',bold:false});saveRncHeaderFields(a)}
+function mergeRncHeaderCell(i){
+  const a=rncHeaderFields(),x=a[i];
+  if(!x)return;
+
+  const row=a
+    .map((v,idx)=>({v,idx}))
+    .filter(o=>(Number(o.v.row)||1)===(Number(x.row)||1) && !o.v.mergedInto);
+
+  const pos=row.findIndex(o=>o.v.id===x.id);
+  const right=row[pos+1]?.v;
+  if(!right)return alert('Não há célula à direita para mesclar.');
+
+  // Não mistura horizontalmente células que já ocupam quantidades diferentes de linhas.
+  const xs=Math.max(1,Number(x.rowSpan)||1);
+  const rs=Math.max(1,Number(right.rowSpan)||1);
+  if(xs!==rs){
+    alert('Estas células não podem ser mescladas porque possuem alturas de mesclagem diferentes. Divida a mesclagem vertical primeiro.');
+    return;
+  }
+
+  x.width=(Number(x.width)||20)+(Number(right.width)||20);
+  const ri=a.findIndex(v=>v.id===right.id);
+  if(ri>=0)a.splice(ri,1);
+  saveRncHeaderFields(a);
+}
+
+function rncHeaderRestoreVerticalSplit(a,x){
+  const span=Math.max(1,Number(x.rowSpan)||1);
+  if(span<=1)return false;
+
+  const sourceRow=Number(x.row)||1;
+  const sourceRowCells=a.filter(v=>(Number(v.row)||1)===sourceRow && !v.mergedInto);
+  const sourceTotal=sourceRowCells.reduce((s,v)=>s+(Number(v.width)||20),0)||100;
+  let left=0;
+  for(const v of sourceRowCells){
+    if(v.id===x.id)break;
+    left+=(Number(v.width)||20)/sourceTotal*100;
+  }
+
+  const backups=Array.isArray(x.verticalMergeBackup)?x.verticalMergeBackup.slice():[];
+
+  for(let rr=sourceRow+1;rr<sourceRow+span;rr++){
+    const backupIndex=backups.findIndex(b=>Number(b?.cell?.row||b?.row||0)===rr);
+    if(backupIndex>=0){
+      const backup=backups[backupIndex];
+      const cell={...(backup.cell||{})};
+      delete cell.mergedInto;
+      if(!a.some(v=>String(v.id)===String(cell.id))){
+        const insertAt=Math.max(0,Math.min(a.length,Number(backup.index)));
+        a.splice(insertAt,0,cell);
+      }
+      backups.splice(backupIndex,1);
+      continue;
+    }
+
+    // Compatibilidade com mesclagens antigas, que apagavam a célula inferior.
+    // Recria uma célula vazia exatamente na largura/posição ocupada pela mesclagem.
+    const rowCells=a
+      .map((v,idx)=>({v,idx}))
+      .filter(o=>(Number(o.v.row)||1)===rr && !o.v.mergedInto);
+
+    let cumulative=0,insertAt=a.length;
+    for(const o of rowCells){
+      const w=Number(o.v.width)||20;
+      if(cumulative>=left-.5){insertAt=o.idx;break}
+      cumulative+=w;
+      insertAt=o.idx+1;
+    }
+
+    a.splice(insertAt,0,{
+      id:nextRncHeaderId(),
+      row:rr,
+      label:'',
+      value:'',
+      source:'@',
+      width:Number(x.width)||20,
+      height:Number(x.height)||7,
+      align:x.align||'left',
+      bold:false
+    });
+  }
+
+  x.rowSpan=1;
+  delete x.verticalMergeBackup;
+  return true;
+}
+
+function splitRncHeaderCell(i){
+  const a=rncHeaderFields(),x=a[i];
+  if(!x)return;
+
+  // Se a célula está mesclada verticalmente, "Dividir" desfaz primeiro
+  // essa mesclagem, em vez de criar outra coluna ao lado.
+  if(rncHeaderRestoreVerticalSplit(a,x)){
+    saveRncHeaderFields(a);
+    return;
+  }
+
+  const w=Math.max(6,Number(x.width)||20);
+  x.width=w/2;
+  const ni=a.findIndex(v=>v.id===x.id)+1;
+  a.splice(ni,0,{
+    id:nextRncHeaderId(),
+    row:Number(x.row)||1,
+    label:'',
+    value:'',
+    source:'@',
+    width:w/2,
+    height:Number(x.height)||7,
+    align:x.align||'left',
+    bold:false
+  });
+  saveRncHeaderFields(a);
+}
 function rncHeaderValue(t,x,preview=true,obj={}){const src=String(x.source||'');if(src==='@logo')return '__RNC_LOGO__';if(src==='title')return t.title||'';if(src==='code')return t.code||'';if(src==='revision')return t.revision||'';if(src==='@label')return '';if(src.startsWith('@')){const v=src.slice(1);if(x.id==='h-register'&&!preview)return obj.rncNumber||'—';return v}return x.value||''}
 function selectRncHeaderCell(id){rncGridSelectedFieldId='';rncGridSelectedHeaderId=id||'';refreshRncTemplatePreview();const a=rncHeaderFields();const list=document.getElementById('tplHeaderLayoutList');if(list)list.innerHTML=renderRncHeaderLayoutEditor({...collectRncTemplateForm(),headerLayout:a})}
 function selectedRncHeaderCell(){return rncHeaderFields().find(x=>x.id===rncGridSelectedHeaderId)||null}
@@ -14657,8 +14769,74 @@ function rncHeaderIndexBySelected(){return rncHeaderFields().findIndex(x=>x.id==
 function rncHeaderAdjustWidth(delta){const a=rncHeaderFields(),x=a.find(v=>v.id===rncGridSelectedHeaderId);if(!x)return;const row=a.filter(v=>(Number(v.row)||1)===(Number(x.row)||1)),i=row.findIndex(v=>v.id===x.id),right=row[i+1];if(right){const min=5,total=(Number(x.width)||20)+(Number(right.width)||20),nw=Math.max(min,Math.min(total-min,(Number(x.width)||20)+delta));x.width=nw;right.width=total-nw}else{x.width=Math.max(5,Math.min(100,(Number(x.width)||20)+delta))}saveRncHeaderFields(a)}
 function rncHeaderAdjustHeight(delta){const a=rncHeaderFields(),x=a.find(v=>v.id===rncGridSelectedHeaderId);if(!x)return;const row=Number(x.row)||1,h=Math.max(3,Math.min(60,(Number(x.height)||7)+delta));a.filter(v=>(Number(v.row)||1)===row).forEach(v=>v.height=h);saveRncHeaderFields(a)}
 function rncHeaderMergeSelected(){const i=rncHeaderIndexBySelected();if(i>=0)mergeRncHeaderCell(i)}
-function rncHeaderCellBounds(a,x){const row=a.filter(v=>(Number(v.row)||1)===(Number(x.row)||1));const total=row.reduce((s,v)=>s+(Number(v.width)||20),0)||100;let cur=0;for(const v of row){const w=(Number(v.width)||20)/total*100;if(v.id===x.id)return [cur,cur+w];cur+=w}return [0,100]}
-function rncHeaderMergeVertical(dir){const a=rncHeaderFields(),x=a.find(v=>v.id===rncGridSelectedHeaderId);if(!x)return;const row=Number(x.row)||1,span=Math.max(1,Number(x.rowSpan)||1),targetRow=dir<0?row-1:row+span;if(targetRow<1)return alert('Não há linha acima para mesclar.');const candidates=a.filter(v=>(Number(v.row)||1)===targetRow);if(!candidates.length){if(dir>0){x.rowSpan=span+1;saveRncHeaderFields(a);return}return alert('Não há célula acima para mesclar.')}const [l,r]=rncHeaderCellBounds(a,x);let best=null,bestOv=0;for(const v of candidates){const [vl,vr]=rncHeaderCellBounds(a,v),ov=Math.max(0,Math.min(r,vr)-Math.max(l,vl));if(ov>bestOv){bestOv=ov;best=v}}if(!best||bestOv<Math.max(2,(r-l)*.35))return alert('Não encontrei uma célula alinhada nessa direção para mesclar.');const xw=Math.max(1,Number(x.width)||20),bw=Math.max(1,Number(best.width)||20);if(!confirm(`Mesclar “${x.label||'célula'}” ${dir<0?'para cima':'para baixo'}?`))return;if(bw<=xw*1.15){const bi=a.findIndex(v=>v.id===best.id);if(bi>=0)a.splice(bi,1)}else{best.width=Math.max(5,bw-xw)}if(dir<0){x.row=targetRow;x.rowSpan=span+1}else{x.rowSpan=span+1}saveRncHeaderFields(a)}
+function rncHeaderCellBounds(a,x){
+  const row=a.filter(v=>(Number(v.row)||1)===(Number(x.row)||1) && !v.mergedInto);
+  const total=row.reduce((s,v)=>s+(Number(v.width)||20),0)||100;
+  let cur=0;
+  for(const v of row){
+    const w=(Number(v.width)||20)/total*100;
+    if(v.id===x.id)return [cur,cur+w];
+    cur+=w;
+  }
+  return [0,100];
+}
+function rncHeaderMergeVertical(dir){
+  const a=rncHeaderFields(),x=a.find(v=>v.id===rncGridSelectedHeaderId);
+  if(!x)return;
+
+  const row=Number(x.row)||1;
+  const span=Math.max(1,Number(x.rowSpan)||1);
+  const targetRow=dir<0?row-1:row+span;
+  if(targetRow<1)return alert('Não há linha acima para mesclar.');
+
+  const candidates=a.filter(v=>(Number(v.row)||1)===targetRow && !v.mergedInto);
+  if(!candidates.length){
+    return alert(dir<0?'Não há célula acima para mesclar.':'Não há célula abaixo para mesclar.');
+  }
+
+  const [l,r]=rncHeaderCellBounds(a,x);
+  let best=null,bestDelta=Infinity;
+
+  for(const v of candidates){
+    const [vl,vr]=rncHeaderCellBounds(a,v);
+    const delta=Math.abs(vl-l)+Math.abs(vr-r);
+    if(delta<bestDelta){bestDelta=delta;best=v}
+  }
+
+  // Mesclagem vertical só é permitida quando as bordas realmente coincidem.
+  // Isso evita engolir parte de Código/Revisão/Página ou deslocar a linha inferior.
+  if(!best || bestDelta>2.5){
+    alert('As células não estão alinhadas para uma mesclagem vertical. Ajuste as larguras primeiro para que as bordas coincidam.');
+    return;
+  }
+
+  if(!confirm(`Mesclar “${x.label||'célula'}” ${dir<0?'para cima':'para baixo'}?`))return;
+
+  const bi=a.findIndex(v=>v.id===best.id);
+  const backup={cell:{...best},index:bi};
+
+  if(dir<0){
+    // A célula selecionada passa a ocupar a linha de cima e a linha original.
+    const xi=a.findIndex(v=>v.id===x.id);
+    const xBackup={...x};
+    if(bi>=0)a.splice(bi,1);
+    x.row=targetRow;
+    x.rowSpan=span+1;
+    x.verticalMergeBackup=[...(Array.isArray(x.verticalMergeBackup)?x.verticalMergeBackup:[]),backup];
+    // Mantém a ordem visual da célula selecionada próxima da posição original.
+    const nowIndex=a.findIndex(v=>v.id===x.id);
+    if(nowIndex>=0 && xi>=0 && nowIndex!==xi){
+      const [moved]=a.splice(nowIndex,1);
+      a.splice(Math.min(xi,a.length),0,moved);
+    }
+  }else{
+    if(bi>=0)a.splice(bi,1);
+    x.rowSpan=span+1;
+    x.verticalMergeBackup=[...(Array.isArray(x.verticalMergeBackup)?x.verticalMergeBackup:[]),backup];
+  }
+
+  saveRncHeaderFields(a);
+}
 function rncHeaderMergeUp(){rncHeaderMergeVertical(-1)}
 function rncHeaderMergeDown(){rncHeaderMergeVertical(1)}
 function rncHeaderSplitSelected(){const i=rncHeaderIndexBySelected();if(i>=0)splitRncHeaderCell(i)}
