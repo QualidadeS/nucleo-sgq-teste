@@ -14624,29 +14624,28 @@ function assignedRoDeadline(r,preloadedMap=null){
 function currentUserCanRespondAssignedRo(ro,tri){
   if(!tri || tri.decision!=='directed')return false;
 
-  // SGQ/ADM pode responder qualquer R.O. já direcionada.
-  // Isso cobre também o caso em que o SGQ direciona a R.O. para si mesmo.
-  if(isAdmin())return true;
-
   const session=getSession()||{};
   const assignedEmail=String(tri.responsibleUserEmail||'').trim().toLowerCase();
   const assignedName=normalizeAnswer(tri.responsibleUserName||'');
   const sessionEmail=String(session.email||'').trim().toLowerCase();
   const sessionName=normalizeAnswer(session.name||'');
-
-  if(assignedEmail)return !!sessionEmail && assignedEmail===sessionEmail;
-  if(assignedName)return !!sessionName && assignedName===sessionName;
-
   const sector=String(tri.responsibleSector||'').trim();
-  if(!sector)return false;
+  const sectorKey=normalizeAnswer(sector);
 
-  if(normalizeAnswer(session.sector||'')===normalizeAnswer(sector))return true;
+  if(assignedEmail && sessionEmail && assignedEmail===sessionEmail)return true;
+  if(!assignedEmail && assignedName && sessionName && assignedName===sessionName)return true;
+
+  if(sectorKey && normalizeAnswer(session.sector||'')===sectorKey)return true;
 
   const unit=explicitRecordUnit(ro)||roUnit(ro);
-  return (session.sectorMemberships||[]).some(m=>
+  if(sectorKey && (session.sectorMemberships||[]).some(m=>
     normalizePortalUnit(m.unit||'')===normalizePortalUnit(unit||'') &&
-    normalizeAnswer(m.sector||'')===normalizeAnswer(sector)
-  );
+    normalizeAnswer(m.sector||'')===sectorKey
+  ))return true;
+
+  if(sectorKey && isManager() && managesSector(sector))return true;
+
+  return false;
 }
 
 let roListVisibleLimit=60;
@@ -14773,9 +14772,9 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
     const displayDecisionLabel=nucleoAssignedDecisionLabel(r,tri,displayStatus,renderTriageMap);
 
     let operationalActions='';
-    const adminCanRespond=admin&&currentUserCanRespondAssignedRo(r,tri);
+    const canRespondHere=currentUserCanRespondAssignedRo(r,tri);
 
-    if(!admin || adminCanRespond){
+    if(canRespondHere){
       const respondDisabled=noPdca||contest||alreadySent;
       const contestDisabled=noPdca||contest;
 
@@ -14799,9 +14798,8 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
       operationalActions='<td class="operational-action-col" style="display:none"></td>';
     }
 
-    const statusControl = admin && !noPdca && displayStatus==='Pendente'
-      ? `<div class="pdca-source-control"><span class="badge warn">Pendente</span><button class="btn secondary" type="button" onclick="setExternalPdca('${escapeHtml(r.numero)}',true,'${escapeHtml(responsibleSector)}')">✓ Temos PDCA</button></div>`
-      : `<span class="${displayStatus==='PDCA externo'||displayStatus==='PDCA respondido'||displayStatus==='PDCA apresentado'?'badge ok':displayStatus==='Pendente'?'badge warn':badgeClass(displayStatus)}">${escapeHtml(displayDecisionLabel)}</span>`;
+    const statusControl =
+      `<span class="${displayStatus==='PDCA respondido'||displayStatus==='PDCA apresentado'?'badge ok':displayStatus==='Pendente'?'badge warn':badgeClass(displayStatus)}">${escapeHtml(displayDecisionLabel)}</span>`;
 
     return `<tr>
       <td><button type="button" class="ro-link-btn" onclick="openRO('${escapeHtml(r.numero)}')"><b>${escapeHtml(r.numero)}</b></button>${isArchivedRo(r.numero)?'<div class="small">Arquivada</div>':''}</td>
@@ -14819,10 +14817,10 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
     ? `Mostrando ${roListVisibleLimit} de ${list.length} R.O.s · <button class="btn secondary" type="button" onclick="showMoreRos()">Mostrar mais 60</button>`
     : (list.length?`Mostrando ${list.length} R.O.s`:'');
 
-  // Para ADM/SGQ, a ação de responder aparece somente nas R.O.s
-  // que foram direcionadas para a própria pessoa logada.
+  // A ação de responder só existe nas linhas em que a pessoa logada
+  // pertence ao setor responsável ou é a pessoa explicitamente responsável.
   document.querySelectorAll('.operational-action-col').forEach(el=>{
-    if(!admin)el.style.display='';
+    el.style.display='';
   });
 }
 
@@ -14866,14 +14864,16 @@ function openAssignedSectorEdit(triageKey){
 
 function selectRoForOperationalAction(numero){
   const base=ros.find(r=>(r.id||r.codigo||r.numero)===numero || r.numero===numero);
-  if(!base || !canViewRO(base)){
+  if(!base){
     alert('R.O. não encontrada ou indisponível.');
     return null;
   }
   const tri=getRoTriageRecord(base);
-  const ro=(isAdmin()&&currentUserCanRespondAssignedRo(base,tri))
-    ? getOperationalRoView({...base,__triageRecord:tri,__assignedSector:tri?.responsibleSector||''})
-    : (isAdmin()?base:getOperationalRoView(base));
+  if(!currentUserCanRespondAssignedRo(base,tri)){
+    alert('Esta R.O. não está direcionada para você nem para um setor em que você atua.');
+    return null;
+  }
+  const ro=getOperationalRoView({...base,__triageRecord:tri,__assignedSector:tri?.responsibleSector||''});
   selected=ro;
   return ro;
 }
