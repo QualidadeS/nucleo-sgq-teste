@@ -357,26 +357,39 @@ function renderPdcaActions(){
   const mainAction=String(answers.p11||'').trim();
   const mainDeadline=String(answers.p12||'').trim();
   const mainSectors=parseResponsibleSectors(answers.p13||'');
+  const maxDate=pdcaIsoDate(pdcaMaxActionDate());
 
   const mainHtml=mainAction
-    ? `<div class="pdca-action-row pdca-main-action">
-        <div class="pdca-action-badge">Ação principal</div>
-        <div class="pdca-action-main-text">${escapeHtml(mainAction)}</div>
-        <div class="pdca-action-meta">
-          <span><b>Prazo</b>${escapeHtml(mainDeadline||'Não informado')}</span>
-          <span><b>Setores</b>${escapeHtml(mainSectors.join(' · ')||'Não informado')}</span>
+    ? `<div class="pdca-action-card pdca-action-card-main">
+        <div class="pdca-action-card-top">
+          <span class="pdca-action-tag">Ação principal</span>
+          <span class="pdca-action-state">Planejada</span>
+        </div>
+        <div class="pdca-action-title">${escapeHtml(mainAction)}</div>
+        <div class="pdca-action-details">
+          <div class="pdca-action-detail"><span>Prazo</span><b>${escapeHtml(mainDeadline||'Não informado')}</b></div>
+          <div class="pdca-action-detail"><span>Responsáveis</span><b>${escapeHtml(mainSectors.join(' · ')||'Não informado')}</b></div>
+        </div>
+        <div class="pdca-action-ruleline">
+          <span>Prazo máximo: 6 meses</span>
+          <span>Apresentação: após conclusão</span>
+          <span>5S: só impacta se atrasar</span>
         </div>
       </div>`
     : `<div class="pdca-action-empty">
-        A ação principal aparecerá aqui automaticamente assim que a pergunta “Qual ação será executada?” for preenchida.
+        <b>A ação principal ainda não foi definida.</b>
+        <span>Preencha “Qual ação será executada?” para ela aparecer automaticamente aqui.</span>
       </div>`;
 
   const extrasHtml=pdcaExtraActions.length?pdcaExtraActions.map((a,i)=>`
-    <div class="pdca-action-row pdca-extra-action">
-      <div class="pdca-action-row-head"><b>Ação ${i+2}</b><button class="btn secondary" type="button" onclick="removePdcaAction('${a.id}')">Remover</button></div>
+    <div class="pdca-action-card pdca-extra-action">
+      <div class="pdca-action-card-top">
+        <span class="pdca-action-tag neutral">Ação ${i+2}</span>
+        <button class="pdca-action-remove" type="button" onclick="removePdcaAction('${a.id}')">Remover</button>
+      </div>
       <label><div class="label">O que será feito</div><textarea rows="2" oninput="updatePdcaAction('${a.id}','action',this.value)">${escapeHtml(a.action||'')}</textarea></label>
       <div><div class="label">Setores responsáveis</div>${renderSectorCheckboxes(a.responsibleSectors?.length?a.responsibleSectors:a.owner,`updateExtraActionResponsibleSectors('${a.id}')`,'extra-'+a.id)}</div>
-      <label><div class="label">Prazo</div><input type="date" value="${escapeHtml(a.deadline||'')}" onchange="updatePdcaAction('${a.id}','deadline',this.value)"></label>
+      <label><div class="label">Prazo <span class="small">· máximo ${escapeHtml(maxDate)}</span></div><input type="date" max="${escapeHtml(maxDate)}" value="${escapeHtml(a.deadline||'')}" onchange="if(this.value&&!pdcaActionDeadlineValid(this.value)){alert('O prazo máximo da ação é de 6 meses.');this.value='';updatePdcaAction('${a.id}','deadline','');}else updatePdcaAction('${a.id}','deadline',this.value)"></label>
     </div>`).join(''):'';
 
   box.innerHTML=mainHtml+extrasHtml;
@@ -4617,7 +4630,8 @@ function actionDashboardItems(){
       const visible=admin||assigned.some(s=>normalizeAnswer(s)===normalizeAnswer(currentSector())||(isManager()&&managesSector(s)));
       if(!visible)return;
       const pseudo={...p,answers:{...(p.answers||{}),p11:a.action,p12:a.deadline,p13:a.owner},acaoConferidaEm:a.completedAt||a.acaoConferidaEm};
-      items.push({p,actionRecord:a,ro:p.ro||'-',setor:p.setor||'-',acao:a.action||'',responsavel:a.owner||p.responsavel||'-',responsibleSectors:assigned,prazo:a.deadline||'-',status:inferActionStatus(pseudo),deadline:actionDeadlineInfo(pseudo)});
+      const status=inferActionStatus(pseudo);
+      items.push({p,actionRecord:a,ro:p.ro||'-',setor:p.setor||'-',acao:a.action||'',responsavel:a.owner||p.responsavel||'-',responsibleSectors:assigned,prazo:a.deadline||'-',status,deadline:actionDeadlineInfo(pseudo),impacta5S:status.code==='overdue'});
     });
   });
   return items.filter(x=>x.acao);
@@ -4694,7 +4708,7 @@ function renderActionsDashboard(){
     <td>${escapeHtml(x.responsavel)}</td>
     <td>${escapeHtml(x.prazo)}</td>
     <td><span class="deadline-text ${x.deadline.cls}">${escapeHtml(x.deadline.text)}</span></td>
-    <td><span class="action-pill ${x.status.code}">${escapeHtml(x.status.label)}</span></td>
+    <td><span class="action-pill ${x.status.code}">${escapeHtml(x.status.label)}</span>${x.impacta5S?'<div class="five-s-impact">Impacta 5S</div>':'<div class="five-s-neutral">Sem impacto no 5S</div>'}</td>
     <td style="white-space:nowrap">
       ${canContestActionSector(x.p,x.actionRecord)?(()=>{
         const c=getActionSectorContest(x.actionRecord.id,currentSector());
@@ -8607,6 +8621,12 @@ function pdcaQualityIssues(){
       'Evite expressões indefinidas como “assim que possível”.'
     ],'Ex.: “Até 15/10/2026”.');
 
+  if(text('p12') && !pdcaActionDeadlineValid(text('p12')))
+    add('p12','O prazo da ação ultrapassa o limite permitido.',[
+      'O prazo máximo de uma ação é de 6 meses a partir de hoje.',
+      'Defina uma data dentro desse período.'
+    ],'Ex.: escolha uma data em até 6 meses.');
+
   if(text('p11')&&!text('p13'))
     add('p13','Falta selecionar ao menos um setor responsável pela ação.',[
       'Informe a pessoa, função ou cargo responsável por executar e acompanhar a ação.',
@@ -9847,6 +9867,10 @@ async function completeCurrentPdcaPresentation(){
     alert('Somente o SGQ pode concluir a apresentação.');
     return;
   }
+  if(!pdcaAllActionsCompleted(p)){
+    alert('A apresentação não pode ser concluída enquanto houver ação pendente ou atrasada.');
+    return;
+  }
 
   const existing=getPdcaPresentationMap().get(String(p.id||''));
   const roRecord=findRoByAnyNumber(p.ro||'',p.origemBase||p.sourceRoOrigin||'');
@@ -9925,6 +9949,10 @@ async function completeCurrentPdcaPresentation(){
 
 function openPdcaPresentation(p){
   if(!p)return;
+  if(!pdcaAllActionsCompleted(p)){
+    alert('A apresentação só será liberada após a conclusão de todas as ações deste PDCA.');
+    return;
+  }
   window.currentPrintPdca=p;
 
   if(!buildPdcaPresentationDocument(p)){
@@ -10022,11 +10050,14 @@ function refreshViewedPdcaPresentation(){
     btn.textContent='Abrir apresentação';
     btn.disabled=false;
   }else{
-    badge.textContent='Não apresentado';
+    const completed=pdcaAllActionsCompleted(p);
+    badge.textContent=completed?'Pronto para apresentação':'Aguardando conclusão das ações';
     badge.className='status-badge pending';
-    meta.textContent='';
-    btn.textContent='Apresentar PDCA';
-    btn.disabled=false;
+    meta.textContent=completed
+      ?'Todas as ações estão concluídas. A apresentação pode ser registrada.'
+      :'A apresentação só será liberada após a conclusão de todas as ações.';
+    btn.textContent=completed?'Apresentar PDCA':'Apresentação bloqueada';
+    btn.disabled=!completed;
   }
 }
 
@@ -10038,6 +10069,10 @@ function presentCurrentViewedPdca(){
   }
   if(!isAdmin()){
     alert('Somente o SGQ pode registrar a apresentação do PDCA.');
+    return;
+  }
+  if(!pdcaAllActionsCompleted(p)){
+    alert('A apresentação só pode ser realizada após a conclusão de todas as ações deste PDCA.');
     return;
   }
 
@@ -15797,6 +15832,56 @@ function dictatePdcaAnswer(id,button){
   };
   rec.start();
 }
+function pdcaMaxActionDate(){
+  const d=new Date();
+  d.setHours(0,0,0,0);
+  d.setMonth(d.getMonth()+6);
+  return d;
+}
+function pdcaIsoDate(d){
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function pdcaActionDeadlineValid(value){
+  const d=parseBrDate(value);
+  if(!d)return false;
+  const max=pdcaMaxActionDate();
+  d.setHours(0,0,0,0);
+  return d<=max;
+}
+function pdcaValidateActionDeadlines(showAlert=true){
+  const invalid=[];
+  const main=String(answers.p12||'').trim();
+  if(main && !pdcaActionDeadlineValid(main))invalid.push('Ação principal');
+  pdcaExtraActions.forEach((a,i)=>{
+    if(String(a.action||'').trim() && String(a.deadline||'').trim() && !pdcaActionDeadlineValid(a.deadline)){
+      invalid.push('Ação '+(i+2));
+    }
+  });
+  if(invalid.length && showAlert){
+    alert('O prazo máximo para execução de uma ação é de 6 meses a partir de hoje.\n\nRevise: '+invalid.join(', ')+'.');
+  }
+  return invalid.length===0;
+}
+function pdcaInitialRequiredIds(){
+  // O primeiro envio formaliza o plano e cria as cobranças das ações.
+  // DO/CHECK/ACT podem ser concluídos depois conforme a execução avança.
+  return ['p1','p2','p3','p4','p5','p6','p7','p8','p9','p10','p11','p12','p13','p14'];
+}
+function pdcaInitialPlanComplete(){
+  return pdcaInitialRequiredIds().every(id=>String(answers[id]||'').trim());
+}
+function pdcaAllActionsCompleted(p){
+  const actions=allPdcaActionsForRecord(p);
+  if(!actions.length)return false;
+  return actions.every(a=>{
+    const pseudo={...p,answers:{...(p.answers||{}),p11:a.action,p12:a.deadline,p13:a.owner},acaoConferidaEm:a.completedAt||a.acaoConferidaEm};
+    return inferActionStatus(pseudo).code==='done';
+  });
+}
+function pdcaActionImpacts5S(p,a){
+  const pseudo={...p,answers:{...(p.answers||{}),p11:a.action,p12:a.deadline,p13:a.owner},acaoConferidaEm:a.completedAt||a.acaoConferidaEm};
+  return inferActionStatus(pseudo).code==='overdue';
+}
 function pdcaExecutionCompleted(){
   const status=normalizeAnswer(answers.p10||'');
   if(!status)return false;
@@ -15875,44 +15960,50 @@ function updateCompletion(){
   const fill=document.getElementById('completionFill');
   const btn=document.getElementById('sendPdcaBtn');
   const hint=document.getElementById('submitHint');
-  if(txt) txt.textContent=`${completed} de ${total} respondidas`;
-  if(fill) fill.style.width=pct+'%';
-  const requireAll=getRuleYes('rulePdcaRequireAll');
-  const executionDone=pdcaExecutionCompleted();
-  if(btn) btn.disabled=!executionDone || (requireAll && completed!==total);
+  const planReady=pdcaInitialPlanComplete();
+  const deadlineOk=pdcaValidateActionDeadlines(false);
+
+  if(txt)txt.textContent=`${completed} de ${total} respondidas`;
+  if(fill)fill.style.width=pct+'%';
+  if(btn)btn.disabled=!(planReady&&deadlineOk);
+
   if(hint){
-    if(!executionDone){
-      hint.textContent='O PDCA permanece como rascunho enquanto a ação/meta estiver prevista ou em andamento. Conclua a execução para liberar Checar, Agir e o envio.';
+    if(!planReady){
+      const missing=pdcaInitialRequiredIds().filter(id=>!String(answers[id]||'').trim()).length;
+      hint.textContent=`Complete o planejamento para enviar e iniciar o acompanhamento. Faltam ${missing} campo(s) da etapa Planejar.`;
+    }else if(!deadlineOk){
+      hint.textContent='Revise o prazo das ações: nenhuma ação pode ter prazo superior a 6 meses.';
+    }else if(!pdcaExecutionCompleted()){
+      hint.textContent='O planejamento já pode ser enviado. As ações serão cobradas até a conclusão; Checar e Agir serão liberados depois.';
+    }else if(completed<total){
+      hint.textContent=`O acompanhamento pode ser enviado. Ainda há ${total-completed} resposta(s) de execução/verificação pendente(s).`;
     }else{
-      hint.textContent=requireAll
-        ? (completed===total?'PDCA completo. O envio está liberado.':`Faltam ${total-completed} resposta(s) para liberar o envio.`)
-        : (completed===total?'PDCA completo. O envio está liberado.':`Há ${total-completed} resposta(s) pendente(s), mas a regra atual permite o envio.`);
+      hint.textContent='PDCA completo. O envio está liberado.';
     }
   }
+
   const stage=stages[activeStage];
   const stageDone=stage.items.filter(it=>(answers[it[0]]||'').trim()).length;
   const stageBadge=document.getElementById('stageCompletionBadge');
   if(stageBadge)stageBadge.textContent=`${stageDone}/${stage.items.length} respondidas`;
-
 }
 function highlightMissing(){
-  if(!getRuleYes('rulePdcaRequireAll'))return true;
-  const missing=[];
-  stages.forEach((stage,si)=>stage.items.forEach(it=>{
-    if(!(answers[it[0]]||'').trim()) missing.push({id:it[0],stage:si,label:it[1]});
-  }));
-  if(!missing.length) return true;
-  activeStage=missing[0].stage;
+  const required=pdcaInitialRequiredIds();
+  const missing=required.filter(id=>!String(answers[id]||'').trim());
+  if(!missing.length)return true;
+
+  const first=missing[0];
+  activeStage=0;
   renderStage();
   setTimeout(()=>{
-    const el=document.getElementById('answer_'+missing[0].id);
+    const el=document.getElementById('answer_'+first);
     if(el){
-      const q=el.closest('.question'); if(q)q.classList.add('missing');
-      if(missing[0].id!=='p13' && typeof el.focus==='function')el.focus();
+      const q=el.closest('.question');if(q)q.classList.add('missing');
+      if(first!=='p13'&&typeof el.focus==='function')el.focus();
       (q||el).scrollIntoView({behavior:'smooth',block:'center'});
     }
   },50);
-  alert(`Ainda faltam ${missing.length} resposta(s). O sistema levou você até a primeira pergunta pendente.`);
+  alert(`Antes de enviar, complete a etapa Planejar. Ainda faltam ${missing.length} campo(s).`);
   return false;
 }
 
@@ -16269,6 +16360,7 @@ async function finishPDCA(){
   const hint=document.getElementById('submitHint');
 
   if(!highlightMissing())return;
+  if(!pdcaValidateActionDeadlines(true))return;
 
   const qualityIssues=runPdcaQualityCheck(false);
   if(qualityIssues.length){
@@ -16330,8 +16422,11 @@ async function finishPDCA(){
       tipoRO:selected.tipoRO||'Externa',
       sentAt:now.toISOString(),
       envio:now.toLocaleDateString('pt-BR')+' '+now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),
-      status:'Enviado',
+      status:pdcaExecutionCompleted()?'Enviado':'Em acompanhamento',
       answers:{...answers},
+      followUpRequired:!pdcaExecutionCompleted(),
+      presentationBlockedUntilActionsComplete:true,
+      fiveSImpactRule:'overdue_only',
       actions:pdcaExtraActions.filter(x=>String(x.action||'').trim()).map(x=>({...x}))
     };
 
