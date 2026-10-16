@@ -4622,7 +4622,7 @@ function pdcaActionUrgency(status){
   return 'media';
 }
 function unifiedManualActionStatus(a){
-  if(a?.completedAt)return {code:'done',label:'Concluída',reason:'Conclusão registrada.'};
+  if(a?.completedAt || Number(a?.progress||0)>=100)return {code:'done',label:'Concluída',reason:'Conclusão registrada.'};
   const d=parseBrDate(a?.deadline||'');
   if(d){
     const today=new Date();today.setHours(0,0,0,0);
@@ -4634,18 +4634,58 @@ function unifiedManualActionStatus(a){
 function unifiedManualActionDeadline(a){
   return actionDeadlineInfo({answers:{p12:a?.deadline||''}});
 }
+
+function unifiedActionAllSectors(){
+  const values=[];
+  ['matriz','filial'].forEach(unit=>{
+    try{values.push(...getConfiguredSectors(unit))}catch(e){}
+  });
+  try{values.push(...getConfiguredSectorsForTriage())}catch(e){}
+  return [...new Set(values.map(x=>String(x||'').trim()).filter(Boolean))]
+    .sort((a,b)=>a.localeCompare(b,'pt-BR'));
+}
+function populateUnifiedActionDependencySectors(){
+  const sel=document.getElementById('unifiedActionDependencySectors');
+  if(!sel)return;
+  const current=new Set([...sel.selectedOptions].map(o=>o.value));
+  sel.innerHTML=unifiedActionAllSectors()
+    .map(s=>`<option value="${escapeHtml(s)}"${current.has(s)?' selected':''}>${escapeHtml(s)}</option>`)
+    .join('');
+}
+function unifiedActionSelectedDependencies(){
+  const sectors=[...(document.getElementById('unifiedActionDependencySectors')?.selectedOptions||[])]
+    .map(o=>String(o.value||'').trim()).filter(Boolean);
+  const external=String(document.getElementById('unifiedActionExternalDependencies')?.value||'')
+    .split(/\n|;/).map(x=>x.trim()).filter(Boolean);
+  return {
+    sectors:[...new Set(sectors)],
+    external:[...new Set(external)]
+  };
+}
+function unifiedActionDependencyText(a){
+  const deps=a?.dependencies||{};
+  const sectors=Array.isArray(deps.sectors)?deps.sectors:[];
+  const external=Array.isArray(deps.external)?deps.external:[];
+  const legacy=String(a?.dependency||'').trim();
+  const all=[...sectors,...external];
+  if(!all.length&&legacy)all.push(legacy);
+  return all.length?all.join(' · '):'—';
+}
 function openUnifiedActionModal(){
   const ov=document.getElementById('unifiedActionOverlay');
   if(!ov)return;
   document.getElementById('unifiedActionText').value='';
   document.getElementById('unifiedActionDeadline').value='';
   document.getElementById('unifiedActionNote').value='';
-  document.getElementById('unifiedActionType').value='Ação';
+  document.getElementById('unifiedActionType').value='Contenção';
   document.getElementById('unifiedActionProject').value='';
   document.getElementById('unifiedActionSubject').value='';
-  document.getElementById('unifiedActionDependency').value='';
+  document.getElementById('unifiedActionExternalDependencies').value='';
   document.getElementById('unifiedActionUrgency').value='media';
   document.getElementById('unifiedActionNextStep').value='';
+  document.getElementById('unifiedActionProgress').value='0';
+  document.getElementById('unifiedActionRemaining').value='';
+  populateUnifiedActionDependencySectors();
 
   const mode=document.getElementById('unifiedActionMode');
   if(isAdmin()){
@@ -4752,9 +4792,11 @@ async function saveUnifiedAction(){
   const type=String(document.getElementById('unifiedActionType')?.value||'Ação').trim();
   const project=String(document.getElementById('unifiedActionProject')?.value||'').trim();
   const subject=String(document.getElementById('unifiedActionSubject')?.value||'').trim();
-  const dependency=String(document.getElementById('unifiedActionDependency')?.value||'').trim();
+  const dependencies=unifiedActionSelectedDependencies();
   const urgency=String(document.getElementById('unifiedActionUrgency')?.value||'media').trim();
   const nextStep=String(document.getElementById('unifiedActionNextStep')?.value||'').trim();
+  const progress=Math.max(0,Math.min(100,Number(document.getElementById('unifiedActionProgress')?.value||0)));
+  const remaining=String(document.getElementById('unifiedActionRemaining')?.value||'').trim();
   const mode=String(document.getElementById('unifiedActionMode')?.value||'self');
   if(!text){alert('Informe a ação.');return}
 
@@ -4815,9 +4857,22 @@ async function saveUnifiedAction(){
       type,
       project,
       subject,
-      dependency,
+      dependencies,
+      dependency:[...(dependencies.sectors||[]),...(dependencies.external||[])].join(' · '),
       urgency,
       nextStep,
+      progress,
+      remaining,
+      history:[{
+        id:'UPD-'+Date.now()+'-'+Math.random().toString(36).slice(2,6),
+        at:now,
+        byKey:creatorKey,
+        byName:creatorName,
+        text:'Ação criada.',
+        progress,
+        remaining,
+        nextStep
+      }],
       assigneeKey:a.key,
       assigneeName:a.name,
       sector:a.sector||'',
@@ -4854,6 +4909,145 @@ function unifiedManualActionCanComplete(a){
   const me=unifiedCurrentUserKey();
   return String(a?.assigneeKey||'').toLowerCase()===me || isAdmin();
 }
+
+function unifiedActionCanUpdate(a){
+  if(!a)return false;
+  const me=unifiedCurrentUserKey();
+  if(isAdmin())return true;
+  if(String(a.assigneeKey||'').toLowerCase()===me)return true;
+  if(isManager()){
+    const target=getOperationalUsers().find(u=>unifiedActionUserKey(u)===String(a.assigneeKey||'').toLowerCase());
+    const sectors=[
+      target?.sector,
+      ...(Array.isArray(target?.sectorMemberships)?target.sectorMemberships.map(m=>m.sector):[])
+    ].filter(Boolean);
+    if(sectors.some(managesSector))return true;
+  }
+  return false;
+}
+function openUnifiedActionHistory(id){
+  const a=getUnifiedManualActions().find(x=>String(x.id)===String(id));
+  if(!a)return;
+  if(!unifiedActionCanSee(a)){alert('Você não possui acesso a esta ação.');return}
+
+  const ov=document.getElementById('unifiedActionHistoryOverlay');
+  if(!ov)return;
+  document.getElementById('unifiedActionHistoryId').value=String(a.id||'');
+  document.getElementById('unifiedActionHistoryTitle').textContent=a.action||'Acompanhamento da ação';
+  document.getElementById('unifiedActionHistorySubtitle').textContent=
+    [a.id,a.assigneeName,a.sector].filter(Boolean).join(' · ');
+
+  const canUpdate=unifiedActionCanUpdate(a);
+  const updateBlock=document.getElementById('unifiedActionUpdateText')?.closest('.settings-block');
+  if(updateBlock)updateBlock.style.display=canUpdate?'':'none';
+
+  document.getElementById('unifiedActionUpdateText').value='';
+  document.getElementById('unifiedActionUpdateProgress').value=String(Math.max(0,Math.min(100,Number(a.progress||0))));
+  document.getElementById('unifiedActionUpdateRemaining').value=a.remaining||'';
+  document.getElementById('unifiedActionUpdateNextStep').value=a.nextStep||'';
+
+  renderUnifiedActionHistory(a);
+  ov.classList.add('open');
+  document.body.style.overflow='hidden';
+}
+function closeUnifiedActionHistory(){
+  document.getElementById('unifiedActionHistoryOverlay')?.classList.remove('open');
+  document.body.style.overflow='';
+}
+function renderUnifiedActionHistory(a){
+  const summary=document.getElementById('unifiedActionDetailSummary');
+  const timeline=document.getElementById('unifiedActionTimeline');
+  if(summary){
+    const progress=Math.max(0,Math.min(100,Number(a.progress||0)));
+    summary.innerHTML=`
+      <div><span>Responsável</span><b>${escapeHtml(a.assigneeName||'-')}</b></div>
+      <div><span>Setor</span><b>${escapeHtml(a.sector||'-')}</b></div>
+      <div><span>Tipo</span><b>${escapeHtml(a.type||'Ação')}</b></div>
+      <div><span>Urgência</span><b>${escapeHtml(unifiedActionUrgencyLabel(a.urgency))}</b></div>
+      <div><span>Dependências</span><b>${escapeHtml(unifiedActionDependencyText(a))}</b></div>
+      <div><span>Prazo</span><b>${escapeHtml(a.deadline?formatDateBR(a.deadline):'—')}</b></div>
+      <div class="full"><span>Próximo passo</span><b>${escapeHtml(a.nextStep||'—')}</b></div>
+      <div class="full"><span>Falta para terminar</span><b>${escapeHtml(a.remaining||'—')}</b></div>
+      <div class="full">
+        <span>Andamento</span>
+        <div class="action-progress-bar large"><span style="width:${progress}%"></span></div>
+        <b>${progress}%</b>
+      </div>`;
+  }
+
+  if(timeline){
+    const history=Array.isArray(a.history)?a.history.slice():[];
+    history.sort((x,y)=>String(y.at||'').localeCompare(String(x.at||'')));
+    timeline.innerHTML=history.length?history.map(h=>`
+      <div class="action-timeline-item">
+        <div class="action-timeline-dot"></div>
+        <div class="action-timeline-content">
+          <div class="action-timeline-head">
+            <b>${escapeHtml(h.byName||'Usuário')}</b>
+            <span>${escapeHtml(unifiedActionDateTimeLabel(h.at))}</span>
+          </div>
+          <div class="action-timeline-text">${escapeHtml(h.text||'Atualização registrada.')}</div>
+          <div class="action-timeline-meta">
+            <span>${Math.max(0,Math.min(100,Number(h.progress||0)))}% concluído</span>
+            ${h.remaining?`<span>Falta: ${escapeHtml(h.remaining)}</span>`:''}
+            ${h.nextStep?`<span>Próximo: ${escapeHtml(h.nextStep)}</span>`:''}
+          </div>
+        </div>
+      </div>`).join(''):'<div class="small">Nenhuma atualização registrada.</div>';
+  }
+}
+function saveUnifiedActionUpdate(){
+  const id=String(document.getElementById('unifiedActionHistoryId')?.value||'');
+  const list=getUnifiedManualActions();
+  const i=list.findIndex(a=>String(a.id)===id);
+  if(i<0)return;
+  const a=list[i];
+  if(!unifiedActionCanUpdate(a)){alert('Você não pode atualizar esta ação.');return}
+
+  const text=String(document.getElementById('unifiedActionUpdateText')?.value||'').trim();
+  const progress=Math.max(0,Math.min(100,Number(document.getElementById('unifiedActionUpdateProgress')?.value||0)));
+  const remaining=String(document.getElementById('unifiedActionUpdateRemaining')?.value||'').trim();
+  const nextStep=String(document.getElementById('unifiedActionUpdateNextStep')?.value||'').trim();
+
+  if(!text){alert('Descreva o que foi feito ou o que mudou.');return}
+
+  const now=new Date().toISOString();
+  const session=getSession()||{};
+  const history=Array.isArray(a.history)?a.history.slice():[];
+  history.push({
+    id:'UPD-'+Date.now()+'-'+Math.random().toString(36).slice(2,6),
+    at:now,
+    byKey:unifiedCurrentUserKey(),
+    byName:session.name||session.email||'Usuário',
+    text,
+    progress,
+    remaining,
+    nextStep
+  });
+
+  list[i]={
+    ...a,
+    progress,
+    remaining,
+    nextStep,
+    history,
+    updatedAt:now,
+    ...(progress>=100?{
+      completedAt:a.completedAt||now,
+      completedBy:a.completedBy||session.name||session.email||'Usuário'
+    }:{
+      completedAt:'',
+      completedBy:''
+    })
+  };
+  saveUnifiedManualActions(list);
+
+  renderUnifiedActionHistory(list[i]);
+  document.getElementById('unifiedActionUpdateText').value='';
+  renderActionsDashboard();
+  refreshUserPendingActionAlert();
+}
+
 function completeUnifiedManualAction(id){
   const list=getUnifiedManualActions();
   const i=list.findIndex(a=>String(a.id)===String(id));
@@ -4864,12 +5058,30 @@ function completeUnifiedManualAction(id){
   if(evidence===null)return;
   if(!String(evidence).trim()){alert('Informe a evidência ou resultado da ação.');return}
 
+  const now=new Date().toISOString();
+  const actor=getSession()?.name||getSession()?.email||'Usuário';
+  const history=Array.isArray(list[i].history)?list[i].history.slice():[];
+  history.push({
+    id:'UPD-'+Date.now()+'-'+Math.random().toString(36).slice(2,6),
+    at:now,
+    byKey:unifiedCurrentUserKey(),
+    byName:actor,
+    text:'Ação concluída. '+String(evidence).trim(),
+    progress:100,
+    remaining:'',
+    nextStep:'Concluída'
+  });
+
   list[i]={
     ...list[i],
     evidence:String(evidence).trim(),
-    completedAt:new Date().toISOString(),
-    updatedAt:new Date().toISOString(),
-    completedBy:getSession()?.name||getSession()?.email||'Usuário'
+    progress:100,
+    remaining:'',
+    nextStep:'Concluída',
+    history,
+    completedAt:now,
+    updatedAt:now,
+    completedBy:actor
   };
   saveUnifiedManualActions(list);
   renderActionsDashboard();
@@ -5047,9 +5259,11 @@ function actionDashboardItems(){
       type:a.type||'Ação',
       project:a.project||'—',
       subject:a.subject||'—',
-      dependency:a.dependency||'—',
+      dependency:unifiedActionDependencyText(a),
       urgency:a.urgency||'media',
       nextStep:a.nextStep||'—',
+      progress:Number(a.progress||0),
+      remaining:a.remaining||'',
       updatedAt:a.completedAt||a.updatedAt||a.createdAt||'',
       manualAction:a,
       ro:a.project||'—',
@@ -5136,6 +5350,7 @@ function unifiedActionRowButtons(x){
 
   const a=x.manualAction||{};
   const buttons=[];
+  buttons.push(`<button class="btn secondary" type="button" onclick="openUnifiedActionHistory('${escapeHtml(a.id)}')">Acompanhar</button>`);
   if(x.status.code!=='done' && unifiedManualActionCanComplete(a)){
     buttons.push(`<button class="btn primary" type="button" onclick="completeUnifiedManualAction('${escapeHtml(a.id)}')">Concluir</button>`);
   }
@@ -5170,7 +5385,7 @@ function renderActionsDashboard(){
     if(search){
       const hay=normalizeAnswer([
         x.id,x.sourceLabel,x.type,x.project,x.ro,x.subject,x.setor,x.acao,x.responsavel,
-        x.dependency,x.nextStep,x.manualAction?.createdByName
+        x.dependency,x.nextStep,x.remaining,x.manualAction?.createdByName
       ].join(' '));
       if(!hay.includes(search))return false;
     }
@@ -5199,7 +5414,11 @@ function renderActionsDashboard(){
     <td>${escapeHtml(x.dependency||'—')}</td>
     <td><span class="urgency-pill ${escapeHtml(normalizeAnswer(x.urgency||'media'))}">${escapeHtml(unifiedActionUrgencyLabel(x.urgency))}</span></td>
     <td><span class="action-pill ${x.status.code}">${escapeHtml(x.status.label)}</span>${x.impacta5S?'<div class="five-s-impact">Impacta 5S</div>':x.source==='pdca'?'<div class="five-s-neutral">Sem impacto no 5S</div>':''}</td>
-    <td>${escapeHtml(x.nextStep||'—')}<div class="small deadline-text ${x.deadline.cls}" style="margin-top:4px">${escapeHtml(x.deadline.text)}</div></td>
+    <td>
+      ${escapeHtml(x.nextStep||'—')}
+      ${x.source!=='pdca'?`<div class="action-progress-wrap"><div class="action-progress-bar"><span style="width:${Math.max(0,Math.min(100,Number(x.progress||0)))}%"></span></div><small>${Math.max(0,Math.min(100,Number(x.progress||0)))}% concluído${x.remaining?' · Falta: '+escapeHtml(x.remaining):''}</small></div>`:''}
+      <div class="small deadline-text ${x.deadline.cls}" style="margin-top:4px">${escapeHtml(x.deadline.text)}</div>
+    </td>
     <td>${escapeHtml(unifiedActionDateTimeLabel(x.updatedAt))}</td>
     <td><div class="unified-action-buttons">${unifiedActionRowButtons(x)}</div></td>
   </tr>`).join(''):`<tr><td colspan="14" style="text-align:center;color:#667085;padding:24px">Nenhuma ação encontrada nesta visão.</td></tr>`;
