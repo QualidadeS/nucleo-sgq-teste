@@ -2633,6 +2633,28 @@ body{padding-bottom:28px!important}
 #actionsDashboardView .action-controls{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
 </style>
 
+
+<style id="actions-sheet-v30-style">
+#actionsDashboardView{max-width:none}
+#actionsDashboardView .action-table{min-width:1750px;font-size:12px}
+#actionsDashboardView .action-table th{white-space:nowrap;position:sticky;top:0;background:#f8fafc;z-index:1}
+#actionsDashboardView .action-table td{vertical-align:top;line-height:1.35}
+#actionsDashboardView .action-table td:nth-child(6){min-width:280px}
+#actionsDashboardView .action-table td:nth-child(7){min-width:150px}
+#actionsDashboardView .action-table td:nth-child(12){min-width:220px}
+.urgency-pill{display:inline-flex;align-items:center;padding:4px 7px;border-radius:999px;font-size:11px;font-weight:750;white-space:nowrap}
+.urgency-pill.alta{background:#fff1f2;color:#b42318}
+.urgency-pill.media{background:#fff8e6;color:#9a6700}
+.urgency-pill.baixa{background:#ecfdf3;color:#067647}
+#actionsDashboardView .action-controls{grid-template-columns:repeat(auto-fit,minmax(170px,1fr));align-items:end}
+</style>
+
+
+<style id="person-sector-v31-style">
+#unifiedActionPersonSectorWrap select,
+#unifiedActionPersonWrap select{min-height:42px}
+</style>
+
 </head><body><div id="nucleoTestEnvironmentBanner">AMBIENTE DE TESTE — NÃO É O NÚCLEO DE PRODUÇÃO</div>
 
 <div id="nucleoLoadingOverlay" role="status" aria-live="polite" aria-busy="true">
@@ -3218,20 +3240,40 @@ body{padding-bottom:28px!important}
         <option value="self">Pessoal</option>
       </select>
     </div>
+    <div id="actionsPersonFilterWrap">
+      <div class="label">Pessoa responsável</div>
+      <select id="actionsPersonFilter" onchange="renderActionsDashboard()">
+        <option value="all">Todas as pessoas</option>
+      </select>
+    </div>
+    <div>
+      <div class="label">Urgência</div>
+      <select id="actionsUrgencyFilter" onchange="renderActionsDashboard()">
+        <option value="all">Todas</option>
+        <option value="alta">Alta</option>
+        <option value="media">Média</option>
+        <option value="baixa">Baixa</option>
+      </select>
+    </div>
   </div>
 
   <div style="overflow:auto">
     <table class="action-table">
       <thead>
         <tr>
-          <th>Origem</th>
-          <th>R.O.</th>
-          <th>Setor</th>
+          <th>ID</th>
+          <th>Data</th>
+          <th>Tipo</th>
+          <th>Projeto / R.O.</th>
+          <th>Cliente / assunto</th>
           <th>Ação</th>
           <th>Responsável</th>
-          <th>Prazo</th>
-          <th>Vencimento</th>
-          <th>Situação</th>
+          <th>Setor</th>
+          <th>Dependência</th>
+          <th>Urgência</th>
+          <th>Status</th>
+          <th>Próximo passo</th>
+          <th>Última atualização</th>
           <th>Ações</th>
         </tr>
       </thead>
@@ -3262,6 +3304,40 @@ body{padding-bottom:28px!important}
           <div class="label">Prazo</div>
           <input id="unifiedActionDeadline" type="date">
         </label>
+        <label>
+          <div class="label">Tipo</div>
+          <select id="unifiedActionType">
+            <option value="Ação">Ação</option>
+            <option value="Ação corretiva">Ação corretiva</option>
+            <option value="Contenção">Contenção</option>
+            <option value="Acompanhamento">Acompanhamento</option>
+            <option value="Melhoria">Melhoria</option>
+          </select>
+        </label>
+        <label>
+          <div class="label">Projeto / referência</div>
+          <input id="unifiedActionProject" placeholder="Ex.: R.O. 1193, SAC, auditoria...">
+        </label>
+        <label>
+          <div class="label">Cliente / assunto</div>
+          <input id="unifiedActionSubject" placeholder="Cliente, tema ou assunto">
+        </label>
+        <label>
+          <div class="label">Dependência</div>
+          <input id="unifiedActionDependency" placeholder="Ex.: Direção, cliente, manutenção...">
+        </label>
+        <label>
+          <div class="label">Urgência</div>
+          <select id="unifiedActionUrgency">
+            <option value="media">Média</option>
+            <option value="alta">Alta</option>
+            <option value="baixa">Baixa</option>
+          </select>
+        </label>
+        <label class="full">
+          <div class="label">Próximo passo</div>
+          <textarea id="unifiedActionNextStep" rows="2" placeholder="O que deve acontecer em seguida?"></textarea>
+        </label>
         <label id="unifiedActionModeWrap">
           <div class="label">Atribuir para</div>
           <select id="unifiedActionMode" onchange="refreshUnifiedActionTargetUi()">
@@ -3277,9 +3353,17 @@ body{padding-bottom:28px!important}
             <option value="filial">Filial</option>
           </select>
         </label>
+        <label id="unifiedActionPersonSectorWrap" class="hidden">
+          <div class="label">Setor da pessoa *</div>
+          <select id="unifiedActionPersonSector" onchange="refreshUnifiedActionPeopleBySector()">
+            <option value="">Selecione o setor...</option>
+          </select>
+        </label>
         <label id="unifiedActionPersonWrap" class="hidden">
           <div class="label">Pessoa *</div>
-          <select id="unifiedActionPerson"></select>
+          <select id="unifiedActionPerson">
+            <option value="">Selecione primeiro o setor...</option>
+          </select>
         </label>
         <label id="unifiedActionSectorWrap" class="hidden">
           <div class="label">Grupo / setor *</div>
@@ -4419,7 +4503,7 @@ Cancelada</textarea></label>
 </main>
 </div>
 </div><div id="contestModal" class="modal hidden"><div class="modal-box"><h3>Contestar R.O.</h3><div class="label">Motivo da contestação</div><textarea id="contestText" placeholder="Explique por que a R.O. deve ser revista, cancelada ou redirecionada."></textarea><div class="label" style="margin-top:10px">Setor que considera correto (opcional)</div><input id="contestSector" placeholder="Ex.: Expedição"><div class="modal-actions"><button class="btn secondary" type="button" onclick="closeContest()">Cancelar</button><button class="btn danger" type="button" onclick="submitContest()">Enviar contestação</button></div></div></div>
-<script src="assets/nucleo-app.js?v=20261016-unified-actions-v29"></script>
+<script src="assets/nucleo-app.js?v=20261016-person-sector-v31"></script>
 
 <div id="presentationModal" class="presentation-modal">
   <div class="presentation-card">
