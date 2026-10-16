@@ -2587,13 +2587,25 @@ body{padding-bottom:28px!important}
 .pdca-action-detail{display:flex;flex-direction:column;gap:4px;padding:10px 12px;border-radius:11px;background:#f6f9fc}
 .pdca-action-detail span{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#7a8794;font-weight:700}
 .pdca-action-detail b{font-size:13px;color:#243b53}
-.pdca-action-ruleline{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;padding-top:11px;border-top:1px solid #e6eef5}
-.pdca-action-ruleline span{font-size:11px;color:#586675;background:#f7f9fb;border-radius:999px;padding:5px 9px}
+.pdca-action-ruleline{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid #e6eef5}
+.pdca-action-ruleline span{display:flex;align-items:center;min-height:42px;font-size:11px;font-weight:700;color:#24507a;background:#eef6ff;border:1px solid #d4e7f7;border-radius:12px;padding:9px 12px}
 .pdca-action-remove{border:0;background:transparent;color:#b42318;font-size:12px;font-weight:700;cursor:pointer}
 .pdca-action-empty{display:flex;flex-direction:column;gap:4px}
 .five-s-impact{margin-top:4px;font-size:10px;font-weight:800;color:#b42318}
 .five-s-neutral{margin-top:4px;font-size:10px;color:#778390}
-@media(max-width:700px){.pdca-action-details{grid-template-columns:1fr}}
+
+.pdca-question-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.pdca-question-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.pdca-question-actions .status-badge{margin:0}
+.pdca-question-actions .mic-answer-btn{margin:0;white-space:nowrap}
+.question-answer-tools{display:none}
+
+@media(max-width:700px){
+  .pdca-action-details{grid-template-columns:1fr}
+  .pdca-question-head{flex-direction:column;align-items:stretch}
+  .pdca-question-actions{justify-content:flex-start}
+  .pdca-action-ruleline{grid-template-columns:1fr}
+}
 </style>
 
 </head><body><div id="nucleoTestEnvironmentBanner">AMBIENTE DE TESTE — NÃO É O NÚCLEO DE PRODUÇÃO</div>
@@ -4311,7 +4323,7 @@ Cancelada</textarea></label>
 </main>
 </div>
 </div><div id="contestModal" class="modal hidden"><div class="modal-box"><h3>Contestar R.O.</h3><div class="label">Motivo da contestação</div><textarea id="contestText" placeholder="Explique por que a R.O. deve ser revista, cancelada ou redirecionada."></textarea><div class="label" style="margin-top:10px">Setor que considera correto (opcional)</div><input id="contestSector" placeholder="Ex.: Expedição"><div class="modal-actions"><button class="btn secondary" type="button" onclick="closeContest()">Cancelar</button><button class="btn danger" type="button" onclick="submitContest()">Enviar contestação</button></div></div></div>
-<script src="assets/nucleo-app.js?v=20261016-pdca-followup-v20"></script>
+<script src="assets/nucleo-app.js?v=20261016-layout-v21"></script>
 
 <div id="presentationModal" class="presentation-modal">
   <div class="presentation-card">
