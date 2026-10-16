@@ -7233,17 +7233,21 @@ function resolvedTriageForRo(ro,map=getSavedTriageMap()){
   const base=String(triageBaseRoNumber(ro)||'').trim();
   const exactKey=String(triageKeyOf(ro)||'').trim();
 
-  // Uma limpeza confirmada no TESTE vence qualquer triagem antiga que ainda
-  // esteja em cache/snapshot. Uma nova triagem válida remove o tombstone antes
-  // de salvar, então não há risco de bloquear uma decisão nova.
   const deletedKeys=getDeletedTriageKeys();
-  if(deletedKeys.has(base) || (exactKey && deletedKeys.has(exactKey)))return null;
 
   const baseSituation=baseTriageSituation(ro);
   const manual=getTriageRecordsForRoNumber(base,map)
     .filter(t=>t?.decision&&!t.importedFromSheet)
     .sort((a,b)=>String(b.triagedAt||'').localeCompare(String(a.triagedAt||'')));
   const exactManual=map.get(exactKey);
+
+  // A limpeza vence triagens antigas, mas uma RETRIAGEM feita depois da limpeza
+  // tem prioridade mesmo que um snapshot atrasado tente recolocar o tombstone.
+  const validRetriage=manual.find(t=>t?.retriagedAfterCleanup===true)||
+    (exactManual?.retriagedAfterCleanup===true?exactManual:null);
+
+  if((deletedKeys.has(base) || (exactKey && deletedKeys.has(exactKey))) && !validRetriage)return null;
+  if(validRetriage)return validRetriage;
 
   if(manual.length&&manual[0].decision!=='directed')return manual[0];
   if(exactManual?.decision&&!exactManual.importedFromSheet)return exactManual;
@@ -7429,9 +7433,12 @@ function getTriageRecords(){
       .filter(t=>t?.decision&&!t.importedFromSheet)
       .sort((a,b)=>String(b.triagedAt||'').localeCompare(String(a.triagedAt||'')))[0]||null;
 
-    // Enquanto o tombstone existir, a limpeza vence qualquer registro antigo.
-    // A nova triagem remove o tombstone antes de salvar.
-    const deletedInTest=deletedKeys.has(base)||(exact&&deletedKeys.has(exact));
+    const hasCleanupTombstone=deletedKeys.has(base)||(exact&&deletedKeys.has(exact));
+    const validRetriage=manual?.retriagedAfterCleanup===true;
+
+    // Uma retriagem confirmada depois da limpeza vence tombstone antigo.
+    // Triagem antiga sem essa marca continua sendo bloqueada pela limpeza.
+    const deletedInTest=hasCleanupTombstone&&!validRetriage;
 
     const tri=deletedInTest?{}:(manual || (resolvedTriageForRo(ro,saved)||{}));
     const baseSituation=baseTriageSituation(ro);
@@ -8107,6 +8114,14 @@ async function saveTriageRecord(){
   });
 
   if(deletedNowChanged){
+    // Marca esta decisão como uma nova triagem feita DEPOIS da limpeza.
+    // Isso impede um snapshot atrasado de fazê-la voltar para "Aguardando triagem".
+    savedRecords.forEach(record=>{
+      record.retriagedAfterCleanup=true;
+      record.retriagedAfterCleanupAt=new Date().toISOString();
+      map.set(String(record.roKey||''),record);
+    });
+
     saveDeletedTriageKeys(deletedNow);
 
     // O tombstone também precisa ser removido da BASE TESTE antes de seguir.
@@ -8225,6 +8240,19 @@ async function saveTriageRecord(){
           savedRecords.forEach(r=>{
             if(freshDeleted.delete(String(r.roKey||'')))changed=true;
           });
+
+          // Garante que a nova retriagem continue marcada mesmo após snapshot.
+          const freshMap=getSavedTriageMap();
+          savedRecords.forEach(savedRecord=>{
+            const current=freshMap.get(String(savedRecord.roKey||''))||savedRecord;
+            freshMap.set(String(savedRecord.roKey||''),{
+              ...current,
+              ...savedRecord,
+              retriagedAfterCleanup:savedRecord.retriagedAfterCleanup===true || current?.retriagedAfterCleanup===true
+            });
+          });
+          localStorage.setItem(TRIAGE_KEY,JSON.stringify([...freshMap.values()]));
+
           if(changed){
             saveDeletedTriageKeys(freshDeleted);
             if(isAdmin()){
@@ -11038,6 +11066,14 @@ async function adminDeleteTriageForRo(skipConfirm=false){
     const map=getSavedTriageMap();
     const ro=findRoByAnyNumber(key,'');
     const baseSituation=ro?baseTriageSituation(ro):{sector:'',decision:''};
+
+    // Uma nova limpeza invalida qualquer marca de retriagem anterior.
+    getTriageRecordsForRoNumber(key,map).forEach(record=>{
+      if(record){
+        delete record.retriagedAfterCleanup;
+        delete record.retriagedAfterCleanupAt;
+      }
+    });
 
     const records=getTriageRecordsForRoNumber(key,map);
     const centralKeys=new Set(
