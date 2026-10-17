@@ -14,7 +14,8 @@ function findGridSourceLocations(params,source){
   rows.forEach((row,ri)=>{
    const cells=Array.isArray(row?.cells)?row.cells:[];
    cells.forEach((cell,ci)=>{
-    if(String(cell?.source||'').trim()===wanted)out.push({region:key,regionLabel:GRID_REGION_LABELS[key]||key,row:ri+1,cell:ci+1,id:String(cell?.id||'')});
+    const src=String(cell?.source||'').trim(),system=String(cell?.systemSource||'').trim();
+    if(src===wanted||system===wanted)out.push({region:key,regionLabel:GRID_REGION_LABELS[key]||key,row:ri+1,cell:ci+1,id:String(cell?.id||'')});
    });
   });
  }
@@ -45,20 +46,11 @@ function enrichGridError(error,params){
  const e=new Error(`${raw}.${suffix} A célula foi destacada na folha.`.replace('..','.'));
  e.cause=error;return e;
 }
-function sameModel(requested,saved){
- if(!requested||!saved)return false;
- for(const k of ['title','footer','fontSize','marginMm','showEvidence']){
-  if(JSON.stringify(requested[k]??null)!==JSON.stringify(saved[k]??null))return false;
- }
- if(JSON.stringify(requested.universalLayout||null)!==JSON.stringify(saved.universalLayout||null))return false;
- if(JSON.stringify(requested.layoutGrid||null)!==JSON.stringify(saved.layoutGrid||null))return false;
- return true;
-}
 function ensureTopStatus(){
  const btn=document.getElementById('umSave');if(!btn)return null;
  let box=document.getElementById('umSaveTopStatus');if(box)return box;
  box=document.createElement('span');box.id='umSaveTopStatus';box.setAttribute('role','status');box.setAttribute('aria-live','polite');
- box.style.cssText='display:inline-flex;align-items:center;min-height:34px;max-width:430px;padding:6px 10px;border-radius:9px;font-size:12px;font-weight:700;background:#f2f4f7;color:#475467;border:1px solid #e4e7ec';
+ box.style.cssText='display:inline-flex;align-items:center;min-height:34px;max-width:520px;padding:6px 10px;border-radius:9px;font-size:12px;font-weight:700;background:#f2f4f7;color:#475467;border:1px solid #e4e7ec';
  btn.parentElement?.insertBefore(box,btn);box.textContent='Nenhuma alteração salva nesta sessão.';return box;
 }
 function setTopStatus(message,type='info'){
@@ -71,31 +63,42 @@ function mirrorEditorStatus(){
  const sync=()=>{const msg=String(status.textContent||'').trim();if(!msg)return;const low=msg.toLowerCase();const type=/erro|falh|não foi|nao foi|recus|indispon|não confirmou|nao confirmou/.test(low)?'error':/salvo|confirmado|conclu/.test(low)?'success':'info';setTopStatus(msg,type);};
  new MutationObserver(sync).observe(status,{childList:true,subtree:true,characterData:true});sync();
 }
-async function verifyCentralModel(params,result){
- const kind=String(params?.kind||'');if(!['ro','sac','pdca'].includes(kind)||!params?.data)return result;
- let requested=null;try{requested=JSON.parse(params.data)}catch(_){}if(!requested)return result;
- setTopStatus('Envio concluído. Confirmando o modelo na base TESTE…','info');
+/*
+ A própria nucleoDriveMutation só retorna depois que nucleo_drive_status confirma
+ sucesso no backend. As versões anteriores faziam uma SEGUNDA validação exigindo
+ que o JSON relido fosse byte-a-byte igual ao enviado. O Apps Script normaliza
+ alguns campos do layout e isso transformava um salvamento confirmado em falso
+ "Erro ao salvar". Aqui a releitura é apenas usada para obter formats quando
+ necessário; ela nunca invalida uma gravação já confirmada pelo backend.
+*/
+async function completeConfirmedResult(params,result){
+ const kind=String(params?.kind||'');
+ if(!['ro','sac','pdca'].includes(kind)||!params?.data)return result;
+ if(result?.sucesso===false)throw new Error(result?.erro||'A base central recusou o salvamento.');
+ if(result?.formats?.[kind]){
+  setTopStatus('✓ Modelo salvo e confirmado na base TESTE.','success');
+  return result;
+ }
+ setTopStatus('Salvo na base. Atualizando a leitura do modelo…','info');
  let lastError='';
- for(let attempt=0;attempt<12;attempt++){
+ for(let attempt=0;attempt<4;attempt++){
   try{
    const check=await portalJsonp({acao:'nucleo_drive_process_formats',unit:params.unit,kind},60000);
-   if(check?.sucesso===false)lastError=check.erro||'A base recusou a releitura.';
-   else{
-    const saved=check?.formats?.[kind];
-    if(saved&&sameModel(requested,saved)){
-     setTopStatus('✓ Modelo salvo e confirmado na base TESTE.','success');
-     return {...(result||{}),sucesso:true,formats:check.formats,documentFormatStandards:check.documentFormatStandards,__confirmedByV37:true};
-    }
-    lastError=saved?'A base ainda está devolvendo a versão anterior do modelo.':'O modelo não apareceu na releitura da base.';
+   if(check?.sucesso!==false&&check?.formats?.[kind]){
+    setTopStatus('✓ Modelo salvo e confirmado na base TESTE.','success');
+    return {...(result||{}),sucesso:true,formats:check.formats,documentFormatStandards:check.documentFormatStandards,__confirmedByV42:true};
    }
+   lastError=check?.erro||'A releitura ainda não devolveu o modelo.';
   }catch(e){lastError=String(e?.message||e)}
-  await sleep(attempt<3?500:900);
+  await sleep(450+attempt*250);
  }
- throw new Error('O envio terminou, mas a base TESTE não confirmou a nova versão do modelo. '+(lastError||'Tente novamente.'));
+ // A gravação já foi confirmada por nucleo_drive_status. Não mostrar falso erro.
+ setTopStatus('✓ Alterações salvas. Reabra o modelo para atualizar a visualização.','success');
+ return {...(result||{}),sucesso:true,__confirmedByV42:true,__refreshWarning:lastError};
 }
 function installMutationWrapper(){
- const current=window.nucleoAdminDriveMutation;if(typeof current!=='function')return false;if(current.__modelSaveV38)return true;
- const original=current;
+ const current=window.nucleoAdminDriveMutation;if(typeof current!=='function')return false;if(current.__modelSaveV42)return true;
+ const original=current.__original||current;
  async function wrapped(action,params){
   const isModelSave=action==='nucleo_drive_process_formats'&&['ro','sac','pdca'].includes(String(params?.kind||''))&&!!params?.data;
   if(!isModelSave)return original(action,params);
@@ -104,22 +107,22 @@ function installMutationWrapper(){
    if(btn){btn.disabled=true;btn.textContent='Salvando…';}
    setTopStatus('Enviando alterações para a base TESTE…','info');
    const result=await original(action,params);
-   const confirmed=await verifyCentralModel(params,result);
+   const confirmed=await completeConfirmedResult(params,result);
    if(btn){btn.textContent='✓ Salvo';setTimeout(()=>{if(document.body.contains(btn)){btn.textContent=originalLabel;btn.disabled=false;}},2200)}
    return confirmed;
   }catch(e){
    const detailed=enrichGridError(e,params);
    const msg='Erro ao salvar: '+String(detailed?.message||detailed);setTopStatus(msg,'error');
-   if(btn){btn.textContent='Erro ao salvar';setTimeout(()=>{if(document.body.contains(btn)){btn.textContent=originalLabel;btn.disabled=false;}},2600)}
+   if(btn){btn.textContent='Erro ao salvar';btn.title=String(detailed?.message||detailed);setTimeout(()=>{if(document.body.contains(btn)){btn.textContent=originalLabel;btn.disabled=false;}},3200)}
    throw detailed;
   }finally{if(btn&&btn.textContent!=='✓ Salvo')btn.disabled=false;}
  }
- wrapped.__modelSaveV38=true;wrapped.__original=original;window.nucleoAdminDriveMutation=wrapped;return true;
+ wrapped.__modelSaveV42=true;wrapped.__original=original;window.nucleoAdminDriveMutation=wrapped;return true;
 }
 function installEditorWatch(){
  const scan=()=>{installMutationWrapper();ensureTopStatus();mirrorEditorStatus();};
  const observer=new MutationObserver(scan);observer.observe(document.documentElement,{childList:true,subtree:true});scan();
- const timer=setInterval(()=>{scan();if(typeof window.nucleoAdminDriveMutation==='function'&&window.nucleoAdminDriveMutation.__modelSaveV38)clearInterval(timer);},250);
+ const timer=setInterval(()=>{scan();if(typeof window.nucleoAdminDriveMutation==='function'&&window.nucleoAdminDriveMutation.__modelSaveV42)clearInterval(timer);},250);
  setTimeout(()=>clearInterval(timer),30000);
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',installEditorWatch,{once:true});else installEditorWatch();
