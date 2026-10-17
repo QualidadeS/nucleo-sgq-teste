@@ -3671,10 +3671,21 @@ function logoutUser(){
 function closePdfPreview(){
   document.getElementById('pdfPreviewModal').classList.remove('open');
   if(currentPdfUrl){URL.revokeObjectURL(currentPdfUrl);currentPdfUrl=null}
-  document.getElementById('pdfPreviewFrame').src='about:blank';
+  const frame=document.getElementById('pdfPreviewFrame');
+  frame.src='about:blank';
+  try{frame.srcdoc='';}catch(e){}
+  currentPdfHtmlMode=false;
+  const dl=document.querySelector('#pdfPreviewModal .pdf-preview-actions .btn.primary');if(dl)dl.textContent='Baixar PDF';
   const ext=document.getElementById('externalRoPdfLink'); if(ext) ext.style.display='none';
 }
+let currentPdfHtmlMode=false;
 function downloadPreviewPdf(){
+  if(currentPdfHtmlMode){
+    const frame=document.getElementById('pdfPreviewFrame');
+    try{frame?.contentWindow?.focus();frame?.contentWindow?.print();}
+    catch(e){alert('Não foi possível abrir a impressão do documento.');}
+    return;
+  }
   if(!currentPdfBlob)return;
   const url=URL.createObjectURL(currentPdfBlob);
   const a=document.createElement('a');a.href=url;a.download=currentPdfFilename;
@@ -5935,47 +5946,133 @@ function closeRoReport(){
   document.body.style.overflow='';
 }
 
+
+function nucleoRoModelNormKey(v){
+  return String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9]+/g,' ').trim().toLowerCase();
+}
+function nucleoRoModelValue(ro,source,model,pageNo=1,totalPages=1){
+  const raw=ro?.raw||{},src=String(source||'');
+  if(src==='#TITLE')return model?.title||'RELATO DE OCORRÊNCIA';
+  if(src==='#HEADER')return model?.design?.header||'';
+  if(src==='#CODE')return ro?.documentCode||ro?.codigoDocumento||firstValue(raw,['Código do documento','Codigo do documento','Código documento','Codigo documento'])||'';
+  if(src==='#REVISION')return ro?.revision||ro?.revisao||firstValue(raw,['Revisão','Revisao','Revisão do documento','Revisao do documento'])||'';
+  if(src==='#REGISTER')return ro?.numero||ro?.id||ro?.codigo||'';
+  if(src==='#PAGE')return totalPages>1?(pageNo+' / '+totalPages):String(pageNo);
+  if(src==='#FOOTER')return model?.footer||'';
+  if(src==='#GENERATED')return new Date().toLocaleString('pt-BR');
+  if(src==='#EVIDENCE')return '';
+  if(src==='#HISTORY')return '';
+
+  if(Object.prototype.hasOwnProperty.call(raw,src) && String(raw[src]??'').trim()!=='')return raw[src];
+  const wanted=nucleoRoModelNormKey(src);
+  for(const [k,v] of Object.entries(raw))if(nucleoRoModelNormKey(k)===wanted && String(v??'').trim()!=='')return v;
+
+  const values={
+    'R.O.':ro?.numero||ro?.id||ro?.codigo||'',
+    'RO':ro?.numero||ro?.id||ro?.codigo||'',
+    'Data':ro?.data||ro?.dataSolicitacao||'',
+    'Unidade':ro?.unidade||'',
+    'Cliente':firstValue(raw,['Nome do cliente:','Nome do cliente','Cliente','Cliente / origem'])||ro?.cliente||'',
+    'Tipo de ocorrência':ro?.tipoRO||ro?.assunto||'',
+    'Setor identificado':ro?.setorIdentificado||'',
+    'Setor onde foi identificado':ro?.setorIdentificado||'',
+    'Setor causa/responsável':ro?.setor||'',
+    'Setor causa / responsável':ro?.setor||'',
+    'Setor':ro?.setor||'',
+    'Status':ro?.status||'',
+    'Descrição':ro?.descricao||'',
+    'Matrícula':firstValue(raw,['Matrícula','Matricula']),
+    'Responsável pelo registro':firstValue(raw,['Nome e Sobrenome (responsável pelo registro deste formulário):','Nome e Sobrenome (responsável pelo registro deste formulário)','Responsável pelo registro','Responsavel pelo registro']),
+    'Número do pedido':firstValue(raw,['Número do pedido:','Número do pedido','Numero do pedido:','Numero do pedido']),
+    'Código do item':firstValue(raw,['Código do item:','Código do item','Codigo do item:','Codigo do item']),
+    'Ordem de produção':firstValue(raw,['Ordem de produção (código de barras):','Ordem de produção (código de barras)','Ordem de produção','Ordem de producao']),
+    'Nota fiscal de venda':firstValue(raw,['Nota fiscal de venda','Nota fiscal de venda:','NF de venda','NF venda']),
+    'Quantidade de peças com desvio':firstValue(raw,['Quantidade de peças com desvio:','Quantidade de peças com desvio']),
+    'Peso do material descartado/reaproveitado':firstValue(raw,['Peso do material descartado e/ou reaproveitado:','Peso do material descartado e/ou reaproveitado']),
+    'Liberado pelo setor de qualidade?':firstValue(raw,['Liberado pelo setor de qualidade?','Liberado pelo setor de qualidade']),
+    'Quem liberou':firstValue(raw,['Registre o nome de quem liberou:','Registre o nome de quem liberou']),
+    'Ação preventiva':firstValue(raw,['Ação preventiva','Acao preventiva']),
+    'Prazo conclusão ação':firstValue(raw,['Prazo conclusão ação','Prazo conclusao acao'])
+  };
+  for(const [k,v] of Object.entries(values))if(nucleoRoModelNormKey(k)===wanted)return v??'';
+  const f=(model?.fields||[]).find(x=>nucleoRoModelNormKey(x?.source)===wanted||nucleoRoModelNormKey(x?.label)===wanted);
+  if(f){
+    const fw=nucleoRoModelNormKey(f.source||f.label||'');
+    for(const [k,v] of Object.entries(values))if(nucleoRoModelNormKey(k)===fw)return v??'';
+  }
+  return '';
+}
+function nucleoRoModelEsc(v){return String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function nucleoRoModelRowUnits(row){const cells=row?.cells||[];if(!cells.length)return[];const total=cells.reduce((s,c)=>s+Math.max(.01,Number(c.width)||50),0)||100;let used=0;return cells.map((c,i)=>{if(i===cells.length-1)return Math.max(1,100-used);const rem=cells.length-i-1;let u=Math.max(1,Math.round((Math.max(.01,Number(c.width)||50)/total)*100));u=Math.min(u,Math.max(1,100-used-rem));used+=u;return u;});}
+function nucleoRoModelRowsHtml(grid,ro,model,images,pageNo=1,totalPages=1){
+  const safeColor=(v,d)=>/^#[0-9a-f]{6}$/i.test(String(v||''))?v:d;
+  const rows=Array.isArray(grid)?grid:[];
+  return rows.map(row=>{const units=nucleoRoModelRowUnits(row);return '<tr>'+((row.cells||[]).map((cell,ci)=>{
+    const src=String(cell.systemSource||cell.source||''),rawBw=Number(cell.borderWidth),bw=Math.max(0,Math.min(4,Number.isFinite(rawBw)?rawBw:.5)),bc=safeColor(cell.borderColor,'#999999');
+    const side=(name)=>cell['border'+name]===false?'0':`${bw}pt solid ${safeColor(cell['border'+name+'Color'],bc)}`;
+    let content='';
+    if(cell.type==='image'){
+      const img=images?.[cell.imageFileId]||'';
+      content=img?`<img src="${nucleoRoModelEsc(img)}" style="display:block;width:100%;height:100%;max-height:${Math.max(3,Number(cell.height)||9)}mm;object-fit:${cell.imageFit==='cover'?'cover':'contain'}">`:'';
+    }else if(src){
+      content=nucleoRoModelEsc(nucleoRoModelValue(ro,src,model,pageNo,totalPages)).replace(/\n/g,'<br>');
+    }else content=nucleoRoModelEsc(cell.text||'').replace(/\n/g,'<br>');
+    if(cell.labelText){content=`<div class="cell-stack"><span class="cell-label" style="font-size:${Math.max(5,Number(cell.labelFontSize)||7)}pt;font-weight:${cell.labelBold===false?'400':'700'}">${nucleoRoModelEsc(cell.labelText)}</span><span>${content||''}</span></div>`;}
+    return `<td colspan="${units[ci]||1}" ${Number(cell.rowSpan)>1?`rowspan="${Math.floor(Number(cell.rowSpan))}"`:''} style="height:${Math.max(3,Number(cell.height)||9)}mm;background:${safeColor(cell.background,'#ffffff')};color:${safeColor(cell.textColor,'#222222')};border-top:${side('Top')};border-right:${side('Right')};border-bottom:${side('Bottom')};border-left:${side('Left')};padding:1.3mm;text-align:${['left','center','right'].includes(cell.align)?cell.align:'left'};vertical-align:${['top','middle','bottom'].includes(cell.verticalAlign)?cell.verticalAlign:'middle'};font-size:${Math.max(6,Number(cell.fontSize)||9)}pt;font-weight:${cell.bold?'700':'400'};font-style:${cell.italic?'italic':'normal'};overflow-wrap:anywhere;white-space:pre-wrap">${content||'&nbsp;'}</td>`;
+   }).join(''))+'</tr>';}).join('');
+}
+function nucleoBuildRoModelPrintHtml(ro,model,assets={}){
+  const layout=model?.universalLayout||{},design=model?.design||{},orientation=design.orientation==='landscape'?'landscape':'portrait',margin=Math.max(5,Math.min(35,Number(model?.marginMm)||10));
+  const images={...(assets.standardImagePreviews||{}),...(assets.gridImagePreviews||{})};
+  const logo=assets.logoPreviews?.ro||assets.logoPreview||'';
+  if(design.logoFileId&&logo&&!images[design.logoFileId])images[design.logoFileId]=logo;
+  const header=Array.isArray(layout.headerGrid)?layout.headerGrid:[],body=Array.isArray(layout.bodyGrid)&&layout.bodyGrid.length?layout.bodyGrid:(Array.isArray(model?.layoutGrid)?model.layoutGrid:[]),footer=Array.isArray(layout.footerGrid)?layout.footerGrid:[];
+  const headerRows=nucleoRoModelRowsHtml(header,ro,model,images,1,1),bodyRows=nucleoRoModelRowsHtml(body,ro,model,images,1,1),footerRows=nucleoRoModelRowsHtml(footer,ro,model,images,1,1);
+  const fallbackLogo=logo&&!Object.values(images).includes(logo)?`<div style="text-align:${['left','center','right'].includes(design.align)?design.align:'center'};margin-bottom:2mm"><img src="${nucleoRoModelEsc(logo)}" style="width:${Math.max(10,Math.min(80,Number(design.logoWidth)||30))}mm;max-height:25mm;object-fit:contain"></div>`:'';
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${nucleoRoModelEsc(ro?.numero||'R.O.')}</title><style>
+  @page{size:A4 ${orientation};margin:0}*{box-sizing:border-box;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}html,body{margin:0;padding:0;background:#e5e7eb;font-family:Arial,Helvetica,sans-serif;color:${nucleoRoModelEsc(design.textColor||'#222222')}}
+  .page{width:${orientation==='landscape'?'297mm':'210mm'};min-height:${orientation==='landscape'?'210mm':'297mm'};margin:0 auto;background:#fff;padding:${margin}mm;font-size:${Math.max(7,Math.min(18,Number(model?.fontSize)||9))}pt;display:flex;flex-direction:column}
+  .grid{width:100%;border-collapse:collapse;table-layout:fixed}.grid col{width:1%}.cell-stack{display:flex;flex-direction:column;gap:.35mm;min-width:0}.cell-label{line-height:1.05}.before,.after{white-space:pre-wrap;margin:2mm 0}.footer-wrap{margin-top:3mm}
+  @media screen{body{padding:8mm}.page{box-shadow:0 2px 12px #0003}}@media print{body{background:#fff;padding:0}.page{box-shadow:none;margin:0}}
+  </style></head><body><section class="page">${fallbackLogo}${headerRows?`<table class="grid"><colgroup>${'<col>'.repeat(100)}</colgroup><tbody>${headerRows}</tbody></table>`:''}${design.before?`<div class="before">${nucleoRoModelEsc(design.before)}</div>`:''}${bodyRows?`<table class="grid"><colgroup>${'<col>'.repeat(100)}</colgroup><tbody>${bodyRows}</tbody></table>`:''}${design.after?`<div class="after">${nucleoRoModelEsc(design.after)}</div>`:''}${footerRows?`<div class="footer-wrap"><table class="grid"><colgroup>${'<col>'.repeat(100)}</colgroup><tbody>${footerRows}</tbody></table></div>`:''}</section></body></html>`;
+}
+function nucleoShowRoModelPreview(ro,model,assets){
+  const modal=document.getElementById('pdfPreviewModal'),frame=document.getElementById('pdfPreviewFrame');if(!modal||!frame)throw new Error('Visualizador de documento indisponível.');
+  currentPdfBlob=null;currentPdfFilename=(ro?.numero||ro?.id||ro?.codigo||'RO')+'.pdf';currentPdfHtmlMode=true;
+  if(currentPdfUrl){try{URL.revokeObjectURL(currentPdfUrl)}catch(e){}currentPdfUrl=null;}
+  const dl=modal.querySelector('.pdf-preview-actions .btn.primary');if(dl)dl.textContent='Imprimir / Salvar PDF';
+  frame.src='about:blank';frame.srcdoc=nucleoBuildRoModelPrintHtml(ro,model,assets||{});modal.classList.add('open');
+}
+
 async function openRoPdf(id){
   const wanted=String(id??'').trim();
   const ro=getAllRoRecords().find(r=>String(r.numero||r.id||r.codigo||'').trim()===wanted);
 
-  if(!ro){
-    alert('Não encontrei os dados desta R.O. para gerar o PDF.');
-    return;
-  }
+  if(!ro){alert('Não encontrei os dados desta R.O. para gerar o PDF.');return;}
 
   try{
+    const unit=explicitRecordUnit(ro);
+    let model=nucleoSystemFormat('ro',unit),assets={};
+    if(model?.universalLayout?.version>=2){
+      await showNucleoLoading('Montando R.O. com o modelo salvo…','A estrutura do editor será usada exatamente na emissão.');
+      try{
+        const fresh=await portalJsonp({acao:'nucleo_drive_process_formats',unit,kind:'ro'},60000);
+        if(fresh?.sucesso&&fresh.formats?.ro){model=fresh.formats.ro;assets=fresh;}
+      }catch(e){console.warn('Não foi possível reler o modelo; usando a cópia local.',e);}
+      finally{hideNucleoLoading(true);}
+      nucleoShowRoModelPreview(ro,model,assets);
+      return;
+    }
+
     let blob;
-    if(nucleoSystemFormat('ro',explicitRecordUnit(ro))?.design){
-      await showNucleoLoading('Gerando PDF com o modelo da unidade…','O logo, cabeçalho e rodapé serão aplicados pela base central.');
+    if(model?.design){
+      await showNucleoLoading('Gerando PDF com o modelo da unidade…','Aplicando o modelo salvo pela base central.');
       try{const result=await portalJsonp({acao:'portal_ro_model_pdf',ro:ro.numero||ro.id||ro.codigo,origin:ro.origem||ro.origin||''},90000);if(!result?.sucesso||!result.base64)throw Error(result?.erro||'PDF não confirmado pela base central.');blob=new Blob([Uint8Array.from(atob(result.base64),c=>c.charCodeAt(0))],{type:'application/pdf'});}finally{hideNucleoLoading(true);}
     }else blob=createRoPdfBlob(ro);
 
-    if(!(blob instanceof Blob) || blob.size===0){
-      throw new Error('O arquivo PDF foi gerado vazio.');
-    }
-
-    const url=URL.createObjectURL(blob);
-    const nome=(ro.numero||ro.id||ro.codigo||'RO')+'.pdf';
-
-    const a=document.createElement('a');
-    a.href=url;
-    a.download=nome;
-    a.target='_self';
-    a.style.position='fixed';
-    a.style.left='-9999px';
-    document.body.appendChild(a);
-
-    a.click();
-
-    setTimeout(()=>{
-      try{a.remove();}catch(e){}
-      try{URL.revokeObjectURL(url);}catch(e){}
-    },10000);
-
-  }catch(err){
-    alert('Erro ao gerar o PDF: '+(err?.message||String(err)));
-  }
+    if(!(blob instanceof Blob)||blob.size===0)throw new Error('O arquivo PDF foi gerado vazio.');
+    showPdfBlob(blob,(ro.numero||ro.id||ro.codigo||'RO')+'.pdf');
+  }catch(err){alert('Erro ao gerar o PDF: '+(err?.message||String(err)));}
 }
 
 function openCurrentRoPdf(){
