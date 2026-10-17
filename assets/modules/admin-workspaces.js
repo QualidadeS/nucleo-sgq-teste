@@ -1188,13 +1188,28 @@ async function nucleoEditRoModelVisual(kind='ro',inlineRender=false){
  function backendSafeGrid(grid){
   return (grid||[]).map(row=>({...row,cells:(row.cells||[]).map(cell=>{
    const c=JSON.parse(JSON.stringify(cell||{})),src=String(c.source||'');
-   if(src==='#REGISTER'){
-    const recordSource=backendRecordSource();
-    c.systemSource='#REGISTER';
-    if(recordSource){c.source=recordSource;c.type='field';c.text='';}
-    else{c.source='';c.type='text';c.text='[NÚMERO / REGISTRO]';}
+   // Estes quatro campos pertencem ao documento emitido, não ao modelo.
+   // O backend antigo valida `source` contra o catálogo e rejeita tokens como
+   // #REVISION/#REGISTER/#PAGE. Por isso salvamos a célula como texto seguro e
+   // preservamos o significado em `systemSource` para o editor reconstruí-la.
+   if(src==='#CODE'){
+    c.systemSource='#CODE';c.source='';c.type='text';c.text='[CÓDIGO DO DOCUMENTO]';
+   }else if(src==='#REVISION'){
+    c.systemSource='#REVISION';c.source='';c.type='text';c.text='[REVISÃO]';
+   }else if(src==='#REGISTER'){
+    c.systemSource='#REGISTER';c.source='';c.type='text';c.text='[NÚMERO / REGISTRO]';
    }else if(src==='#PAGE'){
     c.systemSource='#PAGE';c.source='';c.type='text';c.text='[PÁGINA]';
+   }
+   return c;
+  })}));
+ }
+ function restoreSystemSources(grid){
+  return (grid||[]).map(row=>({...row,cells:(row.cells||[]).map(cell=>{
+   const c=JSON.parse(JSON.stringify(cell||{}));
+   const sys=String(c.systemSource||'');
+   if(['#CODE','#REVISION','#REGISTER','#PAGE'].includes(sys)){
+    c.source=sys;c.type='special';c.text='';
    }
    return c;
   })}));
@@ -1210,11 +1225,11 @@ async function nucleoEditRoModelVisual(kind='ro',inlineRender=false){
    fields=(model.fields||catalog.map(source=>({source,label:(kind==='sac'?result.sacDefaultLabels?.[source]:null)||source,enabled:true,section:kind==='pdca'?result.pdcaDefaultSections?.[source]||'':kind==='sac'?result.sacDefaultSections?.[source]||'':''}))).map(x=>({...x}));
    const raw=model.universalLayout;
    if(raw?.version>=2){
-     layout={version:2,repeatHeader:raw.repeatHeader!==false,repeatFooter:raw.repeatFooter!==false,headerGrid:normalizeGrid(raw.headerGrid),bodyGrid:normalizeGrid(raw.bodyGrid),footerGrid:normalizeGrid(raw.footerGrid)};nativeRncHeader=raw.nativeRncHeader&&typeof raw.nativeRncHeader==='object'?JSON.parse(JSON.stringify(raw.nativeRncHeader)):null;nativeRncFooter=raw.nativeRncFooter&&typeof raw.nativeRncFooter==='object'?JSON.parse(JSON.stringify(raw.nativeRncFooter)):null;
+     layout={version:2,repeatHeader:raw.repeatHeader!==false,repeatFooter:raw.repeatFooter!==false,headerGrid:restoreSystemSources(normalizeGrid(raw.headerGrid)),bodyGrid:restoreSystemSources(normalizeGrid(raw.bodyGrid)),footerGrid:restoreSystemSources(normalizeGrid(raw.footerGrid))};nativeRncHeader=raw.nativeRncHeader&&typeof raw.nativeRncHeader==='object'?JSON.parse(JSON.stringify(raw.nativeRncHeader)):null;nativeRncFooter=raw.nativeRncFooter&&typeof raw.nativeRncFooter==='object'?JSON.parse(JSON.stringify(raw.nativeRncFooter)):null;
    }else{
      // Preserve o desenho já existente do modelo operacional. O editor universal
      // não deve "trocar" o PDCA/R.O./SAC por uma tabela nova só porque entrou em edição.
-     const legacyBody=normalizeGrid(model.layoutGrid);
+     const legacyBody=restoreSystemSources(normalizeGrid(model.layoutGrid));
      layout={version:2,repeatHeader:true,repeatFooter:true,headerGrid:standardHeaderGrid(),bodyGrid:legacyBody.length?legacyBody:defaultBodyGrid(),footerGrid:standardFooterGrid()};nativeRncHeader=null;nativeRncFooter=null;
    }
    region='body';selectedId='';
