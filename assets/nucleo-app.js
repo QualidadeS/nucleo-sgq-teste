@@ -14310,18 +14310,80 @@ function getProcessTemplates(){
 function nucleoProcessTemplateSaveUnit(){const s=getSession?.()||{};return s.role==='quality'?'filial':explicitPortalUnit(s.unit)||'matriz';}
 function nucleoApplyProcessTemplateImageRefs(items,refs){(items||[]).forEach(model=>{const r=refs?.[String(model.id||'')];if(!r)return;if(r.logoFileId)model.logoFileId=r.logoFileId;(model.fixedImages||[]).forEach((img,i)=>{const id=r.fixed?.[String(img.id||i)];if(id)img.fileId=id;});(model.freeGrid||[]).forEach(row=>(row.cells||[]).forEach(cell=>{const id=r.cells?.[String(cell.id||'')];if(id)cell.imageFileId=id;}));});return items;}
 async function saveProcessTemplates(a){
- if(!Array.isArray(a))throw new Error('Biblioteca de modelos inválida.');
- if(!portalBackendEnabled())throw new Error('Apps Script não configurado.');
- const eventoId='PROCTPL-'+Date.now()+'-'+Math.random().toString(36).slice(2,9),unit=nucleoProcessTemplateSaveUnit();
- const ok=portalPostForm({acao:'nucleo_drive_process_template_state',unit,eventoId,data:JSON.stringify(a),ator:getSession()?.name||'SGQ'});
- if(!ok)throw new Error('Não foi possível enviar os modelos para a base central.');
- let result=null;
- for(let i=0;i<90;i++){await new Promise(r=>setTimeout(r,i<3?700:1100));try{const x=await portalJsonp({acao:'nucleo_drive_status',eventoId},25000);if(x&&!x.pending){result=x;break;}}catch(e){if(/sess[aã]o|acesso|permiss/i.test(e.message))throw e;}}
- if(!result)throw new Error('A base central ainda não confirmou o salvamento dos modelos.');
- if(!result.sucesso)throw new Error(result.erro||'A base central recusou o salvamento dos modelos.');
- nucleoApplyProcessTemplateImageRefs(a,result.imageRefs||{});
- safeStorageSet(PROCESS_TEMPLATE_KEY,JSON.stringify(a));
- return a;
+  if(!Array.isArray(a))throw new Error('Biblioteca de modelos inválida.');
+  if(!portalBackendEnabled())throw new Error('Apps Script TESTE não configurado.');
+
+  try{rncStandardFeedback('Salvando modelo na base TESTE…','info');}catch(e){}
+
+  if(!nucleoCentralDataConfirmed()){
+    const synced=await syncPortalBackend(false,{
+      foreground:true,
+      loadingMessage:'Confirmando a base TESTE antes de salvar o modelo...'
+    });
+    if(!synced || !nucleoCentralDataConfirmed()){
+      throw new Error('A base TESTE não foi confirmada. Sincronize e tente salvar novamente.');
+    }
+  }
+
+  const eventoId='PROCTPL-'+Date.now()+'-'+Math.random().toString(36).slice(2,9);
+  const unit=nucleoProcessTemplateSaveUnit();
+  const ok=portalPostForm({
+    acao:'nucleo_drive_process_template_state',
+    unit,
+    eventoId,
+    data:JSON.stringify(a),
+    ator:getSession()?.name||'SGQ'
+  });
+  if(!ok)throw new Error('O envio do modelo para a base TESTE não foi iniciado.');
+
+  try{rncStandardFeedback('Modelo enviado. Aguardando confirmação da base TESTE…','info');}catch(e){}
+
+  let result=null;
+  for(let i=0;i<90;i++){
+    await new Promise(r=>setTimeout(r,i<3?700:1100));
+    try{
+      const x=await portalJsonp({acao:'nucleo_drive_status',eventoId},25000);
+      if(x&&!x.pending){result=x;break;}
+    }catch(e){
+      if(/sess[aã]o|acesso|permiss/i.test(String(e?.message||e)))throw e;
+    }
+  }
+  if(!result)throw new Error('A base TESTE recebeu o envio, mas não confirmou o salvamento dentro do tempo limite.');
+  if(!result.sucesso)throw new Error(result.erro||'A base TESTE recusou o salvamento do modelo.');
+
+  nucleoApplyProcessTemplateImageRefs(a,result.imageRefs||{});
+
+  const expected=a.filter(x=>x&&x.id).slice().sort((x,y)=>String(y.updatedAt||'').localeCompare(String(x.updatedAt||'')))[0]||null;
+  let confirmedTemplates=null;
+  let verificationError='';
+
+  for(let attempt=0;attempt<8;attempt++){
+    try{
+      const snap=await portalJsonp({acao:'portal_load'},30000);
+      if(snap?.sucesso===false)throw new Error(snap.erro||'Falha ao reler a base TESTE.');
+      const central=Array.isArray(snap?.dados?.processTemplates)?snap.dados.processTemplates:null;
+      if(central){
+        if(!expected){confirmedTemplates=central;break;}
+        const saved=central.find(x=>String(x?.id||'')===String(expected.id||''));
+        const expectedStamp=String(expected.updatedAt||'');
+        const savedStamp=String(saved?.updatedAt||'');
+        if(saved && (!expectedStamp || savedStamp===expectedStamp)){
+          confirmedTemplates=central;
+          break;
+        }
+        verificationError=saved?'A base ainda devolveu uma versão anterior do modelo.':'O modelo não apareceu na releitura da base.';
+      }
+    }catch(e){verificationError=String(e?.message||e);}
+    await new Promise(r=>setTimeout(r,800));
+  }
+
+  if(!confirmedTemplates){
+    throw new Error('O servidor informou que recebeu o salvamento, mas a releitura não confirmou a nova versão. '+(verificationError||'Tente novamente.'));
+  }
+
+  nucleoNativeStorageSetItem.call(localStorage,PROCESS_TEMPLATE_KEY,JSON.stringify(confirmedTemplates));
+  try{rncStandardFeedback('Modelo salvo e confirmado na base TESTE.','success');}catch(e){}
+  return confirmedTemplates;
 }
 function getRncProcessTemplate(){return normalizeRncTemplate(getProcessTemplates().find(x=>x.kind==='RNC'&&x.status!=='obsolete')||defaultRncProcessTemplate())}
 function rncTemplateLogoHtml(t,preview=false){
@@ -15082,12 +15144,69 @@ async function applyRncFooterStandard(button){
   finally{if(button)button.disabled=false;}
 }
 async function saveRncProcessTemplateFromForm(){
-  if(!nucleoFeatureRequire('processes','templates'))return;
-  const t=collectRncTemplateForm(),all=getProcessTemplates(),ix=all.findIndex(x=>x.id===t.id);if(ix>=0)all[ix]=t;else all.unshift(t);
-  try{await saveProcessTemplates(all);window.__rncTemplateLogoChanged=false;alert('Modelo salvo e confirmado na base central. A estrutura será usada nas novas gerações de RNC.');renderProcessTemplatesWorkspace();}catch(e){alert('Não foi possível salvar o modelo: '+e.message);}
+  if(!nucleoFeatureRequire('processes','templates')){
+    try{rncStandardFeedback('Seu acesso não permite salvar modelos.','error');}catch(e){}
+    return;
+  }
+
+  const button=document.querySelector('button[onclick*="saveRncProcessTemplateFromForm"]');
+  const original=button?.textContent||'Salvar modelo';
+
+  try{
+    if(button){button.disabled=true;button.textContent='Salvando…';}
+    rncStandardFeedback('Salvando alterações do modelo…','info');
+
+    const t=collectRncTemplateForm();
+    const all=getProcessTemplates();
+    const ix=all.findIndex(x=>x.id===t.id);
+    if(ix>=0)all[ix]=t;else all.unshift(t);
+
+    const confirmed=await saveProcessTemplates(all);
+    const saved=confirmed.find(x=>String(x?.id||'')===String(t.id||''));
+    if(!saved)throw new Error('A base TESTE não devolveu o modelo após o salvamento.');
+    if(String(t.updatedAt||'') && String(saved.updatedAt||'')!==String(t.updatedAt||'')){
+      throw new Error('A base TESTE devolveu uma versão anterior. As alterações ainda não foram confirmadas.');
+    }
+
+    window.__rncTemplateLogoChanged=false;
+    rncStandardFeedback('✓ Modelo salvo e confirmado na base TESTE. As alterações permanecerão após atualizar ou entrar novamente.','success');
+
+    if(button){
+      button.textContent='✓ Salvo';
+      setTimeout(()=>{if(document.body.contains(button)){button.textContent=original;button.disabled=false;}},2200);
+    }
+    refreshRncTemplatePreview();
+    return true;
+  }catch(e){
+    const message='Erro ao salvar o modelo: '+String(e?.message||e);
+    console.error('[MODELO RNC] falha ao salvar',e);
+    rncStandardFeedback(message,'error');
+    if(button){
+      button.textContent='Erro ao salvar';
+      setTimeout(()=>{if(document.body.contains(button))button.textContent=original;},2500);
+    }
+    return false;
+  }finally{
+    if(button && button.textContent!=='✓ Salvo')button.disabled=false;
+  }
 }
 async function resetRncProcessTemplate(){
- if(!nucleoFeatureRequire('processes','templates'))return;if(!confirm('Restaurar a estrutura padrão da RNC? A logo personalizada também será removida.'))return;const all=getProcessTemplates().filter(x=>x.kind!=='RNC');all.unshift(defaultRncProcessTemplate());try{await saveProcessTemplates(all);window.__rncTemplateLogoChanged=false;renderProcessTemplatesWorkspace();}catch(e){alert('Não foi possível restaurar o modelo: '+e.message);}}
+ if(!nucleoFeatureRequire('processes','templates'))return;
+ if(!confirm('Restaurar a estrutura padrão da RNC? A logo personalizada também será removida.'))return;
+ const all=getProcessTemplates().filter(x=>x.kind!=='RNC');
+ const restored=defaultRncProcessTemplate();
+ restored.updatedAt=new Date().toISOString();
+ all.unshift(restored);
+ try{
+   rncStandardFeedback('Restaurando o modelo padrão…','info');
+   await saveProcessTemplates(all);
+   window.__rncTemplateLogoChanged=false;
+   rncStandardFeedback('Modelo padrão restaurado e confirmado na base TESTE.','success');
+   renderProcessTemplatesWorkspace();
+ }catch(e){
+   rncStandardFeedback('Não foi possível restaurar o modelo: '+String(e?.message||e),'error');
+ }
+}
 function compactRncTemplateLayout(){const v={tplLogoWidth:18,tplMetaWidth:24,tplHeaderHeight:12,tplRowHeight:6,tplBorderWidth:.6,tplFontScale:95,tplSectionHeight:4};Object.entries(v).forEach(([id,x])=>{const el=document.getElementById(id);if(el)el.value=x});refreshRncTemplatePreview();}
 let rncTemplatePreviewTimer=0;
 let rncPreviewZoom='fit';
