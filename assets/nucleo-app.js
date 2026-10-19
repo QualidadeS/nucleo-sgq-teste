@@ -6053,13 +6053,33 @@ async function openRoPdf(id){
   try{
     const unit=explicitRecordUnit(ro);
     let model=nucleoSystemFormat('ro',unit),assets={};
-    if(model?.universalLayout?.version>=2){
-      await showNucleoLoading('Montando R.O. com o modelo salvo…','A estrutura do editor será usada exatamente na emissão.');
-      try{
-        const fresh=await portalJsonp({acao:'nucleo_drive_process_formats',unit,kind:'ro'},60000);
-        if(fresh?.sucesso&&fresh.formats?.ro){model=fresh.formats.ro;assets=fresh;}
-      }catch(e){console.warn('Não foi possível reler o modelo; usando a cópia local.',e);}
-      finally{hideNucleoLoading(true);}
+
+    // O modelo precisa ser relido ANTES de decidir qual gerador usar. A versão
+    // anterior só consultava a base quando o cache local já tinha universalLayout;
+    // por isso um cache antigo fazia a R.O. continuar abrindo no PDF legado.
+    await showNucleoLoading('Carregando o modelo atual da R.O.…','Conferindo a estrutura salva na base central.');
+    try{
+      const fresh=await portalJsonp({acao:'nucleo_drive_process_formats',unit,kind:'ro'},60000);
+      if(fresh?.sucesso&&fresh.formats?.ro){
+        model=fresh.formats.ro;
+        assets=fresh;
+        // Atualiza o cache para as próximas telas, sem depender de recarregar a página.
+        try{
+          const configs=JSON.parse(localStorage.getItem('nucleo-unit-configs')||'[]');
+          const own=configs.find(x=>x.id===unit)||{id:unit,unit};
+          own.documentFormats={...(own.documentFormats||{}),ro:model};
+          localStorage.setItem('nucleo-unit-configs',JSON.stringify(configs.filter(x=>x.id!==unit).concat(own)));
+        }catch(_){ }
+      }
+    }catch(e){
+      console.warn('Não foi possível reler o modelo atual da R.O.; usando a cópia local.',e);
+    }finally{
+      hideNucleoLoading(true);
+    }
+
+    const u=model?.universalLayout;
+    const hasUniversal=!!(u&&Number(u.version)>=2&&(Array.isArray(u.headerGrid)||Array.isArray(u.bodyGrid)||Array.isArray(u.footerGrid)));
+    if(hasUniversal){
       nucleoShowRoModelPreview(ro,model,assets);
       return;
     }
