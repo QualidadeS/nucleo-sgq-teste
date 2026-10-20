@@ -14,7 +14,7 @@ function nucleoLoadAdminModule(){
   if(nucleoAdminModulePromise)return nucleoAdminModulePromise;
   nucleoAdminModulePromise=new Promise((resolve,reject)=>{
     const script=document.createElement('script');
-    script.src=new URL('assets/modules/admin-workspaces.js?v=20261020-v63-field-binding',document.baseURI).href;
+    script.src=new URL('assets/modules/admin-workspaces.js?v=20261020-v64-rollback-v63',document.baseURI).href;
     const timer=setTimeout(()=>finish(new Error('Tempo limite ao carregar o módulo.')),20000);
     function finish(error){clearTimeout(timer);script.onload=script.onerror=null;if(error){script.remove();nucleoAdminModulePromise=null;reject(error)}else resolve();}
     script.onload=()=>finish();
@@ -5995,18 +5995,6 @@ function nucleoRoCellPersistMeta(cell){
   return {source:dec(parts[0]),mask:/^[01]{4}$/.test(parts[1]||'')?parts[1]:'',fill:hasFill?parts[2]:'',label:dec(parts.slice(hasFill?3:2).join('~'))};
 }
 function nucleoRoModelRowUnits(row){const cells=row?.cells||[];if(!cells.length)return[];const total=cells.reduce((s,c)=>s+Math.max(.01,Number(c.width)||50),0)||100;let used=0;return cells.map((c,i)=>{if(i===cells.length-1)return Math.max(1,100-used);const rem=cells.length-i-1;let u=Math.max(1,Math.round((Math.max(.01,Number(c.width)||50)/total)*100));u=Math.min(u,Math.max(1,100-used-rem));used+=u;return u;});}
-function nucleoRoPairedFieldSource(row,ci,cell,model){
-  if(ci<=0||String(cell?.source||cell?.systemSource||'').startsWith('#'))return '';
-  const cells=Array.isArray(row?.cells)?row.cells:[],prev=cells[ci-1];
-  if(!prev||String(prev?.source||prev?.systemSource||'').trim())return '';
-  const label=String(prev?.text||prev?.labelText||'').trim();
-  if(!label)return '';
-  const wanted=nucleoRoModelNormKey(label);
-  const f=(model?.fields||[]).find(x=>nucleoRoModelNormKey(x?.label)===wanted||nucleoRoModelNormKey(x?.source)===wanted);
-  if(f?.source)return String(f.source);
-  const known=['R.O.','RO','Data','Unidade','Cliente','Tipo de ocorrência','Setor identificado','Setor onde foi identificado','Setor causa/responsável','Setor causa / responsável','Setor','Status','Descrição','Matrícula','Responsável pelo registro','Número do pedido','Código do item','Ordem de produção','Nota fiscal de venda','Quantidade de peças com desvio','Peso do material descartado/reaproveitado','Liberado pelo setor de qualidade?','Quem liberou','Ação preventiva','Prazo conclusão ação'];
-  return known.some(x=>nucleoRoModelNormKey(x)===wanted)?label:'';
-}
 function nucleoRoModelRowsHtml(grid,ro,model,images,pageNo=1,totalPages=1){
   const safeColor=(v,d)=>/^#[0-9a-f]{6}$/i.test(String(v||''))?v:d;
   const safeFill=(v,d='#ffffff')=>String(v||'').toLowerCase()==='transparent'?'transparent':safeColor(v,d);
@@ -6029,8 +6017,6 @@ function nucleoRoModelRowsHtml(grid,ro,model,images,pageNo=1,totalPages=1){
     };
     let src=String(cell.systemSource||meta.source||cell.source||'');
     if(!src)src=placeholderSource[persistedText]||'';
-    const pairedSource=nucleoRoPairedFieldSource(row,ci,cell,model);
-    if(pairedSource)src=pairedSource;
     const rawBw=Number(cell.borderWidth),bw=Math.max(0,Math.min(4,Number.isFinite(rawBw)?rawBw:.5)),bc=safeColor(cell.borderColor,'#999999');
     const sideIndex={Top:0,Right:1,Bottom:2,Left:3};
     const side=(name)=>{const explicit=meta.mask?meta.mask[sideIndex[name]]==='1':cell['border'+name]!==false;return explicit?`${bw}pt solid ${safeColor(cell['border'+name+'Color'],bc)}`:'0';};
