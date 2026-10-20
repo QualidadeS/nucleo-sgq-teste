@@ -1077,21 +1077,32 @@ async function nucleoEditRoModelVisual(kind='ro',inlineRender=false){
   showStandardFeedback('Salvando '+label+' padrão na base central…','info');
   const design=readDesign(false);
   const snapshot=part==='header'
-   ?{version:5,grid:layout.headerGrid,repeat:layout.repeatHeader!==false,nativeRncHeader:nativeRncHeader?JSON.parse(JSON.stringify(nativeRncHeader)):null,identity:{accent:design.accent,textColor:design.textColor,borderColor:design.borderColor,borderWidth:design.borderWidth,titleSize:design.titleSize,logoWidth:design.logoWidth,align:design.align,logoFileId:String(model.design?.logoFileId||'')}}
-   :{version:4,grid:layout.footerGrid,repeat:layout.repeatFooter!==false,nativeRncFooter:nativeRncFooter?JSON.parse(JSON.stringify(nativeRncFooter)):null};
-  const payload=part==='header'?{header:snapshot}:{footer:snapshot};
-  await nucleoAdminDriveMutation('nucleo_drive_process_formats',{unit,kind:'standards',data:JSON.stringify(payload)});
-  // Read-back obrigatório: só confirma ao usuário depois de reler o que ficou persistido.
-  const check=await portalJsonp({acao:'nucleo_drive_process_formats',unit,kind},60000);
-  if(!check?.sucesso)throw new Error(check?.erro||'A base central não confirmou o padrão salvo.');
-  hydrateStandards(check.documentFormatStandards||{});
-  standardImagePreviews=check.standardImagePreviews||{};
-  Object.assign(imagePreviews,standardImagePreviews);
-  const saved=part==='header'?standards.header:standards.footer;
-  if(!saved||!Array.isArray(saved.grid)||!saved.grid.length)throw new Error('O padrão não foi encontrado depois do salvamento. Tente novamente.');
-  // Mantém uma cópia da última confirmação bem-sucedida por unidade. A base central
-  // continua sendo a fonte principal, mas uma leitura imediatamente posterior não
-  // pode apagar a confirmação que acabou de ser devolvida pelo servidor.
+   ?{version:6,grid:backendSafeGrid(JSON.parse(JSON.stringify(layout.headerGrid))),repeat:layout.repeatHeader!==false,nativeRncHeader:nativeRncHeader?JSON.parse(JSON.stringify(nativeRncHeader)):null,identity:{accent:design.accent,textColor:design.textColor,borderColor:design.borderColor,borderWidth:design.borderWidth,titleSize:design.titleSize,logoWidth:design.logoWidth,align:design.align,logoFileId:String(model.design?.logoFileId||'')}}
+   :{version:5,grid:backendSafeGrid(JSON.parse(JSON.stringify(layout.footerGrid))),repeat:layout.repeatFooter!==false,nativeRncFooter:nativeRncFooter?JSON.parse(JSON.stringify(nativeRncFooter)):null};
+
+  // O endpoint de formatos não possui um modelo válido para kind=standards e devolve
+  // “Modelo inválido”. Persistimos o padrão na biblioteca central de modelos, que já
+  // possui fluxo de gravação/confirmação estável, separando os padrões por unidade.
+  const all=getProcessTemplates().map(x=>x&&typeof x==='object'?JSON.parse(JSON.stringify(x)):x);
+  let ix=all.findIndex(x=>x?.kind==='RNC'&&x.status!=='obsolete');
+  if(ix<0){all.unshift(defaultRncProcessTemplate());ix=0;}
+  const holder=normalizeRncTemplate(all[ix]);
+  const byUnit=holder.universalStandardsByUnit&&typeof holder.universalStandardsByUnit==='object'
+   ?JSON.parse(JSON.stringify(holder.universalStandardsByUnit)):{};
+  const bucket=byUnit[unit]&&typeof byUnit[unit]==='object'?byUnit[unit]:{};
+  bucket[part]=snapshot;
+  bucket.updatedAt=new Date().toISOString();
+  byUnit[unit]=bucket;
+  holder.universalStandardsByUnit=byUnit;
+  holder.updatedAt=new Date().toISOString();
+  all[ix]=holder;
+  await saveProcessTemplates(all);
+
+  const confirmed=normalizeRncTemplate(getProcessTemplates().find(x=>x?.kind==='RNC'&&x.status!=='obsolete')||holder);
+  const persisted=confirmed.universalStandardsByUnit?.[unit]?.[part];
+  if(!persisted||!Array.isArray(persisted.grid)||!persisted.grid.length)throw new Error('A base central não devolveu o '+label+' padrão depois do salvamento.');
+  if(part==='header')standards.header={...persisted,grid:normalizeGrid(persisted.grid)};
+  else standards.footer={...persisted,grid:normalizeGrid(persisted.grid)};
   writeStandardsCache();
   showStandardFeedback((part==='header'?'Cabeçalho':'Rodapé')+' padrão salvo e confirmado na base central.','success');
   if(button){button.disabled=false;button.textContent='✓ Padrão salvo';setTimeout(()=>{button.textContent=original;},1800);}
@@ -1318,6 +1329,17 @@ async function nucleoEditRoModelVisual(kind='ro',inlineRender=false){
     }catch(_){return {};}
    }
    const reloadStandards=async()=>{
+    // Primeiro tenta o padrão universal central salvo por unidade na biblioteca de modelos.
+    try{
+     const holder=normalizeRncTemplate(getProcessTemplates().find(x=>x?.kind==='RNC'&&x.status!=='obsolete')||defaultRncProcessTemplate());
+     const centralUniversal=holder.universalStandardsByUnit?.[unit];
+     if(centralUniversal?.header||centralUniversal?.footer){
+      if(centralUniversal.header)standards.header={...centralUniversal.header,grid:normalizeGrid(centralUniversal.header.grid||[])};
+      if(centralUniversal.footer)standards.footer={...centralUniversal.footer,grid:normalizeGrid(centralUniversal.footer.grid||[])};
+      writeStandardsCache();
+      return standards;
+     }
+    }catch(_){ }
     let check=null,centralError=null;
     try{check=await portalJsonp({acao:'nucleo_drive_process_formats',unit,kind},60000);}catch(e){centralError=e;}
     if(check?.sucesso){
