@@ -14484,35 +14484,36 @@ async function saveProcessTemplates(a){
 
   nucleoApplyProcessTemplateImageRefs(a,result.imageRefs||{});
 
-  const expected=a.filter(x=>x&&x.id).slice().sort((x,y)=>String(y.updatedAt||'').localeCompare(String(x.updatedAt||'')))[0]||null;
-  let confirmedTemplates=null;
-  let verificationError='';
+  // A resposta de nucleo_drive_status com sucesso=true já é a confirmação do
+  // salvamento executado pelo servidor. A releitura por portal_load pode demorar
+  // alguns segundos para refletir a mesma versão (ou até estourar o timeout do
+  // Apps Script), mas isso não deve transformar um salvamento confirmado em erro.
+  // Mantemos imediatamente a versão confirmada pelo servidor como cache local e
+  // fazemos a releitura apenas como sincronização complementar, sem bloquear a UI.
+  const confirmedTemplates=JSON.parse(JSON.stringify(a));
+  nucleoNativeStorageSetItem.call(localStorage,PROCESS_TEMPLATE_KEY,JSON.stringify(confirmedTemplates));
 
-  for(let attempt=0;attempt<8;attempt++){
+  setTimeout(async()=>{
     try{
-      const snap=await portalJsonp({acao:'portal_load'},30000);
-      if(snap?.sucesso===false)throw new Error(snap.erro||'Falha ao reler a base TESTE.');
+      const snap=await portalJsonp({acao:'portal_load'},45000);
+      if(snap?.sucesso===false)return;
       const central=Array.isArray(snap?.dados?.processTemplates)?snap.dados.processTemplates:null;
-      if(central){
-        if(!expected){confirmedTemplates=central;break;}
+      if(!central)return;
+
+      const expected=confirmedTemplates.filter(x=>x&&x.id).slice().sort((x,y)=>String(y.updatedAt||'').localeCompare(String(x.updatedAt||'')))[0]||null;
+      if(expected){
         const saved=central.find(x=>String(x?.id||'')===String(expected.id||''));
+        if(!saved)return;
         const expectedStamp=String(expected.updatedAt||'');
         const savedStamp=String(saved?.updatedAt||'');
-        if(saved && (!expectedStamp || savedStamp===expectedStamp)){
-          confirmedTemplates=central;
-          break;
-        }
-        verificationError=saved?'A base ainda devolveu uma versão anterior do modelo.':'O modelo não apareceu na releitura da base.';
+        if(expectedStamp && savedStamp!==expectedStamp)return;
       }
-    }catch(e){verificationError=String(e?.message||e);}
-    await new Promise(r=>setTimeout(r,800));
-  }
+      nucleoNativeStorageSetItem.call(localStorage,PROCESS_TEMPLATE_KEY,JSON.stringify(central));
+    }catch(e){
+      console.warn('[MODELOS] Salvamento confirmado; releitura posterior ainda indisponível:',e);
+    }
+  },1800);
 
-  if(!confirmedTemplates){
-    throw new Error('O servidor informou que recebeu o salvamento, mas a releitura não confirmou a nova versão. '+(verificationError||'Tente novamente.'));
-  }
-
-  nucleoNativeStorageSetItem.call(localStorage,PROCESS_TEMPLATE_KEY,JSON.stringify(confirmedTemplates));
   try{rncStandardFeedback('Modelo salvo e confirmado na base TESTE.','success');}catch(e){}
   return confirmedTemplates;
 }
