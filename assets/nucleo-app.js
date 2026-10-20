@@ -5986,14 +5986,22 @@ function nucleoRoModelValue(ro,source,model,pageNo=1,totalPages=1){
   return '';
 }
 function nucleoRoModelEsc(v){return String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function nucleoRoCellPersistMeta(cell){
+  const raw=String(cell?.id||''),mark='~nmeta~',i=raw.indexOf(mark);
+  if(i<0)return {source:'',mask:'',label:''};
+  const parts=raw.slice(i+mark.length).split('~');
+  const dec=v=>{try{return decodeURIComponent(String(v||''));}catch(_){return String(v||'');}};
+  return {source:dec(parts[0]),mask:/^[01]{4}$/.test(parts[1]||'')?parts[1]:'',label:dec(parts.slice(2).join('~'))};
+}
 function nucleoRoModelRowUnits(row){const cells=row?.cells||[];if(!cells.length)return[];const total=cells.reduce((s,c)=>s+Math.max(.01,Number(c.width)||50),0)||100;let used=0;return cells.map((c,i)=>{if(i===cells.length-1)return Math.max(1,100-used);const rem=cells.length-i-1;let u=Math.max(1,Math.round((Math.max(.01,Number(c.width)||50)/total)*100));u=Math.min(u,Math.max(1,100-used-rem));used+=u;return u;});}
 function nucleoRoModelRowsHtml(grid,ro,model,images,pageNo=1,totalPages=1){
   const safeColor=(v,d)=>/^#[0-9a-f]{6}$/i.test(String(v||''))?v:d;
   const safeFill=(v,d='#ffffff')=>String(v||'').toLowerCase()==='transparent'?'transparent':safeColor(v,d);
   const rows=Array.isArray(grid)?grid:[];
   return rows.map(row=>{const units=nucleoRoModelRowUnits(row);return '<tr>'+((row.cells||[]).map((cell,ci)=>{
-    const src=String(cell.systemSource||cell.source||''),rawBw=Number(cell.borderWidth),bw=Math.max(0,Math.min(4,Number.isFinite(rawBw)?rawBw:.5)),bc=safeColor(cell.borderColor,'#999999');
-    const side=(name)=>cell['border'+name]===false?'0':`${bw}pt solid ${safeColor(cell['border'+name+'Color'],bc)}`;
+    const meta=nucleoRoCellPersistMeta(cell),src=String(cell.systemSource||meta.source||cell.source||''),rawBw=Number(cell.borderWidth),bw=Math.max(0,Math.min(4,Number.isFinite(rawBw)?rawBw:.5)),bc=safeColor(cell.borderColor,'#999999');
+    const sideIndex={Top:0,Right:1,Bottom:2,Left:3};
+    const side=(name)=>{const explicit=meta.mask?meta.mask[sideIndex[name]]==='1':cell['border'+name]!==false;return explicit?`${bw}pt solid ${safeColor(cell['border'+name+'Color'],bc)}`:'0';};
     let content='';
     if(cell.type==='image'){
       const img=images?.[cell.imageFileId]||'';
@@ -6001,7 +6009,8 @@ function nucleoRoModelRowsHtml(grid,ro,model,images,pageNo=1,totalPages=1){
     }else if(src){
       content=nucleoRoModelEsc(nucleoRoModelValue(ro,src,model,pageNo,totalPages)).replace(/\n/g,'<br>');
     }else content=nucleoRoModelEsc(cell.text||'').replace(/\n/g,'<br>');
-    if(cell.labelText){content=`<div class="cell-stack"><span class="cell-label" style="font-size:${Math.max(5,Number(cell.labelFontSize)||7)}pt;font-weight:${cell.labelBold===false?'400':'700'}">${nucleoRoModelEsc(cell.labelText)}</span><span>${content||''}</span></div>`;}
+    const visibleLabel=String(cell.labelText||cell.systemLabelText||meta.label||'');
+    if(visibleLabel){content=`<div class="cell-stack"><span class="cell-label" style="font-size:${Math.max(5,Number(cell.labelFontSize)||7)}pt;font-weight:${cell.labelBold===false?'400':'700'}">${nucleoRoModelEsc(visibleLabel)}</span><span>${content||''}</span></div>`;}
     return `<td colspan="${units[ci]||1}" ${Number(cell.rowSpan)>1?`rowspan="${Math.floor(Number(cell.rowSpan))}"`:''} style="height:${Math.max(3,Number(cell.height)||9)}mm;background:${cell.backgroundNone===true?'transparent':safeFill(cell.background,'#ffffff')};color:${safeColor(cell.textColor,'#222222')};border-top:${side('Top')};border-right:${side('Right')};border-bottom:${side('Bottom')};border-left:${side('Left')};padding:1.3mm;text-align:${['left','center','right'].includes(cell.align)?cell.align:'left'};vertical-align:${['top','middle','bottom'].includes(cell.verticalAlign)?cell.verticalAlign:'middle'};font-size:${Math.max(6,Number(cell.fontSize)||9)}pt;font-weight:${cell.bold?'700':'400'};font-style:${cell.italic?'italic':'normal'};overflow-wrap:anywhere;white-space:pre-wrap">${content||'&nbsp;'}</td>`;
    }).join(''))+'</tr>';}).join('');
 }
