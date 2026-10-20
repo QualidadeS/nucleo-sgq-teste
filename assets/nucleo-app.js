@@ -15146,7 +15146,7 @@ function collectRncTemplateForm(){
   const base=getRncProcessTemplate(),val=id=>document.getElementById(id)?.value||'';
   let fixedImages=base.fixedImages||[],photoFields=base.photoFields||[],fieldLayout=base.fieldLayout||defaultRncFieldLayout(),headerLayout=base.headerLayout||defaultRncHeaderLayout();try{fixedImages=JSON.parse(val('tplFixedImagesData')||'[]')}catch(e){}try{photoFields=JSON.parse(val('tplPhotoFieldsData')||'[]')}catch(e){}try{fieldLayout=JSON.parse(val('tplFieldLayoutData')||'[]')}catch(e){}try{headerLayout=JSON.parse(val('tplHeaderLayoutData')||'[]')}catch(e){}return {...base,fieldLayout,headerLayout,layoutId:val('tplLayoutBase')||'',code:val('tplCode').trim()||base.code,name:val('tplName').trim()||base.name,revision:val('tplRevision').trim()||base.revision,title:val('tplTitle').trim()||base.title,supplierResponseTitle:val('tplSupplierResponseTitle').trim()||base.supplierResponseTitle||'RESPOSTA DO FORNECEDOR',supplierResponseNote:val('tplSupplierResponseNote'),footerText:val('tplFooterText'),pageBreakBeforeSupplier:!!document.getElementById('tplPageBreakSupplier')?.checked,repeatHeaderOnPages:!!document.getElementById('tplRepeatHeader')?.checked,repeatFooterOnPages:!!document.getElementById('tplRepeatFooter')?.checked,sendFormat:val('tplSendFormat')||base.sendFormat||'pdf',logoText:val('tplLogoText').trim()||'SETA',logoDataUrl:val('tplLogoData'),logoFileId:window.__rncTemplateLogoChanged?'':String(base.logoFileId||''),layout:{logoWidth:Number(val('tplLogoWidth'))||19,metaWidth:Number(val('tplMetaWidth'))||25,headerHeight:Number(val('tplHeaderHeight'))||13,rowHeight:Number(val('tplRowHeight'))||7,borderWidth:Number(val('tplBorderWidth'))||0.65,fontScale:Number(val('tplFontScale'))||100,sectionHeight:Number(val('tplSectionHeight'))||5},fixedImages,photoFields,accent:val('tplAccent')||'#1f4e78',updatedAt:new Date().toISOString(),sections:base.sections.map((x,i)=>({...x,enabled:!!document.getElementById('tplSec'+i)?.checked,label:val('tplSecLabel'+i).trim()||x.label,align:val('tplSecAlign'+i)||x.align||'left',owner:val('tplSecOwner'+i)||x.owner||'sgq'}))};
 }
-const RNC_HEADER_STANDARD_KEY='nucleo_rnc_header_standard_v2',RNC_FOOTER_STANDARD_KEY='nucleo_rnc_footer_standard_v2';
+const RNC_HEADER_STANDARD_KEY='nucleo_rnc_header_standard_v3',RNC_FOOTER_STANDARD_KEY='nucleo_rnc_footer_standard_v3';
 function rncStandardUnit(){return getSession()?.role==='quality'?'filial':document.getElementById('qualityConfigUnit')?.value||'matriz';}
 function rncStandardFeedback(message,type='info'){
   let box=document.getElementById('rncStandardFeedback');
@@ -15156,26 +15156,58 @@ function rncStandardFeedback(message,type='info'){
   toast.textContent=message;toast.style.display='block';toast.style.background=type==='success'?'#ecfdf3':type==='error'?'#fff1f2':'#eff6ff';toast.style.border='1px solid '+(type==='success'?'#86efac':type==='error'?'#fda4af':'#93c5fd');toast.style.color=type==='success'?'#166534':type==='error'?'#9f1239':'#1d4ed8';
   clearTimeout(window.__nucleoStandardToastTimer);window.__nucleoStandardToastTimer=setTimeout(()=>{toast.style.display='none'},6500);
 }
+function rncStandardStorageKey(kind,unit=rncStandardUnit()){
+  const base=kind==='header'?RNC_HEADER_STANDARD_KEY:RNC_FOOTER_STANDARD_KEY;
+  return base+':'+String(unit||'matriz').toLowerCase();
+}
+function rncStandardRecordId(kind,unit=rncStandardUnit()){
+  return 'global:'+rncStandardStorageKey(kind,unit);
+}
+async function rncSaveCentralStandard(kind,payload){
+  const unit=rncStandardUnit();
+  const key=rncStandardStorageKey(kind,unit);
+  const id=rncStandardRecordId(kind,unit);
+  const stamp=String(payload?.savedAt||new Date().toISOString());
+  const record={
+    id,key,value:JSON.stringify(payload||{}),scope:'global',userKey:'',
+    unit,standardKind:kind,updatedAt:stamp,updatedBy:getSession()?.name||'SGQ'
+  };
+
+  // Usa a rota de shared_state, que confirma o salvamento na própria resposta.
+  // Evita o fluxo assíncrono PROCTPL/nucleo_drive_status que podia permanecer em
+  // "Salvando..." mesmo depois de o servidor ter recebido a alteração.
+  await portalBackendSaveConfirmed('shared_state',id,record);
+
+  const verify=await portalJsonp({acao:'portal_get_record',colecao:'shared_state',id},15000).catch(()=>null);
+  const saved=verify?.registro;
+  if(!saved)throw new Error('A base central não devolveu o padrão após salvar.');
+  if(String(saved.updatedAt||'')!==stamp)throw new Error('A base central devolveu uma versão anterior do padrão.');
+  let decoded=null;
+  try{decoded=JSON.parse(String(saved.value||''));}catch(e){}
+  if(!decoded||String(decoded.savedAt||'')!==stamp)throw new Error('A confirmação do padrão salvo não corresponde à versão enviada.');
+
+  safeStorageSet(key,JSON.stringify(decoded));
+  return decoded;
+}
+async function rncReadCentralStandard(kind,unit=rncStandardUnit()){
+  const key=rncStandardStorageKey(kind,unit);
+  const id=rncStandardRecordId(kind,unit);
+  try{
+    const res=await portalJsonp({acao:'portal_get_record',colecao:'shared_state',id},12000);
+    const raw=res?.registro?.value;
+    if(raw){
+      const parsed=JSON.parse(String(raw));
+      safeStorageSet(key,JSON.stringify(parsed));
+      return parsed;
+    }
+  }catch(e){console.warn('[PADRÃO RNC] Falha ao reler '+kind+' da base central:',e);}
+  try{return JSON.parse(localStorage.getItem(key)||'null')}catch(e){return null}
+}
 async function rncStandardMutation(payload){
-  // Usa a mesma biblioteca central de modelos da RNC. Assim o padrão não depende
-  // de uma ação nova no Apps Script e funciona com a implantação que já salva a RNC.
-  const all=getProcessTemplates().map(x=>x&&typeof x==='object'?{...x}:x);
-  let ix=all.findIndex(x=>x?.kind==='RNC'&&x.status!=='obsolete');
-  if(ix<0){all.unshift(defaultRncProcessTemplate());ix=0;}
-  const current=normalizeRncTemplate(all[ix]);
-  if(payload?.header)current.headerStandard=JSON.parse(JSON.stringify(payload.header));
-  if(payload?.footer)current.footerStandard=JSON.parse(JSON.stringify(payload.footer));
-  // O salvamento central confirma a versão pelo campo updatedAt.
-  // Ao alterar apenas o cabeçalho/rodapé padrão, a versão anterior deixava
-  // updatedAt intacto e a releitura podia procurar/confirmar outro modelo mais
-  // recente, gerando o falso erro de "recebeu o salvamento, mas não confirmou".
-  const standardStamp=new Date().toISOString();
-  current.standardUpdatedAt=standardStamp;
-  current.updatedAt=standardStamp;
-  all[ix]=current;
-  await saveProcessTemplates(all);
-  const confirmed=normalizeRncTemplate(getProcessTemplates().find(x=>x?.kind==='RNC'&&x.status!=='obsolete')||current);
-  return {header:confirmed.headerStandard||null,footer:confirmed.footerStandard||null};
+  const out={header:null,footer:null};
+  if(payload?.header)out.header=await rncSaveCentralStandard('header',payload.header);
+  if(payload?.footer)out.footer=await rncSaveCentralStandard('footer',payload.footer);
+  return out;
 }
 async function saveRncHeaderAsStandard(button){
   const original=button?.textContent||'Fixar cabeçalho como padrão';
@@ -15183,12 +15215,11 @@ async function saveRncHeaderAsStandard(button){
   rncStandardFeedback('Salvando cabeçalho padrão na base central…');
   try{
     const t=collectRncTemplateForm();
-    const header={version:2,headerLayout:t.headerLayout,logoDataUrl:t.logoDataUrl||'',logoFileId:t.logoFileId||'',logoText:t.logoText,layout:{logoWidth:t.layout.logoWidth,metaWidth:t.layout.metaWidth,headerHeight:t.layout.headerHeight},savedAt:new Date().toISOString()};
+    const header={version:3,headerLayout:t.headerLayout,logoDataUrl:t.logoDataUrl||'',logoFileId:t.logoFileId||'',logoText:t.logoText,layout:{logoWidth:t.layout.logoWidth,metaWidth:t.layout.metaWidth,headerHeight:t.layout.headerHeight},savedAt:new Date().toISOString()};
     const x=await rncStandardMutation({header});
     if(!x.header)throw new Error('A base central não devolveu o cabeçalho salvo.');
-    safeStorageSet(RNC_HEADER_STANDARD_KEY,JSON.stringify(x.header));
     rncStandardFeedback('Cabeçalho padrão salvo e confirmado na base central.','success');
-    if(button){button.textContent='✓ Cabeçalho salvo';setTimeout(()=>{button.textContent=original},1800);}
+    if(button){button.textContent='✓ Cabeçalho salvo';setTimeout(()=>{if(document.body.contains(button))button.textContent=original},1800);}
   }catch(e){
     rncStandardFeedback('Erro ao salvar cabeçalho padrão: '+(e?.message||e),'error');
     if(button)button.textContent=original;
@@ -15200,21 +15231,22 @@ async function saveRncFooterAsStandard(button){
   rncStandardFeedback('Salvando rodapé padrão na base central…');
   try{
     const t=collectRncTemplateForm(),footerIds=(t.sections||[]).filter(x=>x.owner==='footer').map(x=>x.id);
-    const footer={version:2,footerText:t.footerText,footerIds,footerSections:(t.sections||[]).filter(x=>footerIds.includes(x.id)),footerFields:(t.fieldLayout||[]).filter(x=>footerIds.includes(x.section)||x.owner==='footer'),savedAt:new Date().toISOString()};
+    const footer={version:3,footerText:t.footerText,footerIds,footerSections:(t.sections||[]).filter(x=>footerIds.includes(x.id)),footerFields:(t.fieldLayout||[]).filter(x=>footerIds.includes(x.section)||x.owner==='footer'),savedAt:new Date().toISOString()};
     const x=await rncStandardMutation({footer});
     if(!x.footer)throw new Error('A base central não devolveu o rodapé salvo.');
-    safeStorageSet(RNC_FOOTER_STANDARD_KEY,JSON.stringify(x.footer));
     rncStandardFeedback('Rodapé padrão salvo e confirmado na base central.','success');
-    if(button){button.textContent='✓ Rodapé salvo';setTimeout(()=>{button.textContent=original},1800);}
+    if(button){button.textContent='✓ Rodapé salvo';setTimeout(()=>{if(document.body.contains(button))button.textContent=original},1800);}
   }catch(e){
     rncStandardFeedback('Erro ao salvar rodapé padrão: '+(e?.message||e),'error');
     if(button)button.textContent=original;
   }finally{if(button)button.disabled=false;}
 }
 async function rncLoadCentralStandards(){
-  // A biblioteca de modelos já é sincronizada pela base central durante a carga do Núcleo.
-  const current=normalizeRncTemplate(getProcessTemplates().find(x=>x?.kind==='RNC'&&x.status!=='obsolete')||defaultRncProcessTemplate());
-  return {header:current.headerStandard||null,footer:current.footerStandard||null};
+  const [header,footer]=await Promise.all([
+    rncReadCentralStandard('header'),
+    rncReadCentralStandard('footer')
+  ]);
+  return {header,footer};
 }
 async function applyRncHeaderStandard(button){
   const original=button?.textContent||'Aplicar cabeçalho padrão';
