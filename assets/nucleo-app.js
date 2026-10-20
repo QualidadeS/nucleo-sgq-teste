@@ -6004,20 +6004,51 @@ function nucleoRoModelRowsHtml(grid,ro,model,images,pageNo=1,totalPages=1){
     return `<td colspan="${units[ci]||1}" ${Number(cell.rowSpan)>1?`rowspan="${Math.floor(Number(cell.rowSpan))}"`:''} style="height:${Math.max(3,Number(cell.height)||9)}mm;background:${safeColor(cell.background,'#ffffff')};color:${safeColor(cell.textColor,'#222222')};border-top:${side('Top')};border-right:${side('Right')};border-bottom:${side('Bottom')};border-left:${side('Left')};padding:1.3mm;text-align:${['left','center','right'].includes(cell.align)?cell.align:'left'};vertical-align:${['top','middle','bottom'].includes(cell.verticalAlign)?cell.verticalAlign:'middle'};font-size:${Math.max(6,Number(cell.fontSize)||9)}pt;font-weight:${cell.bold?'700':'400'};font-style:${cell.italic?'italic':'normal'};overflow-wrap:anywhere;white-space:pre-wrap">${content||'&nbsp;'}</td>`;
    }).join(''))+'</tr>';}).join('');
 }
+function nucleoRoEvidenceUrls(ro){
+  const raw=ro?.raw||{};
+  const evidence=String(ro?.evidencia||firstValue(raw,[
+    'Insira imagens e/ou vídeos relacionado a ocorrência relatada.',
+    'Insira imagens e/ou vídeos relacionado a ocorrência relatada'
+  ])||'').trim();
+  if(!evidence)return [];
+  const urls=evidence.match(/https?:\/\/[^\s,]+/g)||[];
+  return [...new Set(urls.map(u=>String(u).replace(/[)\]>]+$/g,'').trim()).filter(Boolean))];
+}
+function nucleoRoEvidenceImageUrl(url){
+  const u=String(url||'').trim();
+  if(!u)return '';
+  let m=u.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/i)||u.match(/[?&]id=([a-zA-Z0-9_-]+)/i);
+  if(m?.[1])return 'https://drive.google.com/thumbnail?id='+encodeURIComponent(m[1])+'&sz=w1600';
+  return u;
+}
 function nucleoBuildRoModelPrintHtml(ro,model,assets={}){
   const layout=model?.universalLayout||{},design=model?.design||{},orientation=design.orientation==='landscape'?'landscape':'portrait',margin=Math.max(5,Math.min(35,Number(model?.marginMm)||10));
   const images={...(assets.standardImagePreviews||{}),...(assets.gridImagePreviews||{})};
   const logo=assets.logoPreviews?.ro||assets.logoPreview||'';
   if(design.logoFileId&&logo&&!images[design.logoFileId])images[design.logoFileId]=logo;
   const header=Array.isArray(layout.headerGrid)?layout.headerGrid:[],body=Array.isArray(layout.bodyGrid)&&layout.bodyGrid.length?layout.bodyGrid:(Array.isArray(model?.layoutGrid)?model.layoutGrid:[]),footer=Array.isArray(layout.footerGrid)?layout.footerGrid:[];
-  const headerRows=nucleoRoModelRowsHtml(header,ro,model,images,1,1),bodyRows=nucleoRoModelRowsHtml(body,ro,model,images,1,1),footerRows=nucleoRoModelRowsHtml(footer,ro,model,images,1,1);
-  const fallbackLogo=logo&&!Object.values(images).includes(logo)?`<div style="text-align:${['left','center','right'].includes(design.align)?design.align:'center'};margin-bottom:2mm"><img src="${nucleoRoModelEsc(logo)}" style="width:${Math.max(10,Math.min(80,Number(design.logoWidth)||30))}mm;max-height:25mm;object-fit:contain"></div>`:'';
+  const evidenceUrls=model?.showEvidence===false?[]:nucleoRoEvidenceUrls(ro);
+  const totalPages=Math.max(1,1+evidenceUrls.length);
+  const table=(rows,cls='')=>rows?`<table class="grid ${cls}"><colgroup>${'<col>'.repeat(100)}</colgroup><tbody>${rows}</tbody></table>`:'';
+  const pageShell=(pageNo,inner)=>{
+    const headerRows=nucleoRoModelRowsHtml(header,ro,model,images,pageNo,totalPages);
+    const footerRows=nucleoRoModelRowsHtml(footer,ro,model,images,pageNo,totalPages);
+    const fallbackLogo=logo&&!Object.values(images).includes(logo)?`<div style="text-align:${['left','center','right'].includes(design.align)?design.align:'center'};margin-bottom:2mm"><img src="${nucleoRoModelEsc(logo)}" style="width:${Math.max(10,Math.min(80,Number(design.logoWidth)||30))}mm;max-height:25mm;object-fit:contain"></div>`:'';
+    return `<section class="page">${fallbackLogo}${layout.repeatHeader===false&&pageNo>1?'':table(headerRows)}${inner}${layout.repeatFooter===false&&pageNo<totalPages?'':(footerRows?`<div class="footer-wrap">${table(footerRows)}</div>`:'')}</section>`;
+  };
+  const bodyRows=nucleoRoModelRowsHtml(body,ro,model,images,1,totalPages);
+  let pages=pageShell(1,`${design.before?`<div class="before">${nucleoRoModelEsc(design.before)}</div>`:''}${table(bodyRows)}${design.after?`<div class="after">${nucleoRoModelEsc(design.after)}</div>`:''}`);
+  evidenceUrls.forEach((url,i)=>{
+    const imageUrl=nucleoRoEvidenceImageUrl(url),pageNo=i+2;
+    pages+=pageShell(pageNo,`<div class="evidence-page"><div class="evidence-title">EVIDÊNCIA ${i+1}</div><div class="evidence-frame"><img src="${nucleoRoModelEsc(imageUrl)}" alt="Evidência ${i+1}" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><div class="evidence-fallback" style="display:none">Não foi possível carregar a imagem nesta visualização.<br><a href="${nucleoRoModelEsc(url)}" target="_blank" rel="noopener noreferrer">Abrir evidência ${i+1}</a></div></div></div>`);
+  });
   return `<!doctype html><html><head><meta charset="utf-8"><title>${nucleoRoModelEsc(ro?.numero||'R.O.')}</title><style>
   @page{size:A4 ${orientation};margin:0}*{box-sizing:border-box;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}html,body{margin:0;padding:0;background:#e5e7eb;font-family:Arial,Helvetica,sans-serif;color:${nucleoRoModelEsc(design.textColor||'#222222')}}
-  .page{width:${orientation==='landscape'?'297mm':'210mm'};min-height:${orientation==='landscape'?'210mm':'297mm'};margin:0 auto;background:#fff;padding:${margin}mm;font-size:${Math.max(7,Math.min(18,Number(model?.fontSize)||9))}pt;display:flex;flex-direction:column}
-  .grid{width:100%;border-collapse:collapse;table-layout:fixed}.grid col{width:1%}.cell-stack{display:flex;flex-direction:column;gap:.35mm;min-width:0}.cell-label{line-height:1.05}.before,.after{white-space:pre-wrap;margin:2mm 0}.footer-wrap{margin-top:3mm}
+  .page{width:${orientation==='landscape'?'297mm':'210mm'};height:${orientation==='landscape'?'210mm':'297mm'};margin:0 auto 8mm;background:#fff;padding:${margin}mm;font-size:${Math.max(7,Math.min(18,Number(model?.fontSize)||9))}pt;display:flex;flex-direction:column;overflow:hidden;page-break-after:always}.page:last-child{page-break-after:auto}
+  .grid{width:100%;border-collapse:collapse;table-layout:fixed}.grid col{width:1%}.cell-stack{display:flex;flex-direction:column;gap:.35mm;min-width:0}.cell-label{line-height:1.05}.before,.after{white-space:pre-wrap;margin:2mm 0}.footer-wrap{margin-top:auto;padding-top:3mm}
+  .evidence-page{display:flex;flex:1;min-height:0;flex-direction:column;padding-top:3mm}.evidence-title{font-size:11pt;font-weight:700;margin:0 0 3mm}.evidence-frame{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;overflow:hidden}.evidence-frame img{display:block;max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain}.evidence-fallback{text-align:center;font-size:10pt;line-height:1.5}
   @media screen{body{padding:8mm}.page{box-shadow:0 2px 12px #0003}}@media print{body{background:#fff;padding:0}.page{box-shadow:none;margin:0}}
-  </style></head><body><section class="page">${fallbackLogo}${headerRows?`<table class="grid"><colgroup>${'<col>'.repeat(100)}</colgroup><tbody>${headerRows}</tbody></table>`:''}${design.before?`<div class="before">${nucleoRoModelEsc(design.before)}</div>`:''}${bodyRows?`<table class="grid"><colgroup>${'<col>'.repeat(100)}</colgroup><tbody>${bodyRows}</tbody></table>`:''}${design.after?`<div class="after">${nucleoRoModelEsc(design.after)}</div>`:''}${footerRows?`<div class="footer-wrap"><table class="grid"><colgroup>${'<col>'.repeat(100)}</colgroup><tbody>${footerRows}</tbody></table></div>`:''}</section></body></html>`;
+  </style></head><body>${pages}</body></html>`;
 }
 function nucleoShowRoModelPreview(ro,model,assets){
   const modal=document.getElementById('pdfPreviewModal'),frame=document.getElementById('pdfPreviewFrame');if(!modal||!frame)throw new Error('Visualizador de documento indisponível.');
