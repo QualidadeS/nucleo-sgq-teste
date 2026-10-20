@@ -5890,7 +5890,7 @@ window.addEventListener('message',function(event){
   }
 });
 
-function downloadCompleteRoPdf(id){
+async function downloadCompleteRoPdf(id){
   const wanted=String(id||currentReportRoId||'').trim();
   if(!wanted){
     alert('Não foi possível identificar a R.O.');
@@ -5899,45 +5899,28 @@ function downloadCompleteRoPdf(id){
 
   if(roPdfDownloadInProgress)return;
 
-  const sync=getSavedIntegrationSettings();
-  if(!sync.apiUrl){
-    alert('Configure primeiro a URL do Apps Script em Administração > Integração e sincronização.');
+  const scopedRo=getAllRoRecords().find(r=>String(r.numero||r.id||r.codigo)===String(wanted));
+  if(getSession()?.role==='quality'&&(!scopedRo||!qualityRecordAllowed(scopedRo))){
+    alert('Esta R.O. não pertence à SETA ES / Unidade Linhares.');
     return;
   }
 
-  const frame=document.getElementById('roPdfBridgeFrame');
-  if(!frame){
-    alert('Não encontrei o gerador de PDF do sistema.');
-    return;
-  }
-
+  // V48: a opção "Gerar PDF completo" precisa usar exatamente o mesmo modelo
+  // universal mostrado no editor. A rota antiga `acao=pdf` do Apps Script ainda
+  // montava o PDF legado e, por isso, o arquivo saía com alturas/paginação
+  // diferentes da folha salva no Núcleo.
   roPdfDownloadInProgress=true;
-  const requestToken=++roPdfRequestToken;
   setRoPdfButtonState(true);
-
-  const sep=sync.apiUrl.includes('?')?'&':'?';
-  const scopedRo=getAllRoRecords().find(r=>String(r.numero||r.id||r.codigo)===String(wanted));if(getSession()?.role==='quality'&&(!scopedRo||!qualityRecordAllowed(scopedRo))){alert('Esta R.O. não pertence à SETA ES / Unidade Linhares.');return;}
-  const url=sync.apiUrl+sep+'acao=pdf&modo=embed&ro='+encodeURIComponent(wanted)+'&token='+encodeURIComponent(getSession()?.authToken||'');
-
-  // O Apps Script abre somente dentro deste iframe invisível.
-  // Quando terminar, ele devolve o PDF via postMessage e o sistema baixa o arquivo.
-  frame.src=url;
-
-  // Se o iframe não conseguir devolver o PDF por postMessage (por exemplo,
-  // por bloqueio do navegador/origem), não tratamos isso como falha do PDF.
-  // Após 60 s, oferecemos a rota direta do Apps Script como alternativa.
-  setTimeout(()=>{
-    if(roPdfDownloadInProgress && requestToken===roPdfRequestToken){
-      roPdfDownloadInProgress=false;
-      setRoPdfButtonState(false);
-      const fallback=sync.apiUrl+sep+'acao=pdf&ro='+encodeURIComponent(wanted)+'&token='+encodeURIComponent(getSession()?.authToken||'');
-      const ok=confirm(
-        'O PDF não retornou automaticamente para o sistema.\n\n'+
-        'Deseja abrir a geração direta do PDF?'
-      );
-      if(ok)window.open(fallback,'_blank','noopener,noreferrer');
-    }
-  },60000);
+  try{
+    await openRoPdf(wanted);
+  }catch(err){
+    console.error('Falha ao abrir PDF pelo modelo universal:',err);
+    alert('Não foi possível gerar o PDF pelo modelo salvo: '+(err?.message||String(err)));
+  }finally{
+    roPdfDownloadInProgress=false;
+    roPdfRequestToken++;
+    setRoPdfButtonState(false);
+  }
 }
 
 function closeRoReport(){
