@@ -799,17 +799,29 @@ let nucleoConfirmedApiUrl='';
 function nucleoValidApiUrl(value){return /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(String(value||'').trim());}
 function nucleoPersistedApiUrl(){
   const candidates=[];
-  try{
-    const dedicated=JSON.parse(localStorage.getItem(INTEGRATION_PERSIST_KEY)||'{}')||{};
-    candidates.push(dedicated.apiUrl);
-  }catch(e){}
-  try{
-    const admin=JSON.parse(localStorage.getItem(ADMIN_CONFIG_KEY)||'{}')||{};
-    candidates.push(admin.apiUrl);
-  }catch(e){}
+  // Há três caches históricos da integração. Ler todos evita pedir novamente
+  // a URL quando uma atualização sobrescreve somente um deles.
+  for(const key of [INTEGRATION_PERSIST_KEY,'ro-sync-settings',ADMIN_CONFIG_KEY]){
+    try{
+      const data=JSON.parse(localStorage.getItem(key)||'{}')||{};
+      candidates.push(data.apiUrl);
+    }catch(e){}
+  }
   const valid=candidates
     .map(v=>String(v||'').trim())
     .find(nucleoValidApiUrl);
+  if(valid){
+    // Repara silenciosamente os caches para que as próximas versões também
+    // encontrem a URL sem depender de qual chave sobreviveu no navegador.
+    try{
+      const dedicated=JSON.parse(localStorage.getItem(INTEGRATION_PERSIST_KEY)||'{}')||{};
+      localStorage.setItem(INTEGRATION_PERSIST_KEY,JSON.stringify({...dedicated,apiUrl:valid}));
+      const legacy=JSON.parse(localStorage.getItem('ro-sync-settings')||'{}')||{};
+      localStorage.setItem('ro-sync-settings',JSON.stringify({...legacy,apiUrl:valid}));
+      const admin=JSON.parse(localStorage.getItem(ADMIN_CONFIG_KEY)||'{}')||{};
+      localStorage.setItem(ADMIN_CONFIG_KEY,JSON.stringify({...admin,apiUrl:valid}));
+    }catch(e){}
+  }
   return valid||'';
 }
 function portalApiBase(){
@@ -842,14 +854,18 @@ async function nucleoCheckApiUrl(url){
 async function nucleoEnsureApiConfigured(){
   const current=portalApiBase();
 
-  if(current){
+  if(current && nucleoValidApiUrl(current)){
+    // Uma URL já salva nunca deve disparar novamente o prompt só porque uma
+    // validação temporária demorou. Mantemos a conexão e deixamos as chamadas
+    // normais confirmarem o backend. A troca manual continua disponível em
+    // Configurações > Integração.
+    nucleoConfirmedApiUrl=current;
     try{
       const confirmed=await nucleoCheckApiUrl(current);
-      nucleoConfirmedApiUrl=current;
-      return {url:current,result:confirmed};
+      return {url:current,result:confirmed,validated:true};
     }catch(e){
-      console.warn('A URL salva não foi aceita como ambiente TESTE.',e);
-      nucleoConfirmedApiUrl='';
+      console.warn('Não foi possível validar agora a URL já salva; ela será mantida.',e);
+      return {url:current,result:null,validated:false,validationError:e};
     }
   }
 
@@ -3023,8 +3039,14 @@ async function syncPublicPortalConfig(){
   try{
     const setup=await nucleoEnsureApiConfigured();
     const base=setup.url;
-    const res=setup.result;
+    let res=setup.result;
 
+    // Se a checagem inicial da URL salva apenas excedeu o tempo limite,
+    // tentamos carregar a configuração pública sem apagar a URL nem pedir o
+    // endereço novamente ao usuário.
+    if(!res?.sucesso||!res.config){
+      res=await portalJsonp({acao:'portal_public_config'},30000,base);
+    }
     if(!res?.sucesso||!res.config){
       throw new Error(res?.erro||'A configuração central TESTE não respondeu.');
     }
