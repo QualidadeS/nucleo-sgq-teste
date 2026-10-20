@@ -15165,7 +15165,13 @@ async function rncStandardMutation(payload){
   const current=normalizeRncTemplate(all[ix]);
   if(payload?.header)current.headerStandard=JSON.parse(JSON.stringify(payload.header));
   if(payload?.footer)current.footerStandard=JSON.parse(JSON.stringify(payload.footer));
-  current.standardUpdatedAt=new Date().toISOString();
+  // O salvamento central confirma a versão pelo campo updatedAt.
+  // Ao alterar apenas o cabeçalho/rodapé padrão, a versão anterior deixava
+  // updatedAt intacto e a releitura podia procurar/confirmar outro modelo mais
+  // recente, gerando o falso erro de "recebeu o salvamento, mas não confirmou".
+  const standardStamp=new Date().toISOString();
+  current.standardUpdatedAt=standardStamp;
+  current.updatedAt=standardStamp;
   all[ix]=current;
   await saveProcessTemplates(all);
   const confirmed=normalizeRncTemplate(getProcessTemplates().find(x=>x?.kind==='RNC'&&x.status!=='obsolete')||current);
