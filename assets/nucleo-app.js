@@ -1,6 +1,6 @@
 
 // Núcleo build unificado: todos os navegadores devem carregar a mesma implantação.
-window.NUCLEO_BUILD_VERSION = '20261023-1425-permissoes-individuais';
+window.NUCLEO_BUILD_VERSION = '20261023-modular-fase1-api-test';
 (function nucleoBuildConsistencyGuard(){
   try {
     var meta=document.querySelector('meta[name="nucleo-build"]');
@@ -915,11 +915,13 @@ function nucleoPersistedApiUrl(){
   return valid||'';
 }
 function portalApiBase(){
-  // A URL do backend é global para o Núcleo inteiro.
-  // Não depende mais de localStorage, conta, navegador ou computador.
+  // Ambiente modular de TESTE:
+  // 1) usa a URL publicada no build, quando existir;
+  // 2) caso contrário, reutiliza a URL já configurada neste navegador.
   return String(
     nucleoConfirmedApiUrl||
     NUCLEO_DEFAULT_API_URL||
+    nucleoPersistedApiUrl()||
     ''
   ).trim().replace(/\/+$/,'');
 }
@@ -935,22 +937,20 @@ async function nucleoCheckApiUrl(url){
     throw new Error('O endereço não confirmou uma conexão válida com o Núcleo.');
   }
 
-  // Proteção contra conectar a produção, por engano, ao backend explicitamente marcado como TESTE.
-  const ambiente=String(result?.ambiente||result?.config?.ambiente||'').trim().toUpperCase();
-  if(ambiente==='TESTE'){
-    throw new Error('Esta URL pertence ao ambiente TESTE. Informe a URL do Apps Script de produção.');
-  }
-
+  // Esta build é destinada ao ambiente modular de TESTE.
+  // Backends marcados como TESTE são aceitos aqui de propósito.
   return result;
 }
 
 async function nucleoEnsureApiConfigured(){
-  const current=String(NUCLEO_DEFAULT_API_URL||'').trim();
+  const published=String(NUCLEO_DEFAULT_API_URL||'').trim();
+  const persisted=String(nucleoPersistedApiUrl()||'').trim();
+  const current=published||persisted;
 
   if(!current){
     throw new Error(
-      'A URL central do Apps Script de produção não foi publicada pelo GitHub Actions. '+
-      'Configure a variável NUCLEO_API_URL no repositório e execute o deploy novamente.'
+      'Nenhuma URL do Apps Script foi encontrada para o ambiente de teste. '+
+      'Abra a configuração de integração desta cópia do Núcleo e informe a URL /exec do Apps Script de teste.'
     );
   }
 
