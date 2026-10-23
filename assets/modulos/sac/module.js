@@ -1598,9 +1598,42 @@ function saveExternalRoControl(){
   if(!nucleoFeatureRequire('sac','edit'))return;
   if(!isAdmin())return;
   const ro=String(document.getElementById('externalRoNumber')?.value||'').trim();
-  const normRo=v=>String(v||'').replace(/\D/g,'').replace(/^0+/,'')||String(v||'').trim().toLowerCase();
-  const baseRoRecord=getAllRoRecords().find(x=>normRo(x.numero||x.id||x.codigo||'')===normRo(ro));
-  if(baseRoRecord && !(baseRoRecord.ehSac===true||String(baseRoRecord.origemBase||'')==='Externa')){
+
+  // Não comparar somente os dígitos da R.O.
+  // RO-EX-00485 e RO-IN-00485 podem existir ao mesmo tempo e são registros distintos.
+  const requestedOrigin=roOriginFromNumber(ro,'');
+  const canonicalRo=appRoNumber(ro,requestedOrigin||'Externa');
+
+  const baseRoRecord=getAllRoRecords().find(x=>{
+    const rawNumber=x?.numero||x?.id||x?.codigo||'';
+    const recordOrigin=String(
+      x?.origemBase||
+      x?.raw?.__origemBase||
+      roOriginFromNumber(rawNumber,'')
+    ).trim();
+
+    const recordCanonical=appRoNumber(rawNumber,recordOrigin||requestedOrigin||'Externa');
+
+    return recordCanonical===canonicalRo &&
+      (!requestedOrigin || recordOrigin===requestedOrigin || roOriginFromNumber(rawNumber,'')===requestedOrigin);
+  });
+
+  const baseOrigin=String(
+    baseRoRecord?.origemBase||
+    baseRoRecord?.raw?.__origemBase||
+    roOriginFromNumber(baseRoRecord?.numero||baseRoRecord?.id||baseRoRecord?.codigo||'','')
+  ).trim();
+
+  // Uma R.O. explicitamente RO-EX é externa e nunca deve ser bloqueada
+  // porque exista uma RO-IN com o mesmo número sequencial.
+  const isExternalRo=requestedOrigin==='Externa' ||
+    baseRoRecord?.ehSac===true ||
+    baseOrigin==='Externa';
+
+  const isInternalRo=requestedOrigin==='Interna' ||
+    (!!baseRoRecord && !isExternalRo && baseOrigin==='Interna');
+
+  if(isInternalRo){
     alert('Esta R.O. pertence à aba Interna. O Controle de SAC aceita apenas R.O.s da aba Externa.');
     return;
   }

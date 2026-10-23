@@ -1,5 +1,5 @@
 {
-  "build": "20261023-modular-teste-v4-confirmacao-marcador",
+  "build": "20261023-modular-teste-v6-marcador-rota-confirmada",
   "environment": "TESTE",
   "architecture": "modular-monolith",
   "rules": {
@@ -73,7 +73,9 @@
   "changes": [
     "E-mail de R.O. direcionada mostra o motivo informado na triagem.",
     "PDF da R.O. converte corretamente as alturas do editor visual.",
-    "Confirmação do marcador administrativo agora é feita pela leitura da base central, sem falso timeout do JSONP."
+    "Confirmação do marcador administrativo agora é feita pela leitura da base central, sem falso timeout do JSONP.",
+    "SAC diferencia RO-EX e RO-IN mesmo quando possuem o mesmo número sequencial.",
+    "Marcador administrativo usa portalBackendSaveConfirmedPost em vez de portalPostForm."
   ],
   "folderNaming": "friendly-portuguese",
   "folderMap": {

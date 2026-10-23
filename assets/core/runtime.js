@@ -1,6 +1,6 @@
 
 // Núcleo build unificado: todos os navegadores devem carregar a mesma implantação.
-window.NUCLEO_BUILD_VERSION = '20261023-modular-teste-v4-confirmacao-marcador';
+window.NUCLEO_BUILD_VERSION = '20261023-modular-teste-v6-marcador-rota-confirmada';
 (function nucleoBuildConsistencyGuard(){
   try {
     var meta=document.querySelector('meta[name="nucleo-build"]');
@@ -12710,52 +12710,20 @@ async function adminCleanupSaveSharedState(key,value){
     updatedBy:getSession()?.name||'SGQ'
   };
 
-  // Não depende mais de a requisição JSONP ficar aberta até o Apps Script terminar.
-  // Envia a gravação e confirma lendo a própria base central.
-  const submitted=portalPostForm({
-    acao:'portal_save',
-    colecao:'shared_state',
+  // Usa a mesma rota central confirmada das demais gravações do Núcleo.
+  // Isso evita depender de fetch/form POST bloqueado pelo navegador/CORS.
+  const saveResult=await portalBackendSaveConfirmedPost(
+    'shared_state',
     id,
-    dados:JSON.stringify(record),
-    ator:getSession()?.name||'SGQ'
-  });
+    record,
+    150000
+  );
 
-  if(!submitted){
-    throw new Error('Não foi possível enviar a atualização do marcador administrativo.');
+  if(!saveResult){
+    throw new Error('A base central não confirmou a atualização do marcador administrativo.');
   }
 
-  const started=Date.now();
-  const timeoutMs=150000;
-  let lastSeen=null;
-
-  while(Date.now()-started<timeoutMs){
-    await new Promise(resolve=>setTimeout(resolve,1200));
-
-    const verify=await portalJsonp({
-      acao:'portal_get_record',
-      colecao:'shared_state',
-      id
-    },15000).catch(()=>null);
-
-    const found=verify?.registro||null;
-    if(found){
-      lastSeen=found;
-      if(
-        String(found.value??'')===expectedValue &&
-        (!record.updatedAt || String(found.updatedAt||'')===String(record.updatedAt))
-      ){
-        return true;
-      }
-
-      // Compatibilidade: algumas bases antigas podem regravar updatedAt.
-      // O valor é a informação autoritativa deste marcador.
-      if(String(found.value??'')===expectedValue){
-        return true;
-      }
-    }
-  }
-
-  // Uma última leitura antes de declarar erro.
+  // Confirma novamente lendo o valor autoritativo.
   const finalVerify=await portalJsonp({
     acao:'portal_get_record',
     colecao:'shared_state',
@@ -12766,8 +12734,14 @@ async function adminCleanupSaveSharedState(key,value){
     return true;
   }
 
+  // Se a própria gravação confirmada retornou sucesso, aceita a confirmação
+  // mesmo que a leitura imediata ainda esteja propagando.
+  if(saveResult===true || saveResult?.ok===true || saveResult?.sucesso===true || saveResult?.registro){
+    return true;
+  }
+
   throw new Error(
-    'O Apps Script recebeu a alteração, mas o novo valor do marcador administrativo ainda não apareceu na base central.'
+    'A base central não confirmou a atualização do marcador administrativo.'
   );
 }
 
