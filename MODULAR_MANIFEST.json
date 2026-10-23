@@ -1,5 +1,5 @@
 {
-  "build": "20261023-modular-consolidado-teste-v1",
+  "build": "20261023-modular-consolidado-teste-v3-nomes-facilitados",
   "environment": "TESTE",
   "architecture": "modular-monolith",
   "rules": {
@@ -9,32 +9,32 @@
     "backendSource": "Nucleo_AppsScript_PRODUCAO.txt"
   },
   "modules": {
-    "announcements": {
+    "comunicados": {
       "version": "2.0.0-test",
       "functions": 38,
       "status": "TESTE - AGUARDANDO VALIDAÇÃO"
     },
-    "audit5s": {
+    "auditoria-5s": {
       "version": "2.0.0-test",
       "functions": 25,
       "status": "TESTE - AGUARDANDO VALIDAÇÃO"
     },
-    "documents": {
+    "documentos": {
       "version": "2.0.0-test",
       "functions": 20,
       "status": "TESTE - AGUARDANDO VALIDAÇÃO"
     },
-    "equipment": {
+    "equipamentos": {
       "version": "2.0.0-test",
       "functions": 10,
       "status": "TESTE - AGUARDANDO VALIDAÇÃO"
     },
-    "indicators": {
+    "indicadores": {
       "version": "2.0.0-test",
       "functions": 16,
       "status": "TESTE - AGUARDANDO VALIDAÇÃO"
     },
-    "nc": {
+    "rnc": {
       "version": "2.0.0-test",
       "functions": 192,
       "status": "TESTE - AGUARDANDO VALIDAÇÃO"
@@ -44,12 +44,12 @@
       "functions": 97,
       "status": "TESTE - AGUARDANDO VALIDAÇÃO"
     },
-    "processes": {
+    "gestao-processos": {
       "version": "2.0.0-test",
       "functions": 19,
       "status": "TESTE - AGUARDANDO VALIDAÇÃO"
     },
-    "ro": {
+    "relato-ocorrencia": {
       "version": "2.0.0-test",
       "functions": 61,
       "status": "TESTE - AGUARDANDO VALIDAÇÃO"
@@ -59,15 +59,34 @@
       "functions": 89,
       "status": "TESTE - AGUARDANDO VALIDAÇÃO"
     },
-    "training": {
+    "treinamentos": {
       "version": "2.0.0-test",
       "functions": 0,
       "status": "TESTE - AGUARDANDO VALIDAÇÃO"
     },
-    "users": {
+    "usuarios-acessos": {
       "version": "2.0.0-test",
       "functions": 40,
       "status": "TESTE - AGUARDANDO VALIDAÇÃO"
     }
+  },
+  "changes": [
+    "E-mail de R.O. direcionada mostra o motivo informado na triagem.",
+    "PDF da R.O. converte corretamente as alturas do editor visual."
+  ],
+  "folderNaming": "friendly-portuguese",
+  "folderMap": {
+    "users": "usuarios-acessos",
+    "ro": "relato-ocorrencia",
+    "pdca": "pdca",
+    "sac": "sac",
+    "audit5s": "auditoria-5s",
+    "equipment": "equipamentos",
+    "training": "treinamentos",
+    "documents": "documentos",
+    "processes": "gestao-processos",
+    "nc": "rnc",
+    "indicators": "indicadores",
+    "announcements": "comunicados"
   }
 }

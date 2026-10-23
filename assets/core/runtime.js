@@ -1,6 +1,6 @@
 
 // Núcleo build unificado: todos os navegadores devem carregar a mesma implantação.
-window.NUCLEO_BUILD_VERSION = '20261023-modular-consolidado-teste-v1';
+window.NUCLEO_BUILD_VERSION = '20261023-modular-consolidado-teste-v3-nomes-facilitados';
 (function nucleoBuildConsistencyGuard(){
   try {
     var meta=document.querySelector('meta[name="nucleo-build"]');
@@ -6300,6 +6300,16 @@ function nucleoRoCellPersistMeta(cell){
   return {source:dec(parts[0]),mask:/^[01]{4}$/.test(parts[1]||'')?parts[1]:'',fill:hasFill?parts[2]:'',label:dec(parts.slice(hasFill?3:2).join('~'))};
 }
 function nucleoRoModelRowUnits(row){const cells=row?.cells||[];if(!cells.length)return[];const total=cells.reduce((s,c)=>s+Math.max(.01,Number(c.width)||50),0)||100;let used=0;return cells.map((c,i)=>{if(i===cells.length-1)return Math.max(1,100-used);const rem=cells.length-i-1;let u=Math.max(1,Math.round((Math.max(.01,Number(c.width)||50)/total)*100));u=Math.min(u,Math.max(1,100-used-rem));used+=u;return u;});}
+function nucleoRoModelHeightMm(value,kind='cell'){
+  // A altura salva pelo editor visual é uma medida de tela (aprox. px).
+  // Interpretá-la diretamente como mm faz linhas de 60/80 virarem 6/8 cm no PDF.
+  // Convertemos px -> mm e aplicamos limites seguros para impressão.
+  const px=Number(value);
+  if(!Number.isFinite(px)||px<=0)return kind==='image'?12:4;
+  const mm=px*0.264583;
+  if(kind==='image')return Math.max(6,Math.min(90,mm));
+  return Math.max(3,Math.min(30,mm));
+}
 function nucleoRoModelRowsHtml(grid,ro,model,images,pageNo=1,totalPages=1){
   const safeColor=(v,d)=>/^#[0-9a-f]{6}$/i.test(String(v||''))?v:d;
   const safeFill=(v,d='#ffffff')=>String(v||'').toLowerCase()==='transparent'?'transparent':safeColor(v,d);
@@ -6328,13 +6338,13 @@ function nucleoRoModelRowsHtml(grid,ro,model,images,pageNo=1,totalPages=1){
     let content='';
     if(cell.type==='image'){
       const img=images?.[cell.imageFileId]||'';
-      content=img?`<img src="${nucleoRoModelEsc(img)}" style="display:block;width:100%;height:100%;max-height:${Math.max(3,Number(cell.height)||9)}mm;object-fit:${cell.imageFit==='cover'?'cover':'contain'}">`:'';
+      content=img?`<img src="${nucleoRoModelEsc(img)}" style="display:block;width:100%;height:100%;max-height:${nucleoRoModelHeightMm(cell.height,'image')}mm;object-fit:${cell.imageFit==='cover'?'cover':'contain'}">`:'';
     }else if(src){
       content=nucleoRoModelEsc(nucleoRoModelValue(ro,src,model,pageNo,totalPages)).replace(/\n/g,'<br>');
     }else content=nucleoRoModelEsc(cell.text||'').replace(/\n/g,'<br>');
     const visibleLabel=String(cell.labelText||cell.systemLabelText||meta.label||'');
     if(visibleLabel){content=`<div class="cell-stack"><span class="cell-label" style="font-size:${Math.max(5,Number(cell.labelFontSize)||7)}pt;font-weight:${cell.labelBold===false?'400':'700'}">${nucleoRoModelEsc(visibleLabel)}</span><span>${content||''}</span></div>`;}
-    return `<td colspan="${units[ci]||1}" ${Number(cell.rowSpan)>1?`rowspan="${Math.floor(Number(cell.rowSpan))}"`:''} style="height:${Math.max(3,Number(cell.height)||9)}mm;background:${cell.backgroundNone===true||meta.fill==='1'?'transparent':safeFill(cell.background,'#ffffff')};color:${safeColor(cell.textColor,'#222222')};border-top:${side('Top')};border-right:${side('Right')};border-bottom:${side('Bottom')};border-left:${side('Left')};padding:1.3mm;text-align:${['left','center','right'].includes(cell.align)?cell.align:'left'};vertical-align:${['top','middle','bottom'].includes(cell.verticalAlign)?cell.verticalAlign:'middle'};font-size:${Math.max(6,Number(cell.fontSize)||9)}pt;font-weight:${cell.bold?'700':'400'};font-style:${cell.italic?'italic':'normal'};overflow-wrap:anywhere;white-space:pre-wrap">${content||'&nbsp;'}</td>`;
+    return `<td colspan="${units[ci]||1}" ${Number(cell.rowSpan)>1?`rowspan="${Math.floor(Number(cell.rowSpan))}"`:''} style="height:${nucleoRoModelHeightMm(cell.height,'cell')}mm;background:${cell.backgroundNone===true||meta.fill==='1'?'transparent':safeFill(cell.background,'#ffffff')};color:${safeColor(cell.textColor,'#222222')};border-top:${side('Top')};border-right:${side('Right')};border-bottom:${side('Bottom')};border-left:${side('Left')};padding:.9mm 1.1mm;text-align:${['left','center','right'].includes(cell.align)?cell.align:'left'};vertical-align:${['top','middle','bottom'].includes(cell.verticalAlign)?cell.verticalAlign:'middle'};font-size:${Math.max(6,Number(cell.fontSize)||9)}pt;font-weight:${cell.bold?'700':'400'};font-style:${cell.italic?'italic':'normal'};overflow-wrap:anywhere;white-space:pre-wrap">${content||'&nbsp;'}</td>`;
    }).join(''))+'</tr>';}).join('');
 }
 function nucleoRoEvidenceUrls(ro){
