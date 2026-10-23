@@ -1,5 +1,5 @@
 {
-  "build": "20261023-modular-teste-v10-ro-slides-prototipo",
+  "build": "20261023-modular-teste-v11-ro-slides-modelo-central-mm",
   "environment": "TESTE",
   "architecture": "modular-monolith",
   "rules": {
@@ -79,7 +79,8 @@
     "shared_state é confirmado por conteúdo, sem exigir updatedAt idêntico.",
     "Editor/PDF da R.O. preserva propriedades visuais e altura em px.",
     "PDF da R.O. usa CSS Grid em vez de tabela para preservar alturas e mesclagens.",
-    "Protótipo: PDF da R.O. usa Google Slides A4 como motor de impressão quando configurado."
+    "Protótipo: PDF da R.O. usa Google Slides A4 como motor de impressão quando configurado.",
+    "Slides converte altura mm→pt e relê documentFormats.ro diretamente de unit_config."
   ],
   "folderNaming": "friendly-portuguese",
   "folderMap": {

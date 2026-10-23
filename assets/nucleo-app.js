@@ -1,5 +1,5 @@
-/* NÚCLEO MODULAR — TESTE DO NOVO GERADOR DE R.O.
-Build: 20261023-modular-teste-v10-ro-slides-prototipo
-Motor novo: Google Slides A4 quando configurado.
+/* NÚCLEO MODULAR — TESTE R.O. SLIDES
+Build: 20261023-modular-teste-v11-ro-slides-modelo-central-mm
+Modelo relido diretamente da base central + alturas em mm.
 */
-window.NUCLEO_MODULAR_BOOTSTRAP='20261023-modular-teste-v10-ro-slides-prototipo';
+window.NUCLEO_MODULAR_BOOTSTRAP='20261023-modular-teste-v11-ro-slides-modelo-central-mm';
