@@ -1,23 +1,13 @@
 {
   "key": "training",
   "name": "Treinamentos",
-  "version": "1.0.0",
-  "status": "protected",
-  "owns": [
-    "treinamentos",
-    "reciclagens",
-    "histórico de competências"
-  ],
-  "collections": [
-    "admin_modules"
-  ],
+  "version": "2.0.0-test",
+  "status": "migration-test",
   "dependsOn": [
     "core.auth",
     "core.permissions",
     "core.api"
   ],
-  "forbiddenDirectDependencies": [
-    "sac",
-    "audit5s"
-  ]
+  "functionCount": 0,
+  "functions": []
 }

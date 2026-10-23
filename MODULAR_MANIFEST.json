@@ -1,0 +1,73 @@
+{
+  "build": "20261023-modular-consolidado-teste-v1",
+  "environment": "TESTE",
+  "architecture": "modular-monolith",
+  "rules": {
+    "productionUntouched": true,
+    "moduleChangesStayInsideModule": true,
+    "sharedChangesOnlyInCore": true,
+    "backendSource": "Nucleo_AppsScript_PRODUCAO.txt"
+  },
+  "modules": {
+    "announcements": {
+      "version": "2.0.0-test",
+      "functions": 38,
+      "status": "TESTE - AGUARDANDO VALIDAÇÃO"
+    },
+    "audit5s": {
+      "version": "2.0.0-test",
+      "functions": 25,
+      "status": "TESTE - AGUARDANDO VALIDAÇÃO"
+    },
+    "documents": {
+      "version": "2.0.0-test",
+      "functions": 20,
+      "status": "TESTE - AGUARDANDO VALIDAÇÃO"
+    },
+    "equipment": {
+      "version": "2.0.0-test",
+      "functions": 10,
+      "status": "TESTE - AGUARDANDO VALIDAÇÃO"
+    },
+    "indicators": {
+      "version": "2.0.0-test",
+      "functions": 16,
+      "status": "TESTE - AGUARDANDO VALIDAÇÃO"
+    },
+    "nc": {
+      "version": "2.0.0-test",
+      "functions": 192,
+      "status": "TESTE - AGUARDANDO VALIDAÇÃO"
+    },
+    "pdca": {
+      "version": "2.0.0-test",
+      "functions": 97,
+      "status": "TESTE - AGUARDANDO VALIDAÇÃO"
+    },
+    "processes": {
+      "version": "2.0.0-test",
+      "functions": 19,
+      "status": "TESTE - AGUARDANDO VALIDAÇÃO"
+    },
+    "ro": {
+      "version": "2.0.0-test",
+      "functions": 61,
+      "status": "TESTE - AGUARDANDO VALIDAÇÃO"
+    },
+    "sac": {
+      "version": "2.0.0-test",
+      "functions": 89,
+      "status": "TESTE - AGUARDANDO VALIDAÇÃO"
+    },
+    "training": {
+      "version": "2.0.0-test",
+      "functions": 0,
+      "status": "TESTE - AGUARDANDO VALIDAÇÃO"
+    },
+    "users": {
+      "version": "2.0.0-test",
+      "functions": 40,
+      "status": "TESTE - AGUARDANDO VALIDAÇÃO"
+    }
+  }
+}

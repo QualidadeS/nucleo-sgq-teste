@@ -1,27 +1,34 @@
 {
   "key": "documents",
   "name": "Documentos",
-  "version": "1.0.0",
-  "status": "protected",
-  "owns": [
-    "documentos padrão",
-    "solicitações",
-    "entregas",
-    "histórico"
-  ],
-  "collections": [
-    "standard_documents",
-    "document_templates",
-    "requested_documents",
-    "document_deliveries"
-  ],
+  "version": "2.0.0-test",
+  "status": "migration-test",
   "dependsOn": [
     "core.auth",
     "core.permissions",
     "core.api"
   ],
-  "forbiddenDirectDependencies": [
-    "audit5s",
-    "equipment"
+  "functionCount": 20,
+  "functions": [
+    "canRequestDocuments",
+    "renderPdcaPrintDocument",
+    "buildPdcaPresentationDocument",
+    "getStandardDocuments",
+    "saveStandardDocumentsLocal",
+    "getDocumentDeliveries",
+    "configuredDocumentTypes",
+    "documentTypeOptions",
+    "standardDocumentTypeLabel",
+    "renderDocumentTypeSettings",
+    "addDocumentTypeSettingRow",
+    "standardDocumentIsValid",
+    "findMatchingStandardDocument",
+    "openStandardDocumentCreate",
+    "saveStandardDocument",
+    "renderStandardDocumentsWorkspace",
+    "toggleStandardDocument",
+    "deleteStandardDocument",
+    "renderDocumentDeliveriesWorkspace",
+    "autoFulfillDocumentRequest"
   ]
 }

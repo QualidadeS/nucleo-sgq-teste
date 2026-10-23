@@ -1,24 +1,33 @@
 {
   "key": "processes",
   "name": "Gestão de processos",
-  "version": "1.0.0",
-  "status": "protected",
-  "owns": [
-    "processos",
-    "documentos internos",
-    "modelos",
-    "nomenclaturas"
-  ],
-  "collections": [
-    "admin_modules"
-  ],
+  "version": "2.0.0-test",
+  "status": "migration-test",
   "dependsOn": [
     "core.auth",
     "core.permissions",
     "core.api"
   ],
-  "forbiddenDirectDependencies": [
-    "sac",
-    "audit5s"
+  "functionCount": 19,
+  "functions": [
+    "processDeadlineAlerts",
+    "requestEmailQueueProcessing",
+    "defaultProcessLayouts",
+    "getProcessLayouts",
+    "saveProcessLayouts",
+    "processLayoutById",
+    "createProcessLayout",
+    "duplicateProcessLayout",
+    "toggleProcessLayoutStatus",
+    "createProcessDocumentModel",
+    "duplicateProcessDocumentModel",
+    "toggleProcessDocumentStatus",
+    "processDocumentLibraryHtml",
+    "getProcessTemplates",
+    "nucleoProcessTemplateSaveUnit",
+    "nucleoApplyProcessTemplateImageRefs",
+    "saveProcessTemplates",
+    "renderProcessTemplatesWorkspace",
+    "nucleoSaveProcessRecordConfirmed"
   ]
 }
