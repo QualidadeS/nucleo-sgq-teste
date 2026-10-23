@@ -1,9 +1,9 @@
 {
-  "build": "20261023-modular-teste-v7-marcador-conteudo-confirmado",
+  "build": "20261023-modular-teste-v8-formato-ro-persistente",
   "algorithm": "sha256",
   "files": {
-    "index.html": "77e086212ee7b49c22824c981cdf4cd5ce109dab299951e39aca0a8f05cc7801",
-    "Nucleo_AppsScript_PRODUCAO.txt": "4e30995e6ab3a1658ea492f544a39f4b426833b7d8094f0f176e7725e52f405b",
+    "index.html": "e95ba7c7d2d4efe686c03fad4c0cc64a7bb599ca30daf591fa23f4119c16c34f",
+    "Nucleo_AppsScript_PRODUCAO.txt": "a87c23c8ac1a8d459469623d374e2d1fe1dc534c09fa6383fea99f66fc2aed81",
     "assets/core/api-sync.js": "3fb21cbf289d8ec45b248a33b81070f6f08d7ae728bac23bd0c1ecbf6204bec8",
     "assets/core/auth.js": "920ddf4ed4ef24bb3f779b997096ccded49b8196da67bebf9991a61d3e40ab06",
     "assets/core/core-facade.js": "ba52e50976da75ecb9b954d9121864eddb7a98e72cea8b9f2f0e462449a0b051",
@@ -14,7 +14,7 @@
     "assets/core/module-registry.js": "2be8200beed59dda5fdcd5ed91253a9036ec820b9a3c428467274dfb88a49fdc",
     "assets/core/navigation.js": "ed6146bb5c83466603ebaded67e7dc0aeaa59a97ed3b8047ef2dcbc5f27caab1",
     "assets/core/notifications.js": "4a31d89ae49a60ac3f8295686eeef777edba7667c7d21400c09e1a0a6a193ecd",
-    "assets/core/runtime.js": "27267a7a7de93d94ee1c647f85d26bb00a4e48d9d72aee820a4197ebb630bcaf",
+    "assets/core/runtime.js": "230859c532c9c752af1ad19d9c68dbcf5438cec0e4bc8afb976915cbcfdba067",
     "assets/core/settings.js": "42865a9aa2c1129ce85f3e81c8f84b986bd6fb8f92837ff6d0bb2895cdd0146a",
     "assets/core/storage.js": "d531635126826aab93dc9a256f41aebe5e5e3bc75fe99d3ec686e222bf79efa5",
     "assets/core/ui.js": "5ee134fed890769a93d45d4eab1d6b87d63677f58d2474009c33cc810fc276ed",
@@ -31,6 +31,6 @@
     "assets/modulos/sac/module.js": "e03e08441b31e8eaae91e707493902324342f997b96edd1cd9243d3802d0d955",
     "assets/modulos/treinamentos/module.js": "3a16d51a5e372cb600248b9e7ae208f692858f4e33c6895b0f9c8c8005f097f7",
     "assets/modulos/usuarios-acessos/module.js": "710eba8fa589fce4504a15f6587b2e0e9799d7e23651b214314c6ef5069221f7",
-    "assets/nucleo-app.js": "28021127b887b63093eb9ab860d2eeb9c5ce1673e7a096a5094a6319636cecc0"
+    "assets/nucleo-app.js": "069641e0557fa05ccc9d969d65c35b4575822a70200e4b926b2cbe0855d8f630"
   }
 }

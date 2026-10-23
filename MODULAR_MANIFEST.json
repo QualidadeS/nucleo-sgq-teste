@@ -1,5 +1,5 @@
 {
-  "build": "20261023-modular-teste-v7-marcador-conteudo-confirmado",
+  "build": "20261023-modular-teste-v8-formato-ro-persistente",
   "environment": "TESTE",
   "architecture": "modular-monolith",
   "rules": {
@@ -76,7 +76,8 @@
     "Confirmação do marcador administrativo agora é feita pela leitura da base central, sem falso timeout do JSONP.",
     "SAC diferencia RO-EX e RO-IN mesmo quando possuem o mesmo número sequencial.",
     "Marcador administrativo usa portalBackendSaveConfirmedPost em vez de portalPostForm.",
-    "shared_state é confirmado por conteúdo, sem exigir updatedAt idêntico."
+    "shared_state é confirmado por conteúdo, sem exigir updatedAt idêntico.",
+    "Editor/PDF da R.O. preserva propriedades visuais e altura em px."
   ],
   "folderNaming": "friendly-portuguese",
   "folderMap": {
