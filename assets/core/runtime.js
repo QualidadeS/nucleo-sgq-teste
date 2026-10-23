@@ -1,6 +1,6 @@
 
 // Núcleo build unificado: todos os navegadores devem carregar a mesma implantação.
-window.NUCLEO_BUILD_VERSION = '20261023-modular-teste-v8-formato-ro-persistente';
+window.NUCLEO_BUILD_VERSION = '20261023-modular-teste-v9-grade-impressao-ro';
 (function nucleoBuildConsistencyGuard(){
   try {
     var meta=document.querySelector('meta[name="nucleo-build"]');
@@ -6311,38 +6311,136 @@ function nucleoRoModelRowsHtml(grid,ro,model,images,pageNo=1,totalPages=1){
   const safeColor=(v,d)=>/^#[0-9a-f]{6}$/i.test(String(v||''))?v:d;
   const safeFill=(v,d='#ffffff')=>String(v||'').toLowerCase()==='transparent'?'transparent':safeColor(v,d);
   const rows=Array.isArray(grid)?grid:[];
-  return rows.map(row=>{const units=nucleoRoModelRowUnits(row);return '<tr>'+((row.cells||[]).map((cell,ci)=>{
-    const meta=nucleoRoCellPersistMeta(cell);
-    // V62: alguns backends preservam o texto do placeholder, mas removem a origem
-    // especial da célula. Nesse caso, recupere a origem pelo próprio placeholder
-    // para que PÁGINA (e os demais campos dinâmicos) continuem funcionando no PDF.
-    const persistedText=String(cell.text||'').trim();
-    const placeholderSource={
-      '[CÓDIGO DO DOCUMENTO]':'#CODE',
-      '[CODIGO DO DOCUMENTO]':'#CODE',
-      '[REVISÃO]':'#REVISION',
-      '[REVISAO]':'#REVISION',
-      '[NÚMERO / REGISTRO]':'#REGISTER',
-      '[NUMERO / REGISTRO]':'#REGISTER',
-      '[PÁGINA]':'#PAGE',
-      '[PAGINA]':'#PAGE'
-    };
-    let src=String(cell.systemSource||meta.source||cell.source||'');
-    if(!src)src=placeholderSource[persistedText]||'';
-    const rawBw=Number(cell.borderWidth),bw=Math.max(0,Math.min(4,Number.isFinite(rawBw)?rawBw:.5)),bc=safeColor(cell.borderColor,'#999999');
-    const sideIndex={Top:0,Right:1,Bottom:2,Left:3};
-    const side=(name)=>{const explicit=meta.mask?meta.mask[sideIndex[name]]==='1':cell['border'+name]!==false;return explicit?`${bw}pt solid ${safeColor(cell['border'+name+'Color'],bc)}`:'0';};
-    let content='';
-    if(cell.type==='image'){
-      const img=images?.[cell.imageFileId]||'';
-      content=img?`<img src="${nucleoRoModelEsc(img)}" style="display:block;width:100%;height:100%;max-height:${nucleoRoModelHeightPx(cell.height,'image')}px;object-fit:${cell.imageFit==='cover'?'cover':'contain'}">`:'';
-    }else if(src){
-      content=nucleoRoModelEsc(nucleoRoModelValue(ro,src,model,pageNo,totalPages)).replace(/\n/g,'<br>');
-    }else content=nucleoRoModelEsc(cell.text||'').replace(/\n/g,'<br>');
-    const visibleLabel=String(cell.labelText||cell.systemLabelText||meta.label||'');
-    if(visibleLabel){content=`<div class="cell-stack"><span class="cell-label" style="font-size:${Math.max(5,Number(cell.labelFontSize)||7)}pt;font-weight:${cell.labelBold===false?'400':'700'}">${nucleoRoModelEsc(visibleLabel)}</span><span>${content||''}</span></div>`;}
-    return `<td colspan="${units[ci]||1}" ${Number(cell.rowSpan)>1?`rowspan="${Math.floor(Number(cell.rowSpan))}"`:''} style="height:${nucleoRoModelHeightPx(cell.height,'cell')}px;background:${cell.backgroundNone===true||meta.fill==='1'?'transparent':safeFill(cell.background,'#ffffff')};color:${safeColor(cell.textColor,'#222222')};border-top:${side('Top')};border-right:${side('Right')};border-bottom:${side('Bottom')};border-left:${side('Left')};padding:${Number.isFinite(Number(cell.padding))?Math.max(0,Math.min(24,Number(cell.padding))):4}px;text-align:${['left','center','right'].includes(cell.align)?cell.align:'left'};vertical-align:${['top','middle','bottom'].includes(cell.verticalAlign)?cell.verticalAlign:'middle'};font-size:${Math.max(6,Number(cell.fontSize)||9)}pt;font-weight:${cell.bold?'700':'400'};font-style:${cell.italic?'italic':'normal'};overflow-wrap:anywhere;white-space:pre-wrap">${content||'&nbsp;'}</td>`;
-   }).join(''))+'</tr>';}).join('');
+  if(!rows.length)return '';
+
+  const rowHeights=rows.map((row)=>{
+    const own=(row?.cells||[]).filter(c=>(Number(c.rowSpan)||1)<=1).map(c=>nucleoRoModelHeightPx(c.height,'cell'));
+    return Math.max(3,...own,24);
+  });
+
+  // A célula mesclada define a altura total do bloco. Distribui somente o que faltar
+  // pelas linhas ocupadas, sem deixar a tabela/navegador recalcular as proporções.
+  rows.forEach((row,ri)=>{
+    (row?.cells||[]).forEach(cell=>{
+      const span=Math.max(1,Math.floor(Number(cell.rowSpan)||1));
+      if(span<=1)return;
+      const wanted=nucleoRoModelHeightPx(cell.height,'cell');
+      const stop=Math.min(rows.length,ri+span);
+      const current=rowHeights.slice(ri,stop).reduce((a,b)=>a+b,0);
+      if(current<wanted){
+        const add=(wanted-current)/(stop-ri);
+        for(let r=ri;r<stop;r++)rowHeights[r]+=add;
+      }
+    });
+  });
+
+  const occupied={};
+  const cellsHtml=[];
+
+  rows.forEach((row,ri)=>{
+    const rowNo=ri+1;
+    const blocks=(occupied[rowNo]||[]).slice().sort((a,b)=>a[0]-b[0]);
+    const free=[];
+    let cursor=0;
+    blocks.forEach(([l,r])=>{
+      if(l>cursor)free.push([cursor,l]);
+      cursor=Math.max(cursor,r);
+    });
+    if(cursor<1000)free.push([cursor,1000]);
+
+    const cells=row?.cells||[];
+    const total=cells.reduce((s,c)=>s+Math.max(.01,Number(c.width)||50),0)||100;
+    const freeTotal=free.reduce((s,z)=>s+z[1]-z[0],0)||1000;
+    let segment=0,segmentPos=free[0]?.[0]||0;
+
+    cells.forEach((cell)=>{
+      let want=Math.max(1,(Math.max(.01,Number(cell.width)||50)/total)*freeTotal);
+      let left=null,right=null;
+
+      while(want>.01 && segment<free.length){
+        const [sl,sr]=free[segment];
+        segmentPos=Math.max(segmentPos,sl);
+        const avail=sr-segmentPos;
+        if(avail<=.01){
+          segment++;
+          segmentPos=free[segment]?.[0]||1000;
+          continue;
+        }
+        const take=Math.min(want,avail);
+        if(left===null)left=segmentPos;
+        right=segmentPos+take;
+        segmentPos+=take;
+        want-=take;
+        if(segmentPos>=sr-.01){
+          segment++;
+          segmentPos=free[segment]?.[0]||1000;
+        }
+      }
+
+      if(left===null){left=0;right=1;}
+
+      const span=Math.max(1,Math.floor(Number(cell.rowSpan)||1));
+      if(span>1){
+        for(let z=1;z<span && rowNo+z<=rows.length;z++){
+          (occupied[rowNo+z]||(occupied[rowNo+z]=[])).push([left,right]);
+        }
+      }
+
+      const meta=nucleoRoCellPersistMeta(cell);
+      const persistedText=String(cell.text||'').trim();
+      const placeholderSource={
+        '[CÓDIGO DO DOCUMENTO]':'#CODE','[CODIGO DO DOCUMENTO]':'#CODE',
+        '[REVISÃO]':'#REVISION','[REVISAO]':'#REVISION',
+        '[NÚMERO / REGISTRO]':'#REGISTER','[NUMERO / REGISTRO]':'#REGISTER',
+        '[PÁGINA]':'#PAGE','[PAGINA]':'#PAGE'
+      };
+      let src=String(cell.systemSource||meta.source||cell.source||'');
+      if(!src)src=placeholderSource[persistedText]||'';
+
+      const rawBw=Number(cell.borderWidth);
+      const bw=Math.max(0,Math.min(4,Number.isFinite(rawBw)?rawBw:.5));
+      const bc=safeColor(cell.borderColor,'#999999');
+      const sideIndex={Top:0,Right:1,Bottom:2,Left:3};
+      const side=(name)=>{
+        const explicit=meta.mask?meta.mask[sideIndex[name]]==='1':cell['border'+name]!==false;
+        return explicit?`${bw}pt solid ${safeColor(cell['border'+name+'Color'],bc)}`:'0';
+      };
+
+      let content='';
+      if(cell.type==='image'){
+        const img=images?.[cell.imageFileId]||'';
+        content=img?`<img src="${nucleoRoModelEsc(img)}" style="display:block;width:100%;height:100%;object-fit:${cell.imageFit==='cover'?'cover':'contain'}">`:'';
+      }else if(src){
+        content=nucleoRoModelEsc(nucleoRoModelValue(ro,src,model,pageNo,totalPages)).replace(/\n/g,'<br>');
+      }else{
+        content=nucleoRoModelEsc(cell.text||'').replace(/\n/g,'<br>');
+      }
+
+      const visibleLabel=String(cell.labelText||cell.systemLabelText||meta.label||'');
+      if(visibleLabel){
+        content=`<div class="cell-stack"><span class="cell-label" style="font-size:${Math.max(5,Number(cell.labelFontSize)||7)}pt;font-weight:${cell.labelBold===false?'400':'700'}">${nucleoRoModelEsc(visibleLabel)}</span><span>${content||''}</span></div>`;
+      }
+
+      const cs=Math.max(1,Math.round(left)+1);
+      const ce=Math.max(cs+1,Math.round(right)+1);
+      const rs=rowNo,re=Math.min(rows.length+1,rowNo+span);
+
+      cellsHtml.push(
+        `<div class="ro-model-cell" style="grid-column:${cs}/${ce};grid-row:${rs}/${re};`+
+        `background:${cell.backgroundNone===true||meta.fill==='1'?'transparent':safeFill(cell.background,'#ffffff')};`+
+        `color:${safeColor(cell.textColor,'#222222')};border-top:${side('Top')};border-right:${side('Right')};`+
+        `border-bottom:${side('Bottom')};border-left:${side('Left')};`+
+        `padding:${Number.isFinite(Number(cell.padding))?Math.max(0,Math.min(24,Number(cell.padding))):4}px;`+
+        `text-align:${['left','center','right'].includes(cell.align)?cell.align:'left'};`+
+        `align-items:${cell.verticalAlign==='top'?'flex-start':cell.verticalAlign==='bottom'?'flex-end':'center'};`+
+        `justify-content:${cell.align==='center'?'center':cell.align==='right'?'flex-end':'flex-start'};`+
+        `font-size:${Math.max(6,Number(cell.fontSize)||9)}pt;font-weight:${cell.bold?'700':'400'};`+
+        `font-style:${cell.italic?'italic':'normal'}">${content||'&nbsp;'}</div>`
+      );
+    });
+  });
+
+  return `<div class="ro-model-grid" style="grid-template-rows:${rowHeights.map(h=>`${Math.max(3,h)}px`).join(' ')}">${cellsHtml.join('')}</div>`;
 }
 function nucleoRoEvidenceUrls(ro){
   const raw=ro?.raw||{};

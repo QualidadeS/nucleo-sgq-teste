@@ -1,5 +1,5 @@
 {
-  "build": "20261023-modular-teste-v8-formato-ro-persistente",
+  "build": "20261023-modular-teste-v9-grade-impressao-ro",
   "environment": "TESTE",
   "architecture": "modular-monolith",
   "rules": {
@@ -77,7 +77,8 @@
     "SAC diferencia RO-EX e RO-IN mesmo quando possuem o mesmo número sequencial.",
     "Marcador administrativo usa portalBackendSaveConfirmedPost em vez de portalPostForm.",
     "shared_state é confirmado por conteúdo, sem exigir updatedAt idêntico.",
-    "Editor/PDF da R.O. preserva propriedades visuais e altura em px."
+    "Editor/PDF da R.O. preserva propriedades visuais e altura em px.",
+    "PDF da R.O. usa CSS Grid em vez de tabela para preservar alturas e mesclagens."
   ],
   "folderNaming": "friendly-portuguese",
   "folderMap": {
