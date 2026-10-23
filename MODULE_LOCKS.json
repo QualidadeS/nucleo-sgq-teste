@@ -1,8 +1,8 @@
 {
-  "build": "20261023-modular-consolidado-teste-v3-nomes-facilitados",
+  "build": "20261023-modular-teste-v4-confirmacao-marcador",
   "algorithm": "sha256",
   "files": {
-    "index.html": "098630937add879c60e9cd8a162aac691aa083f5ea0cd502772e167bba26d018",
+    "index.html": "2d02074269dac139510a08276b864ee965a809d1a3526c9e22d2a7b484e47bc9",
     "Nucleo_AppsScript_PRODUCAO.txt": "4e30995e6ab3a1658ea492f544a39f4b426833b7d8094f0f176e7725e52f405b",
     "assets/core/api-sync.js": "804d957fe013f242f18758b65713bb31f47e07058e8f6472393543441d7fc41a",
     "assets/core/auth.js": "920ddf4ed4ef24bb3f779b997096ccded49b8196da67bebf9991a61d3e40ab06",
@@ -14,7 +14,7 @@
     "assets/core/module-registry.js": "2be8200beed59dda5fdcd5ed91253a9036ec820b9a3c428467274dfb88a49fdc",
     "assets/core/navigation.js": "ed6146bb5c83466603ebaded67e7dc0aeaa59a97ed3b8047ef2dcbc5f27caab1",
     "assets/core/notifications.js": "4a31d89ae49a60ac3f8295686eeef777edba7667c7d21400c09e1a0a6a193ecd",
-    "assets/core/runtime.js": "b352af72cd33911b98a0ff06b16828c00e98abc90f1e2206f03f3d0c918c4b5b",
+    "assets/core/runtime.js": "9095ce0b8dcbe47d9854646ba3fa457a0e2cd9075e7219f857d13cba2634f32c",
     "assets/core/settings.js": "42865a9aa2c1129ce85f3e81c8f84b986bd6fb8f92837ff6d0bb2895cdd0146a",
     "assets/core/storage.js": "d531635126826aab93dc9a256f41aebe5e5e3bc75fe99d3ec686e222bf79efa5",
     "assets/core/ui.js": "5ee134fed890769a93d45d4eab1d6b87d63677f58d2474009c33cc810fc276ed",
@@ -31,6 +31,6 @@
     "assets/modulos/sac/module.js": "95f4a793805a023970f24e9c8efc3acf40c9bf00e47bfba738fce2109b55ee7a",
     "assets/modulos/treinamentos/module.js": "3a16d51a5e372cb600248b9e7ae208f692858f4e33c6895b0f9c8c8005f097f7",
     "assets/modulos/usuarios-acessos/module.js": "710eba8fa589fce4504a15f6587b2e0e9799d7e23651b214314c6ef5069221f7",
-    "assets/nucleo-app.js": "a22858ea7e122ebe1cad5abef6ad261d95f7496bb0e5151c06098dde4840bb3c"
+    "assets/nucleo-app.js": "87bb2e2267019592c52b94da91262ba1cfab7ea91bc791b96164f3946b5d563b"
   }
 }

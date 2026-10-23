@@ -1,5 +1,5 @@
 {
-  "build": "20261023-modular-consolidado-teste-v3-nomes-facilitados",
+  "build": "20261023-modular-teste-v4-confirmacao-marcador",
   "environment": "TESTE",
   "architecture": "modular-monolith",
   "rules": {
@@ -72,7 +72,8 @@
   },
   "changes": [
     "E-mail de R.O. direcionada mostra o motivo informado na triagem.",
-    "PDF da R.O. converte corretamente as alturas do editor visual."
+    "PDF da R.O. converte corretamente as alturas do editor visual.",
+    "Confirmação do marcador administrativo agora é feita pela leitura da base central, sem falso timeout do JSONP."
   ],
   "folderNaming": "friendly-portuguese",
   "folderMap": {

@@ -1,5 +1,5 @@
-/* NÚCLEO MODULAR — PACOTE CONSOLIDADO DE TESTE
-Build: 20261023-modular-consolidado-teste-v3-nomes-facilitados
-Nomes das pastas ajustados para manutenção facilitada.
+/* NÚCLEO MODULAR — PACOTE DE TESTE
+Build: 20261023-modular-teste-v4-confirmacao-marcador
+Confirmação robusta do marcador administrativo.
 */
-window.NUCLEO_MODULAR_BOOTSTRAP='20261023-modular-consolidado-teste-v3-nomes-facilitados';
+window.NUCLEO_MODULAR_BOOTSTRAP='20261023-modular-teste-v4-confirmacao-marcador';
