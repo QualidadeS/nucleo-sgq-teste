@@ -1,5 +1,5 @@
-/* NÚCLEO MODULAR — PACOTE DE TESTE
-Build: 20261023-modular-teste-v9-grade-impressao-ro
-R.O. impressa com CSS Grid para preservar dimensões e mesclagens.
+/* NÚCLEO MODULAR — TESTE DO NOVO GERADOR DE R.O.
+Build: 20261023-modular-teste-v10-ro-slides-prototipo
+Motor novo: Google Slides A4 quando configurado.
 */
-window.NUCLEO_MODULAR_BOOTSTRAP='20261023-modular-teste-v9-grade-impressao-ro';
+window.NUCLEO_MODULAR_BOOTSTRAP='20261023-modular-teste-v10-ro-slides-prototipo';

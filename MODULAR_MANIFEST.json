@@ -1,5 +1,5 @@
 {
-  "build": "20261023-modular-teste-v9-grade-impressao-ro",
+  "build": "20261023-modular-teste-v10-ro-slides-prototipo",
   "environment": "TESTE",
   "architecture": "modular-monolith",
   "rules": {
@@ -78,7 +78,8 @@
     "Marcador administrativo usa portalBackendSaveConfirmedPost em vez de portalPostForm.",
     "shared_state é confirmado por conteúdo, sem exigir updatedAt idêntico.",
     "Editor/PDF da R.O. preserva propriedades visuais e altura em px.",
-    "PDF da R.O. usa CSS Grid em vez de tabela para preservar alturas e mesclagens."
+    "PDF da R.O. usa CSS Grid em vez de tabela para preservar alturas e mesclagens.",
+    "Protótipo: PDF da R.O. usa Google Slides A4 como motor de impressão quando configurado."
   ],
   "folderNaming": "friendly-portuguese",
   "folderMap": {
