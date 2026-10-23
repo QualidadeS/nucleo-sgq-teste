@@ -1,6 +1,6 @@
 
 // Núcleo build unificado: todos os navegadores devem carregar a mesma implantação.
-window.NUCLEO_BUILD_VERSION = '20261023-modular-teste-v6-marcador-rota-confirmada';
+window.NUCLEO_BUILD_VERSION = '20261023-modular-teste-v7-marcador-conteudo-confirmado';
 (function nucleoBuildConsistencyGuard(){
   try {
     var meta=document.querySelector('meta[name="nucleo-build"]');

@@ -305,14 +305,25 @@ async function portalBackendSaveConfirmedPost(collection,id,data,timeoutMs=15000
   const recordMatches=(registro)=>{
     if(!registro)return false;
 
-    // O updatedAt é criado no exato momento deste salvamento.
-    // Isso impede que uma versão antiga já existente na planilha seja
-    // confundida com a nova gravação.
+    // shared_state pode ter o updatedAt regravado pelo Apps Script.
+    // Para esse tipo de registro, o que confirma a versão é o conteúdo
+    // autoritativo do marcador — não o timestamp exato do navegador.
+    if(String(collection||'')==='shared_state'){
+      return (
+        String(registro.id||'')===String(id||'') &&
+        String(registro.key||'')===String(data?.key||'') &&
+        String(registro.value??'')===String(data?.value??'') &&
+        String(registro.scope||'global')===String(data?.scope||'global') &&
+        String(registro.userKey||'')===String(data?.userKey||'')
+      );
+    }
+
+    // Nos demais registros, mantém a confirmação de versão por updatedAt
+    // quando o próprio objeto fornece esse valor.
     if(expectedUpdatedAt){
       return String(registro.updatedAt||'').trim()===expectedUpdatedAt;
     }
 
-    // Fallback para registros antigos que não possuam updatedAt.
     if(expectedRnc){
       return String(registro.rncNumber||'').trim()===expectedRnc;
     }
