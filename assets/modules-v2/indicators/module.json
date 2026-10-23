@@ -1,0 +1,17 @@
+{
+  "key": "indicators",
+  "name": "Indicadores",
+  "version": "1.0.0",
+  "status": "protected",
+  "owns": [
+    "indicadores",
+    "painéis de resultados"
+  ],
+  "collections": [],
+  "dependsOn": [
+    "core.auth",
+    "core.permissions",
+    "core.api"
+  ],
+  "forbiddenDirectDependencies": []
+}

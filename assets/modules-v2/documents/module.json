@@ -1,0 +1,27 @@
+{
+  "key": "documents",
+  "name": "Documentos",
+  "version": "1.0.0",
+  "status": "protected",
+  "owns": [
+    "documentos padrão",
+    "solicitações",
+    "entregas",
+    "histórico"
+  ],
+  "collections": [
+    "standard_documents",
+    "document_templates",
+    "requested_documents",
+    "document_deliveries"
+  ],
+  "dependsOn": [
+    "core.auth",
+    "core.permissions",
+    "core.api"
+  ],
+  "forbiddenDirectDependencies": [
+    "audit5s",
+    "equipment"
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "key": "announcements",
+  "name": "Comunicados",
+  "version": "1.0.0",
+  "status": "protected",
+  "owns": [
+    "comunicados",
+    "ciência de leitura",
+    "anexos de comunicado"
+  ],
+  "collections": [
+    "announcements"
+  ],
+  "dependsOn": [
+    "core.auth",
+    "core.permissions",
+    "core.api",
+    "users"
+  ],
+  "forbiddenDirectDependencies": []
+}

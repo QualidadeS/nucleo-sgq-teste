@@ -1,0 +1,25 @@
+{
+  "key": "equipment",
+  "name": "Equipamentos",
+  "version": "1.0.0",
+  "status": "protected",
+  "owns": [
+    "cadastro de equipamentos",
+    "calibração",
+    "laudos",
+    "alertas"
+  ],
+  "collections": [
+    "admin_modules"
+  ],
+  "dependsOn": [
+    "core.auth",
+    "core.permissions",
+    "core.api"
+  ],
+  "forbiddenDirectDependencies": [
+    "sac",
+    "audit5s",
+    "pdca"
+  ]
+}

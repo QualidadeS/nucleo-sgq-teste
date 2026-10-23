@@ -1,0 +1,26 @@
+{
+  "key": "ro",
+  "name": "R.O.",
+  "version": "1.0.0",
+  "status": "protected",
+  "owns": [
+    "cadastro de R.O.",
+    "triagem",
+    "direcionamento",
+    "contestações"
+  ],
+  "collections": [
+    "triage",
+    "external_ro_controls"
+  ],
+  "dependsOn": [
+    "core.auth",
+    "core.permissions",
+    "core.api",
+    "users"
+  ],
+  "forbiddenDirectDependencies": [
+    "audit5s",
+    "equipment"
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "key": "users",
+  "name": "Usuários e acessos",
+  "version": "1.0.0",
+  "status": "protected",
+  "owns": [
+    "cadastros de usuários",
+    "status de login",
+    "permissões individuais",
+    "gestão de setores por usuário"
+  ],
+  "collections": [
+    "users"
+  ],
+  "dependsOn": [
+    "core.auth",
+    "core.permissions",
+    "core.api"
+  ],
+  "forbiddenDirectDependencies": [
+    "sac",
+    "audit5s",
+    "equipment",
+    "pdca",
+    "ro"
+  ]
+}

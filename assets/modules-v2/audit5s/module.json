@@ -1,0 +1,32 @@
+{
+  "key": "audit5s",
+  "name": "Auditoria 5S",
+  "version": "1.0.0",
+  "status": "protected",
+  "owns": [
+    "cronograma",
+    "auditorias",
+    "ações 5S",
+    "histórico",
+    "resultado do ciclo",
+    "vínculo de auditores"
+  ],
+  "collections": [
+    "audit_5s_schedule",
+    "audit_5s_audits",
+    "audit_5s_actions",
+    "shared_state"
+  ],
+  "dependsOn": [
+    "core.auth",
+    "core.permissions",
+    "core.api",
+    "users"
+  ],
+  "forbiddenDirectDependencies": [
+    "sac",
+    "equipment",
+    "training",
+    "pdca"
+  ]
+}

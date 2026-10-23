@@ -1,0 +1,13 @@
+{
+  "architectureVersion": "1.0.0",
+  "phase": 1,
+  "generatedBuild": "20261023-modular-fase1",
+  "note": "Baseline de teste. Use estes hashes para detectar altera\u00e7\u00f5es acidentais nos arquivos protegidos.",
+  "files": {
+    "index.html": "21c7a403a9bab6e39bc01ccb2afcbe6d4d121f7c67bad748c2bc5257a406801a",
+    "assets/nucleo-app.js": "5783f61fbebcc943ea903225c096990de7de8e1baef1ffcc26519fdd0062d9f5",
+    "Nucleo_AppsScript_PRODUCAO.txt": "238be29c74d22f70f2f6c6d1b11ce43b18ac6a78af00e19f13ceb2e6f1b2ec4c",
+    "assets/core/module-registry.js": "bdf46bb5f50c0200b6169fcebf2e4f7e9d45c5eee5dd48f029df677b8230452f",
+    "assets/core/core-facade.js": "35020c683dab64dc47bf517793cbf3d9ce3466de3a0acc4639726fb212736b96"
+  }
+}

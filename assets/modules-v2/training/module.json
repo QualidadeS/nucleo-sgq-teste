@@ -1,0 +1,23 @@
+{
+  "key": "training",
+  "name": "Treinamentos",
+  "version": "1.0.0",
+  "status": "protected",
+  "owns": [
+    "treinamentos",
+    "reciclagens",
+    "histórico de competências"
+  ],
+  "collections": [
+    "admin_modules"
+  ],
+  "dependsOn": [
+    "core.auth",
+    "core.permissions",
+    "core.api"
+  ],
+  "forbiddenDirectDependencies": [
+    "sac",
+    "audit5s"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "key": "nc",
+  "name": "RNC / Não conformidades",
+  "version": "1.0.0",
+  "status": "protected",
+  "owns": [
+    "RNC",
+    "tratamento",
+    "fornecedores",
+    "evidências"
+  ],
+  "collections": [
+    "admin_modules"
+  ],
+  "dependsOn": [
+    "core.auth",
+    "core.permissions",
+    "core.api"
+  ],
+  "forbiddenDirectDependencies": [
+    "audit5s"
+  ]
+}

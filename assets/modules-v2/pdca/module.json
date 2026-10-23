@@ -1,0 +1,28 @@
+{
+  "key": "pdca",
+  "name": "PDCA e ações",
+  "version": "1.0.0",
+  "status": "protected",
+  "owns": [
+    "PDCA",
+    "ações",
+    "apresentação",
+    "despacho"
+  ],
+  "collections": [
+    "pdca_files",
+    "pdca_dispatches",
+    "pdca_sent",
+    "pdca_actions"
+  ],
+  "dependsOn": [
+    "core.auth",
+    "core.permissions",
+    "core.api",
+    "ro"
+  ],
+  "forbiddenDirectDependencies": [
+    "audit5s",
+    "equipment"
+  ]
+}

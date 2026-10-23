@@ -1,0 +1,27 @@
+{
+  "key": "sac",
+  "name": "SAC",
+  "version": "1.0.0",
+  "status": "protected",
+  "owns": [
+    "controle de SAC",
+    "tratativa",
+    "anexos",
+    "PDF do SAC",
+    "acompanhamento"
+  ],
+  "collections": [
+    "external_ro_controls"
+  ],
+  "dependsOn": [
+    "core.auth",
+    "core.permissions",
+    "core.api",
+    "ro"
+  ],
+  "forbiddenDirectDependencies": [
+    "audit5s",
+    "equipment",
+    "training"
+  ]
+}
