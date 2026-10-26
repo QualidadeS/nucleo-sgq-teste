@@ -120,7 +120,10 @@ function install(){
     return result;
   }
 
+  // Preserva os marcadores dos outros wrappers para impedir
+  // que os instaladores se envolvam mutuamente em loop infinito.
   wrapped.__roGeometryInsideModel=true;
+  wrapped.__roDriveQueuedSave=!!original.__roDriveQueuedSave;
   wrapped.__roGeometryOriginal=original;
   window.nucleoAdminDriveMutation=wrapped;
 }
