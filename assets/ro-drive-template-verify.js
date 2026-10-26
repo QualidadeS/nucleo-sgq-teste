@@ -17,7 +17,7 @@ function showDriveState(message,type='info'){
 }
 
 async function driveStatus(unit){
-  return await portalJsonp({acao:'nucleo_drive_process_ro_template_status',unit},30000);
+  return await portalJsonp({acao:'nucleo_drive_process_formats',unit,kind:'ro',driveStatus:'1'},30000);
 }
 
 async function syncDriveOfficial(unit){
@@ -28,8 +28,10 @@ async function syncDriveOfficial(unit){
 
     try{
       const result=await portalJsonp({
-        acao:'nucleo_drive_process_ro_template_sync_direct',
-        unit
+        acao:'nucleo_drive_process_formats',
+        unit,
+        kind:'ro',
+        driveSync:'1'
       },90000);
 
       if(!result?.sucesso||!result?.driveTemplateId){
