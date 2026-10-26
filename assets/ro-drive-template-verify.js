@@ -2,71 +2,6 @@
 'use strict';
 
 let lastDriveModel=null;
-let syncPromise=null;
-
-function showDriveState(message,type='info'){
-  const status=document.getElementById('umStatus');
-  if(status)status.textContent=message;
-  const feedback=document.getElementById('umStandardFeedback');
-  if(feedback){
-    feedback.style.display='';
-    feedback.textContent=message;
-    feedback.style.background=type==='error'?'#fef2f2':type==='success'?'#ecfdf3':'#eff6ff';
-    feedback.style.color=type==='error'?'#b42318':type==='success'?'#067647':'#1d4ed8';
-  }
-}
-
-async function driveStatus(unit){
-  return await portalJsonp({acao:'nucleo_drive_process_formats',unit,kind:'ro-drive-status'},30000);
-}
-
-async function syncDriveOfficial(unit){
-  if(syncPromise)return syncPromise;
-
-  syncPromise=(async()=>{
-    showDriveState('Modelo salvo na base TESTE. Criando/atualizando o Slides oficial em Modelos do Núcleo > Padrões…','info');
-
-    try{
-      const result=await portalJsonp({
-        acao:'nucleo_drive_process_formats',
-        unit,
-        kind:'ro-drive-sync'
-      },90000);
-
-      if(!result?.sucesso||!result?.driveTemplateId){
-        const received=result&&typeof result==='object'
-          ?('Resposta recebida: '+Object.keys(result).slice(0,12).join(', '))
-          :'Nenhuma resposta estruturada foi recebida.';
-        throw new Error(result?.erro||('O Apps Script não confirmou a criação do modelo oficial. '+received));
-      }
-
-      const check=await driveStatus(unit);
-
-      if(!check?.exists||!check?.driveTemplateId){
-        throw new Error('O Slides foi criado, mas não foi confirmado no Drive.');
-      }
-
-      lastDriveModel=check;
-      addButton();
-
-      const btn=document.getElementById('umOpenDriveModel');
-      if(btn){
-        btn.style.display='';
-        btn.textContent='Abrir modelo no Drive ✓';
-      }
-
-      showDriveState('Modelo salvo e Slides oficial confirmado em Modelos do Núcleo > Padrões.','success');
-      return check;
-    }catch(e){
-      showDriveState('Modelo salvo na base TESTE, mas não foi possível criar o Slides oficial: '+(e?.message||e),'error');
-      throw e;
-    }finally{
-      syncPromise=null;
-    }
-  })();
-
-  return syncPromise;
-}
 
 function addButton(){
   const dialog=document.getElementById('universalModelEditor');
@@ -82,29 +17,43 @@ function addButton(){
   btn.textContent='Abrir modelo no Drive';
   btn.style.display='none';
 
-  btn.onclick=async()=>{
-    try{
-      const unit=dialog.querySelector('#umUnit')?.value||'matriz';
-      const info=lastDriveModel?.exists?lastDriveModel:await driveStatus(unit);
-
-      if(!info?.exists||!info?.driveTemplateUrl){
-        alert('O modelo oficial ainda não foi confirmado no Drive.');
-        return;
-      }
-
-      window.open(info.driveTemplateUrl,'_blank','noopener');
-    }catch(e){
-      alert('Não foi possível abrir o modelo do Drive: '+(e?.message||e));
+  btn.onclick=()=>{
+    if(!lastDriveModel?.driveTemplateUrl){
+      alert('O modelo oficial ainda não foi confirmado no Drive.');
+      return;
     }
+    window.open(lastDriveModel.driveTemplateUrl,'_blank','noopener');
   };
 
   save.parentElement?.insertBefore(btn,save);
 }
 
+function showConfirmed(info){
+  lastDriveModel=info;
+
+  addButton();
+  const btn=document.getElementById('umOpenDriveModel');
+  if(btn){
+    btn.style.display='';
+    btn.textContent='Abrir modelo no Drive ✓';
+  }
+
+  const status=document.getElementById('umStatus');
+  if(status)status.textContent='Modelo salvo e Slides oficial confirmado no Drive.';
+
+  const feedback=document.getElementById('umStandardFeedback');
+  if(feedback){
+    feedback.style.display='';
+    feedback.textContent='✓ Modelo salvo e Slides oficial confirmado no Drive.';
+    feedback.style.background='#ecfdf3';
+    feedback.style.color='#067647';
+  }
+}
+
 function install(){
   const current=window.nucleoAdminDriveMutation;
   if(typeof current!=='function')return;
-  if(current.__roDriveOfficialAsync)return;
+  if(current.__roDriveSingleSave)return;
 
   const original=current;
 
@@ -117,18 +66,22 @@ function install(){
     const result=await original.apply(this,arguments);
 
     if(isRoSave){
-      const unit=String(params?.unit||'matriz');
+      const info=result?.formats?.ro||null;
 
-      // Não bloqueia mais o retorno do salvamento.
-      setTimeout(()=>{
-        syncDriveOfficial(unit).catch(()=>{});
-      },0);
+      if(!info?.driveTemplateId||!info?.driveTemplateUrl){
+        throw new Error(
+          result?.erro ||
+          'O Apps Script salvou o modelo, mas não devolveu a confirmação do Slides oficial.'
+        );
+      }
+
+      showConfirmed(info);
     }
 
     return result;
   }
 
-  wrapped.__roDriveOfficialAsync=true;
+  wrapped.__roDriveSingleSave=true;
   wrapped.__roDriveOriginal=original;
   window.nucleoAdminDriveMutation=wrapped;
 }
