@@ -1,23 +1,28 @@
 (function(){
 'use strict';
 
-const SNAPSHOT_PREFIX='ro_model_geometry:';
-
 function captureGeometry(){
   const paper=document.getElementById('umPaper');
   if(!paper)return null;
+
   const pr=paper.getBoundingClientRect();
   if(!pr.width||!pr.height)return null;
 
   const regions={};
+
   ['header','body','footer'].forEach(region=>{
     const host=paper.querySelector(`[data-region-preview="${region}"]`);
     if(!host)return;
+
+    const hr=host.getBoundingClientRect();
     const cells=[];
+
     host.querySelectorAll('[data-univ-cell]').forEach(el=>{
       const id=String(el.dataset.univCell||'').trim();
       if(!id)return;
+
       const r=el.getBoundingClientRect();
+
       cells.push({
         id,
         x:+((r.left-pr.left)/pr.width).toFixed(8),
@@ -26,7 +31,7 @@ function captureGeometry(){
         h:+(r.height/pr.height).toFixed(8)
       });
     });
-    const hr=host.getBoundingClientRect();
+
     regions[region]={
       x:+((hr.left-pr.left)/pr.width).toFixed(8),
       y:+((hr.top-pr.top)/pr.height).toFixed(8),
@@ -36,75 +41,86 @@ function captureGeometry(){
     };
   });
 
+  const totalCells=Object.values(regions).reduce(
+    (n,r)=>n+(Array.isArray(r?.cells)?r.cells.length:0),0
+  );
+
+  if(!totalCells)return null;
+
   return {
-    version:2,
+    version:4,
     capturedAt:new Date().toISOString(),
     pageAspect:+(pr.width/pr.height).toFixed(8),
+    totalCells,
     regions
   };
 }
 
-async function persistGeometry(unit,snapshot){
-  if(!snapshot)return false;
-  const id=SNAPSHOT_PREFIX+String(unit||'matriz');
-  const record={
-    id,
-    key:id,
-    unit:String(unit||'matriz'),
-    snapshot,
-    updatedAt:new Date().toISOString(),
-    updatedBy:(typeof getSession==='function'&&getSession()?.name)||'SGQ'
-  };
+function injectGeometryIntoPayload(params){
+  if(
+    String(params?.kind||'')!=='ro' ||
+    !params?.data
+  ) return params;
 
-  if(typeof portalBackendSaveConfirmedPost==='function'){
-    await portalBackendSaveConfirmedPost('shared_state',id,record,120000);
-    return true;
+  let model;
+  try{
+    model=JSON.parse(String(params.data));
+  }catch(_){
+    return params;
   }
-  if(typeof portalJsonp==='function'){
-    const result=await portalJsonp({
-      acao:'portal_save',
-      colecao:'shared_state',
-      id,
-      dados:JSON.stringify(record),
-      ator:record.updatedBy
-    },120000);
-    if(result?.sucesso===false)throw new Error(result.erro||'Não foi possível salvar a geometria do modelo.');
-    return true;
-  }
-  throw new Error('Persistência central indisponível para salvar a geometria do modelo.');
+
+  const snapshot=captureGeometry();
+  if(!snapshot)return params;
+
+  model.universalLayout=model.universalLayout||{};
+  model.universalLayout.version=Math.max(
+    4,
+    Number(model.universalLayout.version)||0
+  );
+  model.universalLayout.geometrySnapshot=snapshot;
+
+  return {
+    ...params,
+    data:JSON.stringify(model)
+  };
 }
 
 function install(){
   const current=window.nucleoAdminDriveMutation;
   if(typeof current!=='function')return;
-  if(current.__roGeometryWrapped)return;
+  if(current.__roGeometryInsideModel)return;
 
   const original=current;
+
   async function wrapped(action,params){
-    const isRoSave=
+    let nextParams=params;
+
+    if(
       action==='nucleo_drive_process_formats' &&
       String(params?.kind||'')==='ro' &&
-      !!params?.data;
-
-    let snapshot=null;
-    if(isRoSave){
-      snapshot=captureGeometry();
+      params?.data
+    ){
+      nextParams=injectGeometryIntoPayload(params);
     }
 
-    const result=await original.apply(this,arguments);
+    const result=await original.call(this,action,nextParams);
 
-    if(isRoSave&&snapshot){
-      await persistGeometry(params.unit||'matriz',snapshot);
-      try{
-        if(result&&typeof result==='object'){
-          result.geometrySnapshotSaved=true;
-          result.geometrySnapshotCapturedAt=snapshot.capturedAt;
-        }
-      }catch(_){}
-    }
+    try{
+      if(
+        action==='nucleo_drive_process_formats' &&
+        String(params?.kind||'')==='ro' &&
+        nextParams!==params &&
+        result &&
+        typeof result==='object'
+      ){
+        result.geometrySnapshotSaved=true;
+      }
+    }catch(_){}
+
     return result;
   }
-  wrapped.__roGeometryWrapped=true;
+
+  wrapped.__roGeometryInsideModel=true;
   wrapped.__roGeometryOriginal=original;
   window.nucleoAdminDriveMutation=wrapped;
 }
@@ -112,10 +128,11 @@ function install(){
 window.nucleoCaptureRoGeometrySnapshot=captureGeometry;
 window.nucleoInstallRoGeometrySnapshot=install;
 
-setInterval(install,1500);
 if(document.readyState==='loading'){
   document.addEventListener('DOMContentLoaded',install,{once:true});
 }else{
   install();
 }
+
+setInterval(install,1000);
 })();

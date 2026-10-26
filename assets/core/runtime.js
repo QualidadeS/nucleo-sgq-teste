@@ -1,6 +1,6 @@
 
 // Núcleo build unificado: todos os navegadores devem carregar a mesma implantação.
-window.NUCLEO_BUILD_VERSION = '20261023-modular-teste-v12-ro-geometria-real';
+window.NUCLEO_BUILD_VERSION = '20261026-modular-teste-v13-ro-geometria-no-modelo';
 (function nucleoBuildConsistencyGuard(){
   try {
     var meta=document.querySelector('meta[name="nucleo-build"]');
@@ -33,7 +33,7 @@ function nucleoLoadAdminModule(){
   if(nucleoAdminModulePromise)return nucleoAdminModulePromise;
   nucleoAdminModulePromise=new Promise((resolve,reject)=>{
     const script=document.createElement('script');
-    script.src=new URL('assets/modules/admin-workspaces.js?v=20261021-0945-unified',document.baseURI).href;
+    script.src=new URL('assets/modules/admin-workspaces.js?v=20261026-modular-teste-v13-ro-geometria-no-modelo',document.baseURI).href;
     const timer=setTimeout(()=>finish(new Error('Tempo limite ao carregar o módulo.')),20000);
     function finish(error){clearTimeout(timer);script.onload=script.onerror=null;if(error){script.remove();nucleoAdminModulePromise=null;reject(error)}else resolve();}
     script.onload=()=>finish();
