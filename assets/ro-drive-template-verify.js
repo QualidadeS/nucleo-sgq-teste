@@ -110,7 +110,7 @@ function install(){
       const ro=result?.formats?.ro||{};
       const revision=String(result?.roDriveSaveRevision||'');
 
-      if(revision!=='v27-queued-sync'){
+      if(revision!=='v29-fast-save'){
         feedback(
           'Modelo salvo, mas o Apps Script publicado não é a revisão esperada. Revisão recebida: '+
           (revision||'nenhuma')+'.',
