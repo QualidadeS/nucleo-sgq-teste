@@ -17,7 +17,7 @@ function showDriveState(message,type='info'){
 }
 
 async function driveStatus(unit){
-  return await portalJsonp({acao:'nucleo_drive_process_formats',unit,kind:'ro',driveStatus:'1'},30000);
+  return await portalJsonp({acao:'nucleo_drive_process_formats',unit,kind:'ro-drive-status'},30000);
 }
 
 async function syncDriveOfficial(unit){
@@ -30,12 +30,14 @@ async function syncDriveOfficial(unit){
       const result=await portalJsonp({
         acao:'nucleo_drive_process_formats',
         unit,
-        kind:'ro',
-        driveSync:'1'
+        kind:'ro-drive-sync'
       },90000);
 
       if(!result?.sucesso||!result?.driveTemplateId){
-        throw new Error(result?.erro||'O Apps Script não confirmou a criação do modelo oficial.');
+        const received=result&&typeof result==='object'
+          ?('Resposta recebida: '+Object.keys(result).slice(0,12).join(', '))
+          :'Nenhuma resposta estruturada foi recebida.';
+        throw new Error(result?.erro||('O Apps Script não confirmou a criação do modelo oficial. '+received));
       }
 
       const check=await driveStatus(unit);

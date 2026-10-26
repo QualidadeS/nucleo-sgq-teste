@@ -1,5 +1,5 @@
 /* NÚCLEO MODULAR — TESTE R.O.
-Build: 20261026-modular-teste-v21-ro-drive-rota-existente
-Sincronização do modelo oficial reutiliza nucleo_drive_process_formats.
+Build: 20261026-modular-teste-v22-ro-drive-kind-route
+Sincronização do modelo oficial usa kind=ro-drive-sync/status.
 */
-window.NUCLEO_MODULAR_BOOTSTRAP='20261026-modular-teste-v21-ro-drive-rota-existente';
+window.NUCLEO_MODULAR_BOOTSTRAP='20261026-modular-teste-v22-ro-drive-kind-route';
