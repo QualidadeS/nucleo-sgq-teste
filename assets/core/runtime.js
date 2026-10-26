@@ -1,6 +1,6 @@
 
 // Núcleo build unificado: todos os navegadores devem carregar a mesma implantação.
-window.NUCLEO_BUILD_VERSION = '20261026-modular-teste-v19-ro-drive-router-corrigido';
+window.NUCLEO_BUILD_VERSION = '20261026-modular-teste-v20-ro-drive-prefixo-process';
 (function nucleoBuildConsistencyGuard(){
   try {
     var meta=document.querySelector('meta[name="nucleo-build"]');
