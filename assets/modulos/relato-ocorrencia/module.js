@@ -1465,31 +1465,9 @@ async function saveTriageRecord(){
     const emailErrors=[];
     let totalSent=0;
     try{
-      updateNucleoLoading('Preparando o PDF exatamente como aparece no Núcleo…','Renderizando a folha');
-      const renderedPage=await nucleoRoRenderedPageForEmail_(triageRo);
-      const eventoId='RORENDER-'+Date.now()+'-'+Math.random().toString(36).slice(2,9);
-
-      updateNucleoLoading('Enviando os e-mails por setor…','Anexando o PDF renderizado');
-      const submitted=portalPostForm({
-        acao:'portal_send_directed_ro_email_rendered',
-        eventoId,
-        ro:roNumber,
-        setor:savedRecords[0]?.responsibleSector||'',
-        unidade:roUnitValue||triageRo.unidade||'',
-        tipoRO:triageRo.tipoRO||triageRo.tipo||'',
-        cliente:triageRo.cliente||'',
-        registrante:triageRo.registrante||'',
-        renderedPage,
-        assignments:JSON.stringify(savedRecords.map(record=>({
-          sector:record.responsibleSector,
-          email:record.responsibleUserEmail||'',
-          reason:(record.assignmentReason||'Não informado')
-        })))
-      });
-      if(!submitted)throw new Error('O navegador não conseguiu enviar a folha renderizada da R.O. para a base central.');
-
-      const result=await nucleoWaitRenderedRoEmail_(eventoId,180000);
-      if(!Array.isArray(result?.results))throw new Error(result?.erro||'O Apps Script não confirmou o envio da R.O. renderizada.');
+      updateNucleoLoading('Enviando os e-mails por setor…','Processando');
+      const result=await portalJsonp({acao:'portal_send_directed_ro_email',ro:roNumber,setor:savedRecords[0]?.responsibleSector||'',unidade:roUnitValue||triageRo.unidade||'',tipoRO:triageRo.tipoRO||triageRo.tipo||'',cliente:triageRo.cliente||'',registrante:triageRo.registrante||'',assignments:JSON.stringify(savedRecords.map(record=>({sector:record.responsibleSector,email:record.responsibleUserEmail||'',reason:(record.assignmentReason||'Não informado')})))},90000);
+      if(!Array.isArray(result?.results))throw new Error(result?.erro||'Atualize a implantação do Apps Script para a revisão 55.');
       totalSent=result.results.filter(r=>r.sucesso).length;
       result.results.filter(r=>!r.sucesso).forEach(r=>emailErrors.push(r.sector+': '+r.erro));
     }catch(err){emailErrors.push(err.message||String(err));}
@@ -1539,112 +1517,6 @@ async function saveTriageRecord(){
     hideNucleoLoading(true);
   }
 }
-
-
-async function nucleoRoInlineImagesForCapture_(doc){
-  const imgs=[...doc.images];
-  await Promise.all(imgs.map(async img=>{
-    try{
-      if(img.complete&&img.naturalWidth)return;
-      if(typeof img.decode==='function')await img.decode();
-      else await new Promise(resolve=>{img.onload=img.onerror=()=>resolve();setTimeout(resolve,5000);});
-    }catch(_){}
-  }));
-}
-
-async function nucleoRoCapturePageElement_(page,doc){
-  const rect=page.getBoundingClientRect();
-  if(!rect.width||!rect.height)throw new Error('A folha da R.O. não possui dimensões válidas.');
-
-  const clone=page.cloneNode(true);
-
-  // Mantém exatamente os estilos usados pela prévia.
-  const wrapper=document.createElement('div');
-  wrapper.setAttribute('xmlns','http://www.w3.org/1999/xhtml');
-  const style=document.createElement('style');
-  style.textContent=[...doc.querySelectorAll('style')].map(x=>x.textContent||'').join('\n')+
-    '\nhtml,body{margin:0!important;padding:0!important;background:#fff!important}.page{margin:0!important;box-shadow:none!important}';
-  wrapper.appendChild(style);
-  wrapper.appendChild(clone);
-
-  const serialized=new XMLSerializer().serializeToString(wrapper);
-  const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${Math.ceil(rect.width)}" height="${Math.ceil(rect.height)}" viewBox="0 0 ${rect.width} ${rect.height}"><foreignObject x="0" y="0" width="100%" height="100%">${serialized}</foreignObject></svg>`;
-
-  const blob=new Blob([svg],{type:'image/svg+xml;charset=utf-8'});
-  const url=URL.createObjectURL(blob);
-
-  try{
-    const img=new Image();
-    await new Promise((resolve,reject)=>{
-      img.onload=resolve;
-      img.onerror=()=>reject(new Error('O navegador não conseguiu rasterizar a folha da R.O.'));
-      img.src=url;
-    });
-
-    const scale=2;
-    const canvas=document.createElement('canvas');
-    canvas.width=Math.ceil(rect.width*scale);
-    canvas.height=Math.ceil(rect.height*scale);
-    const ctx=canvas.getContext('2d',{alpha:false});
-    ctx.fillStyle='#ffffff';
-    ctx.fillRect(0,0,canvas.width,canvas.height);
-    ctx.scale(scale,scale);
-    ctx.drawImage(img,0,0,rect.width,rect.height);
-
-    const dataUrl=canvas.toDataURL('image/png');
-    if(!/^data:image\/png;base64,/i.test(dataUrl))throw new Error('A captura visual da R.O. ficou inválida.');
-    return dataUrl;
-  }finally{
-    URL.revokeObjectURL(url);
-  }
-}
-
-async function nucleoRoRenderedPageForEmail_(ro){
-  const unit=explicitRecordUnit(ro);
-  const fresh=await portalJsonp({acao:'nucleo_drive_process_formats',unit,kind:'ro'},60000);
-  if(!fresh?.sucesso||!fresh.formats?.ro)throw new Error('Não foi possível carregar o modelo atual da R.O.');
-
-  const model=fresh.formats.ro;
-  const html=nucleoBuildRoModelPrintHtml(ro,model,fresh);
-
-  const frame=document.createElement('iframe');
-  frame.setAttribute('aria-hidden','true');
-  frame.style.cssText='position:fixed;left:-10000px;top:0;width:900px;height:1300px;border:0;opacity:0;pointer-events:none;';
-  document.body.appendChild(frame);
-
-  try{
-    await new Promise((resolve,reject)=>{
-      const timer=setTimeout(()=>reject(new Error('A prévia da R.O. demorou demais para carregar.')),20000);
-      frame.onload=()=>{clearTimeout(timer);resolve();};
-      frame.srcdoc=html;
-    });
-
-    const doc=frame.contentDocument;
-    if(!doc)throw new Error('A prévia da R.O. não ficou acessível para captura.');
-
-    await nucleoRoInlineImagesForCapture_(doc);
-    await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
-
-    const page=doc.querySelector('.page');
-    if(!page)throw new Error('A página principal da R.O. não foi encontrada.');
-
-    return await nucleoRoCapturePageElement_(page,doc);
-  }finally{
-    frame.remove();
-  }
-}
-
-async function nucleoWaitRenderedRoEmail_(eventoId,timeoutMs=180000){
-  const started=Date.now();
-  while(Date.now()-started<timeoutMs){
-    await new Promise(resolve=>setTimeout(resolve,1500));
-    const st=await portalJsonp({acao:'portal_directed_ro_rendered_status',eventoId},15000).catch(()=>null);
-    if(st?.status==='done')return st.result||{sucesso:true,results:[]};
-    if(st?.status==='error')throw new Error(st.erro||'Falha ao enviar a R.O. renderizada.');
-  }
-  throw new Error('O envio do e-mail não foi confirmado dentro do tempo limite.');
-}
-
 
 function renderTriageDuplicateWarning(ro){
   const box=document.getElementById('triageDuplicateWarning');
