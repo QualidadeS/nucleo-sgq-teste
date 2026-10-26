@@ -1,5 +1,5 @@
 /* NÚCLEO MODULAR — TESTE R.O.
-Build: 20261026-modular-teste-v23-ro-drive-salvamento-unico
-Salvar modelo R.O. e criar Slides oficial ocorrem na mesma operação.
+Build: 20261026-modular-teste-v24-ro-drive-revision-confirm
+Resposta do salvamento identifica a revisão do Apps Script e expõe driveTemplateId no topo.
 */
-window.NUCLEO_MODULAR_BOOTSTRAP='20261026-modular-teste-v23-ro-drive-salvamento-unico';
+window.NUCLEO_MODULAR_BOOTSTRAP='20261026-modular-teste-v24-ro-drive-revision-confirm';

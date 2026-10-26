@@ -66,12 +66,26 @@ function install(){
     const result=await original.apply(this,arguments);
 
     if(isRoSave){
-      const info=result?.formats?.ro||null;
+      const revision=String(result?.roDriveSaveRevision||'');
+      const nested=result?.formats?.ro||{};
+      const info={
+        ...nested,
+        driveTemplateId:String(result?.driveTemplateId||nested.driveTemplateId||''),
+        driveTemplateUrl:String(result?.driveTemplateUrl||nested.driveTemplateUrl||''),
+        driveTemplateUpdatedAt:String(result?.driveTemplateUpdatedAt||nested.driveTemplateUpdatedAt||'')
+      };
 
-      if(!info?.driveTemplateId||!info?.driveTemplateUrl){
+      if(revision!=='v24-single-save-confirm'){
+        throw new Error(
+          'O Apps Script publicado ainda não é a revisão esperada do modelo oficial. '+
+          'Revisão recebida: '+(revision||'nenhuma')+'. Publique uma nova versão da implantação /exec.'
+        );
+      }
+
+      if(!info.driveTemplateId||!info.driveTemplateUrl){
         throw new Error(
           result?.erro ||
-          'O Apps Script salvou o modelo, mas não devolveu a confirmação do Slides oficial.'
+          'A revisão correta do Apps Script foi executada, mas o retorno não trouxe o ID/link do Slides oficial.'
         );
       }
 
