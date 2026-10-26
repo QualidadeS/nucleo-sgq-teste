@@ -1,6 +1,6 @@
 
 // Núcleo build unificado: todos os navegadores devem carregar a mesma implantação.
-window.NUCLEO_BUILD_VERSION = '20261026-modular-teste-v13-ro-geometria-no-modelo';
+window.NUCLEO_BUILD_VERSION = '20261026-modular-teste-v14-ro-pdf-visual';
 (function nucleoBuildConsistencyGuard(){
   try {
     var meta=document.querySelector('meta[name="nucleo-build"]');
