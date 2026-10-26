@@ -17,7 +17,7 @@ function showDriveState(message,type='info'){
 }
 
 async function driveStatus(unit){
-  return await portalJsonp({acao:'nucleo_drive_ro_template_status',unit},30000);
+  return await portalJsonp({acao:'nucleo_drive_process_ro_template_status',unit},30000);
 }
 
 async function syncDriveOfficial(unit){
@@ -28,7 +28,7 @@ async function syncDriveOfficial(unit){
 
     try{
       const result=await portalJsonp({
-        acao:'nucleo_drive_ro_template_sync_direct',
+        acao:'nucleo_drive_process_ro_template_sync_direct',
         unit
       },90000);
 
