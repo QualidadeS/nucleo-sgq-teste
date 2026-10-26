@@ -2,6 +2,20 @@
 'use strict';
 
 let lastDriveModel=null;
+let pollToken=0;
+
+function feedback(message,type='info'){
+  const status=document.getElementById('umStatus');
+  if(status)status.textContent=message;
+
+  const box=document.getElementById('umStandardFeedback');
+  if(box){
+    box.style.display='';
+    box.textContent=message;
+    box.style.background=type==='error'?'#fef2f2':type==='success'?'#ecfdf3':'#eff6ff';
+    box.style.color=type==='error'?'#b42318':type==='success'?'#067647':'#1d4ed8';
+  }
+}
 
 function addButton(){
   const dialog=document.getElementById('universalModelEditor');
@@ -28,32 +42,59 @@ function addButton(){
   save.parentElement?.insertBefore(btn,save);
 }
 
-function showConfirmed(info){
+function confirmed(info){
   lastDriveModel=info;
-
   addButton();
+
   const btn=document.getElementById('umOpenDriveModel');
   if(btn){
     btn.style.display='';
     btn.textContent='Abrir modelo no Drive ✓';
   }
 
-  const status=document.getElementById('umStatus');
-  if(status)status.textContent='Modelo salvo e Slides oficial confirmado no Drive.';
+  feedback('✓ Modelo salvo e Slides oficial confirmado no Drive.','success');
+}
 
-  const feedback=document.getElementById('umStandardFeedback');
-  if(feedback){
-    feedback.style.display='';
-    feedback.textContent='✓ Modelo salvo e Slides oficial confirmado no Drive.';
-    feedback.style.background='#ecfdf3';
-    feedback.style.color='#067647';
+async function pollDrive(unit,requestedAt){
+  const token=++pollToken;
+  const until=Date.now()+180000;
+
+  while(token===pollToken && Date.now()<until){
+    await new Promise(r=>setTimeout(r,3000));
+
+    let r;
+    try{
+      r=await portalJsonp({
+        acao:'nucleo_drive_process_formats',
+        unit
+      },30000);
+    }catch(_){
+      continue;
+    }
+
+    const ro=r?.formats?.ro||{};
+
+    if(ro.driveTemplateSyncError){
+      feedback('Modelo salvo, mas o Slides oficial não pôde ser atualizado: '+ro.driveTemplateSyncError,'error');
+      return;
+    }
+
+    const finished=Date.parse(ro.driveTemplateSyncFinishedAt||ro.driveTemplateUpdatedAt||'')||0;
+    const requested=Date.parse(requestedAt||'')||0;
+
+    if(ro.driveTemplateId && ro.driveTemplateUrl && finished>=requested){
+      confirmed(ro);
+      return;
+    }
   }
+
+  feedback('Modelo salvo. A atualização do Slides oficial ainda está em processamento; você pode continuar usando o Núcleo.','info');
 }
 
 function install(){
   const current=window.nucleoAdminDriveMutation;
   if(typeof current!=='function')return;
-  if(current.__roDriveSingleSave)return;
+  if(current.__roDriveQueuedSave)return;
 
   const original=current;
 
@@ -66,41 +107,29 @@ function install(){
     const result=await original.apply(this,arguments);
 
     if(isRoSave){
+      const ro=result?.formats?.ro||{};
       const revision=String(result?.roDriveSaveRevision||'');
-      const nested=result?.formats?.ro||{};
-      const info={
-        ...nested,
-        driveTemplateId:String(result?.driveTemplateId||nested.driveTemplateId||''),
-        driveTemplateUrl:String(result?.driveTemplateUrl||nested.driveTemplateUrl||''),
-        driveTemplateUpdatedAt:String(result?.driveTemplateUpdatedAt||nested.driveTemplateUpdatedAt||'')
-      };
 
-      if(revision!=='v24-single-save-confirm'){
-        throw new Error(
-          'O Apps Script publicado ainda não é a revisão esperada do modelo oficial. '+
-          'Revisão recebida: '+(revision||'nenhuma')+'. Publique uma nova versão da implantação /exec.'
+      if(revision!=='v27-queued-sync'){
+        feedback(
+          'Modelo salvo, mas o Apps Script publicado não é a revisão esperada. Revisão recebida: '+
+          (revision||'nenhuma')+'.',
+          'error'
         );
+        return result;
       }
 
-      if(!info.driveTemplateId||!info.driveTemplateUrl){
-        throw new Error(
-          result?.erro ||
-          'A revisão correta do Apps Script foi executada, mas o retorno não trouxe o ID/link do Slides oficial.'
-        );
-      }
-
-      showConfirmed(info);
+      feedback('✓ Modelo salvo na base TESTE. Atualizando o Slides oficial no Drive…','info');
+      pollDrive(String(params?.unit||'matriz'),ro.driveTemplateSyncRequestedAt||new Date().toISOString());
     }
 
     return result;
   }
 
-  wrapped.__roDriveSingleSave=true;
+  wrapped.__roDriveQueuedSave=true;
   wrapped.__roDriveOriginal=original;
   window.nucleoAdminDriveMutation=wrapped;
 }
-
-window.nucleoInstallRoDriveVerification=install;
 
 setInterval(()=>{
   install();
