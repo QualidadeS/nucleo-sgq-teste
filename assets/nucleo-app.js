@@ -1,5 +1,5 @@
 /* NÚCLEO MODULAR — TESTE R.O.
-Build: 20261026-modular-teste-v18-ro-drive-caminho-padroes
-Modelo oficial em Núcleo > Gestão de processos > Modelos do Núcleo > Padrões.
+Build: 20261026-modular-teste-v19-ro-drive-router-corrigido
+Roteamento das ações nucleo_drive_ro_template_* corrigido.
 */
-window.NUCLEO_MODULAR_BOOTSTRAP='20261026-modular-teste-v18-ro-drive-caminho-padroes';
+window.NUCLEO_MODULAR_BOOTSTRAP='20261026-modular-teste-v19-ro-drive-router-corrigido';
