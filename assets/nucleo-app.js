@@ -14428,6 +14428,52 @@ function pdcaSituationLabel(ro,externalPdcaKnown){
   if(['Cancelada','Somente para registro'].includes(status))return 'Não se aplica';
   return 'PDCA necessário';
 }
+function closeAssignedPdcaQuestion(){
+  const current=document.getElementById('assignedPdcaQuestionPopover');
+  if(current)current.remove();
+}
+function openAssignedPdcaQuestion(event,numero,sector=''){
+  event?.preventDefault?.();
+  event?.stopPropagation?.();
+  closeAssignedPdcaQuestion();
+  const anchor=event?.currentTarget;
+  if(!anchor)return;
+  const pop=document.createElement('div');
+  pop.id='assignedPdcaQuestionPopover';
+  pop.className='assigned-pdca-question-popover';
+  pop.innerHTML=`
+    <div class="assigned-pdca-question-title">Tem PDCA?</div>
+    <div class="assigned-pdca-question-actions">
+      <button type="button" class="assigned-pdca-answer" data-answer="yes">Tem PDCA</button>
+      <button type="button" class="assigned-pdca-answer" data-answer="no">Não tem PDCA</button>
+    </div>`;
+  document.body.appendChild(pop);
+  const rect=anchor.getBoundingClientRect();
+  const left=Math.min(window.innerWidth-pop.offsetWidth-12,Math.max(12,rect.left+rect.width/2-pop.offsetWidth/2));
+  const top=Math.min(window.innerHeight-pop.offsetHeight-12,rect.bottom+7);
+  pop.style.left=`${left}px`;
+  pop.style.top=`${top}px`;
+  pop.querySelector('[data-answer="yes"]')?.addEventListener('click',async()=>{
+    closeAssignedPdcaQuestion();
+    await setExternalPdca(numero,true,sector);
+  });
+  pop.querySelector('[data-answer="no"]')?.addEventListener('click',async()=>{
+    closeAssignedPdcaQuestion();
+    await setExternalPdca(numero,false,sector);
+  });
+  setTimeout(()=>{
+    const close=(ev)=>{
+      if(!document.getElementById('assignedPdcaQuestionPopover')){
+        document.removeEventListener('pointerdown',close,true);return;
+      }
+      if(pop.contains(ev.target)||anchor.contains(ev.target))return;
+      closeAssignedPdcaQuestion();
+      document.removeEventListener('pointerdown',close,true);
+    };
+    document.addEventListener('pointerdown',close,true);
+  },0);
+}
+
 async function setExternalPdca(numero,hasExternal,sector=''){
   const base=ros.find(r=>String(r.numero||r.id||r.codigo||'')===String(numero));
   const ro=base?{...base,__assignedSector:sector,__triageRecord:getTriageRecordForRoSector(numero,sector)}:null;
@@ -14841,11 +14887,11 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
     let pdcaControl='—';
     if(admin && !noPdca){
       const hasExternal=externalPdca===true;
-      pdcaControl=`<div class="assigned-pdca-control" role="group" aria-label="Situação do PDCA">
-        <button class="assigned-pdca-option yes ${hasExternal?'is-selected':''}" type="button"
-          onclick="setExternalPdca('${escapeHtml(r.numero)}',true,'${escapeHtml(responsibleSector)}')">Tem PDCA</button>
-        <button class="assigned-pdca-option no ${!hasExternal?'is-selected':''}" type="button"
-          onclick="setExternalPdca('${escapeHtml(r.numero)}',false,'${escapeHtml(responsibleSector)}')">Não tem PDCA</button>
+      pdcaControl=`<div class="assigned-pdca-state">
+        <button class="assigned-pdca-eye" type="button"
+          onclick="openAssignedPdcaQuestion(event,'${escapeHtml(r.numero)}','${escapeHtml(responsibleSector)}')"
+          title="Alterar informação de PDCA" aria-label="Alterar informação de PDCA da R.O. ${escapeHtml(r.numero)}">👁</button>
+        <span class="assigned-pdca-state-label ${hasExternal?'has-pdca':'no-pdca'}">${hasExternal?'Tem PDCA':'Não tem PDCA'}</span>
       </div>`;
     }else if(!admin){
       pdcaControl=`<span class="${externalPdca||alreadySent?'badge ok':'badge'}">${escapeHtml(pdcaSituation)}</span>`;
