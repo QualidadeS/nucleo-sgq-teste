@@ -14760,6 +14760,14 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
       // ou um estado final de resposta. Uma simples marcação de PDCA externo
       // não pode esconder uma pendência que ainda exige atuação do setor.
       const computedRow=computeAssignedRow(r);
+      // R.O.s terminalizadas não pertencem mais à fila ativa.
+      // Elas permanecem acessíveis na aba Encerradas para consulta/histórico.
+      const terminalAssigned=assignedTerminalStatus(computedRow.displayStatus);
+      if(assignedLifecycle==='history'){
+        if(!terminalAssigned)return false;
+      }else if(terminalAssigned){
+        return false;
+      }
       const normalizedPdca=normalizeAnswer(String(r?.pdca||''));
       const normalizedStatus=normalizeAnswer(String(r?.status||r?.statusPlanilha||''));
       const assignedHasCompletedResponse = !!computedRow.sentPdca
