@@ -2930,6 +2930,136 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
 }
 </style>
 
+
+<style id="nucleo-visual-classico-restaurado-v1">
+/* Restauração visual: linguagem original do Núcleo — suave, arredondada e com respiro. */
+:root{--nucleo-soft-radius:16px;--nucleo-control-radius:11px;--nucleo-soft-shadow:0 8px 24px rgba(16,24,40,.055)}
+.card,.sgq-panel,.sgq-kpi,.ro-summary-card,.sum-card,.settings-block,.permission-card,
+.triage-box,.ro-pdf-box,.duplicate-detail-card,.watch-card,.action-alert,.config-row,
+.admin-user-row,.meta-box,.question,.statusline,.pdca-doc-footer{
+  border-radius:var(--nucleo-soft-radius)!important;
+}
+.card,.sgq-panel,.sgq-kpi,.ro-summary-card,.settings-block,.permission-card,
+.triage-box,.duplicate-detail-card,.watch-card{
+  box-shadow:var(--nucleo-soft-shadow)!important;
+}
+.btn,.top-btn,.iconbtn,.stage-tab,.side-item,.side-module-head,.side-independent-module,
+.admin-config-nav button,.remove-admin,.duplicate-expand-btn,.ro-eye-btn,
+.pending-action-buttons button,.assigned-pdca-option{
+  border-radius:var(--nucleo-control-radius)!important;
+}
+input,select,textarea,.status-badge,.badge,.action-pill{
+  border-radius:11px!important;
+}
+.modal-box,.login-card,.presentation-card,.pdf-preview-card,.triage-modal,.ro-report-sheet{
+  border-radius:18px!important;
+}
+#roListView .assigned-pdca-control,
+#roListView .assigned-operational-icons,
+#roListView .assigned-action-group,
+.ro-control-table-wrap{
+  border-radius:12px!important;
+}
+#roListView table,.ro-control-table{border-collapse:separate!important;border-spacing:0!important;overflow:hidden}
+#roListView tbody tr:hover{background:#f8fafc!important}
+.side-module{border-radius:12px!important}
+.workspace main{padding-top:42px}
+</style>
+
+
+<style id="nucleo-visual-classico-restaurado-v2">
+/* Restauração visual efetiva do Núcleo: mais orgânico, arredondado e leve. */
+:root{
+  --nucleo-radius-card:22px;
+  --nucleo-radius-control:14px;
+  --nucleo-radius-small:12px;
+  --nucleo-shadow-card:0 10px 30px rgba(15,35,60,.07);
+  --nucleo-border-soft:#dfe6ec;
+}
+.card,.overview-panel,.overview-kpi,.sgq-panel,.sgq-kpi,.ro-summary-card,.sum-card,.settings-block,.permission-card,.triage-box,.meta-box,.question,.watch-card,.pending-hub-card,.mgmt-card,.mgmt-kpi{
+  border-radius:var(--nucleo-radius-card)!important;
+  box-shadow:var(--nucleo-shadow-card)!important;
+}
+.btn,.top-btn,.iconbtn,.stage-tab,.admin-config-nav button,.remove-admin,.ro-eye-btn,.duplicate-expand-btn{
+  border-radius:var(--nucleo-radius-control)!important;
+}
+input,select,textarea,.global-search-input{
+  border-radius:var(--nucleo-radius-control)!important;
+}
+.modal-box,.login-card,.presentation-card,.pdf-preview-card,.triage-modal,.announcement-modal,.ro-report-sheet{
+  border-radius:24px!important;
+}
+
+/* R.O.s atribuídas — esta tela tinha regras próprias que mantinham o visual quadrado. */
+#roListView.card{
+  border-radius:24px!important;
+  padding:24px!important;
+  border:1px solid var(--nucleo-border-soft)!important;
+  box-shadow:0 12px 34px rgba(15,35,60,.075)!important;
+}
+#roListView .assigned-filter-row{
+  gap:12px!important;
+  margin-top:18px!important;
+  margin-bottom:18px!important;
+}
+#roListView .assigned-filter-row input,
+#roListView .assigned-filter-row select,
+#roListView .toolbar input,
+#roListView .toolbar select{
+  min-height:42px!important;
+  border-radius:14px!important;
+  border:1px solid #d6dee7!important;
+  background:#fff!important;
+  padding:10px 13px!important;
+  box-shadow:0 2px 8px rgba(15,35,60,.025)!important;
+}
+#roListView .ro-control-table-wrap{
+  margin-top:6px!important;
+  border:1px solid #e3e9ef!important;
+  border-radius:18px!important;
+  overflow:auto!important;
+  background:#fff!important;
+}
+#roListView .ro-control-table{
+  border-collapse:separate!important;
+  border-spacing:0!important;
+  background:transparent!important;
+}
+#roListView .ro-control-table thead th{
+  background:#f8fafc!important;
+  padding-top:14px!important;
+  padding-bottom:14px!important;
+  border-bottom:1px solid #e3e9ef!important;
+}
+#roListView .ro-control-table tbody td{
+  padding-top:14px!important;
+  padding-bottom:14px!important;
+  border-bottom:1px solid #edf1f5!important;
+}
+#roListView .ro-control-table tbody tr:last-child td{border-bottom:0!important}
+#roListView .ro-control-table tbody tr:hover td{background:#fbfdff!important}
+#roListView .assigned-pdca-control{
+  border-radius:14px!important;
+  padding:4px!important;
+  background:#f7f9fc!important;
+}
+#roListView .assigned-pdca-option{border-radius:10px!important}
+#roListView .assigned-operational-icons .ro-eye-btn,
+#roListView td.operational-action-col > button,
+#roListView td.operational-action-col [data-ro-resend-email]{
+  border-radius:11px!important;
+}
+#roListView .badge,#roListView .status-badge{
+  border-radius:999px!important;
+  padding:6px 10px!important;
+}
+#roListView .stage-tab,#roListView .btn{border-radius:12px!important}
+
+/* Navegação lateral e cabeçalho mais suaves. */
+.side-item,.side-module-head,.side-independent-module{border-radius:13px!important}
+.side-module{border-radius:16px!important}
+.notification-bell{border-radius:12px!important}
+</style>
 </head><body>
 
 <div id="nucleoLoadingOverlay" role="status" aria-live="polite" aria-busy="true">
@@ -5836,7 +5966,7 @@ function renderSupplierIndicatorsWorkspace(){
 <script src="assets/modules-v2/nc/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/modules-v2/indicators/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/modules-v2/announcements/module.js?v=20261023-modular-full-test-v4-safe"></script>
-<script src="assets/core/runtime.js?v=20261103-status-review-source-v26"></script>
+<!-- runtime monolítico removido: funções exclusivas incorporadas em assets/nucleo-app.js -->
 <script src="assets/team-load-local-v47.js?v=20261027-team-local-central"></script>
 <script src="assets/nucleo-app.js?v=20261103-status-review-source-v26"></script>
 <script src="assets/api-source-lock-v20.js?v=20261105-api-editavel-v59"></script>
@@ -5951,6 +6081,7 @@ function renderSupplierIndicatorsWorkspace(){
 </script>
 
 
+<!-- R.O.s atribuídas liberadas: manutenção desativada -->
 <script id="nucleoAssignedMaintenanceGuardV1">
 (function(){
   const ASSIGNED_MAINTENANCE_MODE = false;
