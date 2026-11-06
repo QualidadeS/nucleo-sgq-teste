@@ -3055,15 +3055,24 @@ async function loginUser(){
     // A partir daqui o servidor JÁ autorizou. Nada do estado local pode cancelar o acesso.
     const u=remote.user||remote.usuario||{};
     const rawRole=String(u.role||u.perfil||u.tipoAcesso||'operational').toLowerCase();
+    // Segurança de perfil: SGQ/admin só existe para cadastro cujo setor é SGQ.
+    // Isso impede um role antigo/inconsistente no backend de promover um usuário comum.
+    const loginSectorKey=normalizeAnswer(String(u.sector||u.setor||sector||''));
+    const safeRole=rawRole==='quality'?'quality'
+      :((rawRole==='admin'||rawRole.includes('admin'))&&loginSectorKey==='sgq'?'admin'
+      :((rawRole==='manager'||rawRole.includes('gest'))?'manager':'operational'));
+    const safePermissions=(u.permissions&&u.permissions.version===1)
+      ? {...u.permissions,sgq:safeRole==='admin'}
+      : (u.permissions||null);
     const session={
-      permissions:u.permissions||null,accessUnits:u.accessUnits||null,
+      permissions:safePermissions,accessUnits:u.accessUnits||null,
       personId:u.personId||'',
       description:u.description||'',
       name:u.name||u.nome||name,
       email:u.email||u.e_mail||'',
       unit:u.unit||u.unidade||unit,
       sector:u.sector||u.setor||sector,
-      role:rawRole==='quality'?'quality':((rawRole==='admin'||rawRole.includes('admin'))?'admin':((rawRole==='manager'||rawRole.includes('gest'))?'manager':'operational')),
+      role:safeRole,
       sectorMemberships:Array.isArray(u.sectorMemberships)?u.sectorMemberships:[],
       managedSectors:Array.isArray(u.managedSectors)?u.managedSectors:[],
       approvalStatus:u.approvalStatus||'approved',
