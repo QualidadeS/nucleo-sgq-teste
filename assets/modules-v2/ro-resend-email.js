@@ -153,13 +153,15 @@
   window.__nucleoEmailErrorIndex = window.__nucleoEmailErrorIndex || new Set();
 
   function rebuildErrorIndex(history){
-    const idx=new Set(pendingEmailFailures(history).map(x=>x.ro));
+    const failures=pendingEmailFailures(history);
+    // O render principal filtra por roDigits(...), portanto o índice precisa usar
+    // exatamente a mesma chave. A linha continua sendo montada pelo render normal.
+    const idx=new Set(failures.map(x=>roDigits(x.ro)).filter(Boolean));
     window.__nucleoEmailErrorIndex=idx;
-    window.__nucleoPendingEmailFailures=pendingEmailFailures(history);
+    window.__nucleoPendingEmailFailures=failures;
     try{
-      const mode=document.getElementById('assignedEmailFilter')?.value||'all';
-      if(mode==='error')renderPendingErrorView(history);
-      else if(typeof render==='function')render();
+      if(typeof render==='function')render();
+      setTimeout(updateAssignedEmailMarkers,0);
     }catch(e){}
   }
 
@@ -742,13 +744,11 @@
     sel.innerHTML='<option value="all">Todos os envios</option><option value="error">Erro no envio</option>';
     sel.value='all';
     sel.addEventListener('change',async()=>{
-      if(sel.value==='error'){
-        const history=await loadHistory(true);
-        renderPendingErrorView(history);
-      }else{
-        try{if(typeof render==='function')render()}catch(e){}
-        setTimeout(updateAssignedEmailMarkers,0);
-      }
+      // O filtro nunca cria uma tabela alternativa. Mantém o render normal e
+      // apenas restringe as mesmas linhas pelo status de envio.
+      if(sel.value==='error')await loadHistory(true);
+      try{if(typeof render==='function')render()}catch(e){}
+      setTimeout(updateAssignedEmailMarkers,0);
     });
     base.insertAdjacentElement('afterend',sel);
     return sel;
@@ -848,10 +848,6 @@
       if(!assigned)return;
       const history=await loadHistory();
       const sel=ensureAssignedEmailFilter();
-      if((sel?.value||'all')==='error'){
-        renderPendingErrorView(history);
-        return;
-      }
 
       document.querySelectorAll('#rows tr').forEach(tr=>{
         const roBtn=tr.querySelector('td:first-child .ro-link-btn');
@@ -866,6 +862,14 @@
         ensureStatusBadge(tr,emailStatus,events);
         applyAssignedEmailFilter(tr,emailStatus.code);
       });
+
+      if((sel?.value||'all')==='error'){
+        const visible=[...document.querySelectorAll('#rows tr')].filter(tr=>tr.style.display!=='none'&&tr.dataset.roEmailStatus==='error').length;
+        const more=document.getElementById('roListMore');
+        if(more)more.innerHTML=visible
+          ? visible+' R.O.(s) com erro de envio ainda sem reenvio confirmado'
+          : 'Nenhuma R.O. com erro de envio ainda sem reenvio confirmado';
+      }
     }catch(e){
       console.warn('[NÚCLEO EMAIL STATUS] Falha ao marcar R.O.s atribuídas.',e);
     }
