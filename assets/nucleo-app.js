@@ -14722,19 +14722,27 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
     // Não descarte uma atribuição válida só porque a chave foi ocultada em algum
     // momento no cache visual local. A ocultação só deve resolver duplicidade;
     // se esta for a única linha válida daquele R.O.+setor, ela precisa aparecer.
-    let records=(assignedTriageByRo.get(base)||[]).filter(t=>String(t.decision||'')!=='');
+    // R.O.s atribuídas representam SOMENTE o meio do fluxo: a ocorrência já foi
+    // triada/direcionada para um setor e ainda aguarda a tratativa. Ter um setor
+    // preenchido na planilha, por si só, não cria uma atribuição.
+    let records=(assignedTriageByRo.get(base)||[]).filter(t=>{
+      const sector=String(t?.responsibleSector||t?.setorDirecionado||'').trim();
+      const norm=normalizeAnswer(sector);
+      const validSector=!!sector && !['nao direcionado','nao informado','sem setor','-'].includes(norm);
+      return String(t?.decision||'')==='directed' && validSector;
+    });
+
+    // Se a fonte oficial da triagem (planilha-base + SGQ_TRIAGENS) reconhece um
+    // direcionamento válido, use-o. Nunca sintetize atribuição apenas a partir de
+    // setor solto da R.O.; sem decisão directed, a ocorrência fica só em Para triar.
     const confirmed=resolvedTriageForRo(r,renderTriageMap);
-    if(confirmed?.decision&&confirmed.decision!=='directed')records=[confirmed];
-    // Recuperação segura: se SGQ_TRIAGENS estiver vazio/desatualizado, mas a
-    // própria R.O. importada ainda trouxer setor causa, ela continua atribuída.
-    // Não exige status operacional aqui, pois versões anteriores chegaram a
-    // limpar esse campo no cache e isso fazia a lista inteira desaparecer.
-    if(!records.length){
-      const sheetSector=String(r.setorResponsavelPlanilha||r.raw?.__setorResponsavel||r.setor||'').trim();
-      const norm=normalizeAnswer(sheetSector);
-      if(sheetSector && !['nao direcionado','nao informado','sem setor','-'].includes(norm)){
-        const syntheticKey=triageCompositeKey(base,sheetSector);
-        records=[{roKey:syntheticKey,roNumber:base,decision:'directed',responsibleSector:sheetSector,importedFromSheet:true,__synthetic:true}];
+    if(confirmed?.decision==='directed'){
+      const sector=String(confirmed?.responsibleSector||confirmed?.setorDirecionado||'').trim();
+      const norm=normalizeAnswer(sector);
+      if(sector && !['nao direcionado','nao informado','sem setor','-'].includes(norm)){
+        const confirmedKey=String(confirmed?.roKey||triageCompositeKey(base,sector));
+        const already=records.some(t=>String(t?.roKey||'')===confirmedKey || sameCanonicalSector(t?.responsibleSector||t?.setorDirecionado||'',sector));
+        if(!already)records.push({...confirmed,roKey:confirmedKey,roNumber:base,responsibleSector:sector});
       }
     }
     if(!records.length)return [];
@@ -14779,15 +14787,13 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
       // não são prova de que o setor concluiu a resposta no fluxo atual.
       const assignedHasCompletedResponse = !!computedRow.sentPdca;
       if(assignedHasCompletedResponse)return false;
-      // Uma R.O. é atribuída quando existe uma decisão central OU quando a própria
-      // planilha ainda comprova o direcionamento. Isso evita esvaziar esta tela se
-      // o cache de SGQ_TRIAGENS ainda não tiver sido restaurado/sincronizado.
-      const triStatus=String(tri?.status||tri?.triagemStatus||tri?.decision||'').toLowerCase();
-      const sheetSector=String(r.setorResponsavelPlanilha||r.raw?.__setorResponsavel||r.setor||'').trim();
-      const validSheetSector=!!sheetSector && !['nao direcionado','nao informado','sem setor','-'].includes(normalizeAnswer(sheetSector));
-      const assignedBySheet=validSheetSector;
-      const assignedByTriage=!!tri && !['','new','nova','aguardando','aguardando triagem'].includes(triStatus);
-      if(!assignedByTriage && !assignedBySheet)return false;
+      // Atribuição exige triagem/direcionamento real. Setor preenchido isoladamente
+      // na R.O. não basta e não pode duplicar a ocorrência em Para triar + Atribuídas.
+      const triSector=String(tri?.responsibleSector||tri?.setorDirecionado||'').trim();
+      const triSectorNorm=normalizeAnswer(triSector);
+      const assignedByTriage=!!tri && String(tri?.decision||'')==='directed' && !!triSector &&
+        !['nao direcionado','nao informado','sem setor','-'].includes(triSectorNorm);
+      if(!assignedByTriage)return false;
       // Somente SGQ real/Qualidade real pulam o filtro setorial.
       // Usuário comum SEMPRE passa por canViewRO(), mesmo se um role antigo vier como admin.
       // Usuários comuns já passaram por canViewRO() ao montar
