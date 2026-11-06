@@ -14804,6 +14804,11 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
       }
       const text=nucleoRoSearchMatches(r,q);
       const displayStatus=roListMode==='assigned'?computeAssignedRow(r).displayStatus:assignedRoStatus(r);
+      if(roListMode==='assigned'){
+        const finalized=['Cancelada','Registro','Obsoleto'].includes(displayStatus);
+        if(assignedLifecycle==='active' && finalized)return false;
+        if(assignedLifecycle==='history' && !finalized)return false;
+      }
       const statusKey={'Pendente':'precisa_resposta','Respondida':'ja_respondeu','Apresentada':'ja_respondeu','Cancelada':'cancelada','Registro':'registro','Obsoleto':'obsoleto'}[displayStatus]||'precisa_resposta';
       const filt=f==='todas'||f===statusKey;
       return text&&filt;
