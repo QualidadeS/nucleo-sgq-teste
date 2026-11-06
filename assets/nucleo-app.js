@@ -1161,6 +1161,19 @@ function applyPortalBackendSnapshot(snapshot){
   if(Array.isArray(data.users)){
     const filteredUsers=data.users.filter(u=>!isDeletedUserRecord(u));
     localStorage.setItem(USERS_KEY,JSON.stringify(filteredUsers));
+
+    // Reaplica imediatamente as permissões mais recentes salvas pelo SGQ.
+    const current=getSession();
+    if(current){
+      const fresh=filteredUsers.find(u=>(current.personId&&String(u.personId||'')===String(current.personId))||(current.email&&normalizeAnswer(u.email||'')===normalizeAnswer(current.email))||normalizeAnswer(u.name||'')===normalizeAnswer(current.name||''));
+      if(fresh){
+        const freshSector=normalizeAnswer(String(fresh.sector||fresh.setor||current.sector||''));
+        const rawRole=String(fresh.role||current.role||'operational').toLowerCase();
+        const safeRole=rawRole==='quality'?'quality':((rawRole==='admin'||rawRole.includes('admin'))&&freshSector==='sgq'?'admin':((rawRole==='manager'||rawRole.includes('gest'))?'manager':'operational'));
+        const freshPermissions=(fresh.permissions&&fresh.permissions.version===1)?{...fresh.permissions,sgq:safeRole==='admin'}:(current.permissions||null);
+        setSession({...current,permissions:freshPermissions,accessUnits:fresh.accessUnits||current.accessUnits||null,sectorMemberships:Array.isArray(fresh.sectorMemberships)?fresh.sectorMemberships:current.sectorMemberships||[],managedSectors:Array.isArray(fresh.managedSectors)?fresh.managedSectors:current.managedSectors||[],unit:fresh.unit||fresh.unidade||current.unit,sector:fresh.sector||fresh.setor||current.sector,role:safeRole});
+      }
+    }
   }
   if(Array.isArray(data.announcements)){
     const localAnnouncements=data.announcements.map(a=>{
@@ -1230,6 +1243,7 @@ async function syncPortalBackend(showMessage=false,options={}){
     const res=await portalJsonp({acao:'portal_load'});
     if(res?.sucesso===false)throw new Error(res.erro||'Falha ao carregar base central.');
     applyPortalBackendSnapshot(res);
+    try{enforceAdminVisibility();nucleoApplyPersonAccess();nucleoApplyFeatureButtons();}catch(e){console.warn('Falha ao reaplicar permissões da sessão.',e);}
     nucleoSetCentralSyncState('synced','Base central confirmada. Os dados em tela estão atualizados.',res?.atualizadoEm||'');
     updateBackendStatus(true,'Base central conectada.');
 
@@ -16583,43 +16597,24 @@ function applyBodyRoleClass(){
 
 function enforceAdminVisibility(){
   applyBodyRoleClass();
-  document.body.classList.toggle('nucleo-sgq-session',nucleoPersonPermissions(getSession()||{}).sgq);
-  const allowed=isAdmin();
+  const session=getSession()||{};
+  const permissions=nucleoPersonPermissions(session);
+  document.body.classList.toggle('nucleo-sgq-session',permissions.sgq===true);
 
-  // Qualquer item marcado como administrativo fica invisível para operador,
-  // independentemente de estilos antigos, restauração do menu ou renderizações posteriores.
-  document.querySelectorAll('.admin-only').forEach(el=>{
-    el.style.display=allowed?'':'none';
-    el.classList.toggle('hidden',!allowed);
-  });
+  // Permissões personalizadas definem a navegação. O perfil-base não pode
+  // esconder uma aba que o SGQ concedeu explicitamente.
+  try{nucleoApplyPersonAccess()}catch(e){}
 
-  const module=document.getElementById('moduleManagement');
-  if(module){
-    module.style.display=allowed?'':'none';
-    module.classList.toggle('hidden',!allowed);
+  const navAdmin=document.getElementById('navAdmin');
+  if(navAdmin){
+    const adminAllowed=permissions.sgq||nucleoPersonCan('users')||nucleoPersonCan('sectors');
+    if(adminAllowed){navAdmin.style.removeProperty('display');navAdmin.classList.remove('hidden');}
+    else{navAdmin.style.setProperty('display','none','important');navAdmin.classList.add('hidden');}
   }
 
-  const adminIds=[
-    'navExternalPdcas','navAdmin','navEquipment','navTraining','navNcCapa','navDocuments',
-    'navProcesses','navIndicators','navAnnouncements',
-    'navPendingActions','navTriage','navContests','navExternalRoControl','navSacTracking'
-  ];
-  adminIds.forEach(id=>{
-    const el=document.getElementById(id);
-    if(!el)return;
-    el.style.display=allowed?'':'none';
-    el.classList.toggle('hidden',!allowed);
-  });
-
-  // Cadastro de R.O. Externa / SAC é restrito a Comercial, Diretoria, Processos e SGQ,
-  // inclusive quando o usuário possui perfil administrativo.
   try{refreshRoRegistrationAccess()}catch(e){}
-
-  // Usuário representante recebe apenas "Meus SACs"; ADM mantém o controle completo.
   try{refreshRepresentativeSacMenu()}catch(e){}
-  nucleoApplyPersonAccess();
 }
-
 
 
 window.addEventListener('pagehide',()=>{try{if(selected && !document.getElementById('pdcaView')?.classList.contains('hidden'))savePdcaDraftLocal()}catch(e){}});
@@ -16943,10 +16938,31 @@ function nucleoFeatureEditor(user,parent){
  return Object.entries(NUCLEO_PERSON_FEATURES).map(([module,features])=>'<details class="person-feature-group" style="border:1px solid #dce4ee;border-radius:10px;margin:10px 0;padding:12px" '+(module==='ros'?'open':'')+'><summary style="cursor:pointer;font-weight:700">'+escapeHtml(NUCLEO_PERSON_MODULES[module])+'</summary><div style="display:grid;gap:10px;margin-top:14px">'+Object.entries(features).map(([key,[label]])=>'<label style="display:flex;gap:10px;align-items:center"><input type="checkbox" data-feature-module="'+module+'" data-feature="'+key+'" '+(nucleoPersonFeatureAllowed(user,module,key)?'checked ':'')+(!nucleoPersonFeatureAllowed(parent,module,key)?'disabled ':'')+'style="width:22px;height:22px;flex-shrink:0">'+escapeHtml(label)+'</label>').join('')+'</div></details>').join('');
 }
 function nucleoApplyFeatureAccess(){
- if(getSession()?.permissions?.detailVersion!==1)return;
+ const session=getSession();
+ if(!session?.permissions||session.permissions.detailVersion!==1)return;
  const nav={navRos:['ros','consult'],navAssignedRos:['ros','assigned'],navMySubmittedRos:['ros','submitted'],navTriage:['ros','triage'],navContests:['ros','reviewContests'],navSent:['pdca','received'],navActions:['pdca','actions'],navPendingActions:['pdca','reviewActions'],navExternalPdcas:['pdca','import'],navExternalRoControl:['sac','edit'],navMySacs:['sac','consult'],navSacTracking:['sac','consult'],navDocuments:['documents','*'],navDocumentRequests:['documents','request'],navIndicators:['indicators','consult'],navAnnouncements:['announcements','publish'],navEquipment:['equipment','*'],navTraining:['training','*'],navNcCapa:['nc','*'],navProcesses:['processes','*']};
- Object.entries(nav).forEach(([id,[module,key]])=>{const el=document.getElementById(id);if(el&&!(key==='*'?nucleoPersonCan(module):nucleoPersonFeatureCan(module,key))){el.style.setProperty('display','none','important');el.classList.add('hidden');}});
+ Object.entries(nav).forEach(([id,[module,key]])=>{
+   const el=document.getElementById(id);if(!el)return;
+   const allowed=key==='*'?nucleoPersonCan(module):nucleoPersonFeatureCan(module,key);
+   if(allowed){
+     el.style.removeProperty('display');
+     el.classList.remove('hidden');
+     const parent=el.closest?.('.side-module.admin-only');
+     if(parent){parent.style.setProperty('display','block','important');parent.classList.remove('hidden');}
+   }else{
+     el.style.setProperty('display','none','important');
+     el.classList.add('hidden');
+   }
+ });
+ const management=document.getElementById('moduleManagement');
+ if(management){
+   const ids=['navEquipment','navTraining','navNcCapa','navProcesses','navIndicators','navAnnouncements'];
+   const any=ids.some(id=>{const el=document.getElementById(id);return el&&!el.classList.contains('hidden')&&el.style.display!=='none';});
+   if(any){management.style.removeProperty('display');management.classList.remove('hidden');}
+   else{management.style.setProperty('display','none','important');management.classList.add('hidden');}
+ }
 }
+
 
 function nucleoWorkspaceFeature(key,mode){
  const module=key==='nccapa'?'nc':key;
@@ -16958,7 +16974,10 @@ function nucleoApplyFeatureButtons(){
  if(getSession()?.permissions?.detailVersion!==1)return;
  document.querySelectorAll('[onclick]').forEach(el=>{
   const handler=el.getAttribute('onclick')||'';const name=handler.match(/^\s*([A-Za-z_][\w]*)\(/)?.[1];const spec=NUCLEO_FEATURE_BUTTONS[name];
-  if(spec&&!nucleoPersonFeatureCan(spec[0],spec[1]))el.style.setProperty('display','none','important');
+  if(!spec)return;
+  const allowed=nucleoPersonFeatureCan(spec[0],spec[1]);
+  if(allowed)el.style.removeProperty('display');
+  else el.style.setProperty('display','none','important');
  });
  [['sectorList','edit'],['qualityConfigSectors','edit'],['qualityConfigEmail','emails'],['qualityConfigDirector','emails']].forEach(([id,key])=>{const el=document.getElementById(id);if(el)el.disabled=!nucleoPersonFeatureCan('sectors',key);});
  const types=document.getElementById('documentTypeRows')?.parentElement;if(types&&!nucleoPersonFeatureCan('sectors','documentTypes'))types.querySelectorAll('input,button').forEach(el=>el.disabled=true);
