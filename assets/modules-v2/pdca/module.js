@@ -453,6 +453,62 @@ async function nucleoPdcaReviewPersist2026(ro,decision){
   return true;
 }
 
+async function nucleoUnlinkPdcaReview2026(roKey,origin){
+  if(!nucleoFeatureRequire('pdca','import'))return;
+
+  const target=nucleoPdcaReviewCanonical2026(roKey,origin);
+  if(!target){alert('R.O. não identificada.');return;}
+
+  const review=nucleoPdcaReviewMap2026();
+  const current=review[target];
+  const currentLabel=current?.decision==='yes'?'Tem PDCA':current?.decision==='no'?'Não tem PDCA':'sem definição';
+
+  if(!confirm(
+    'Desvincular a definição de PDCA desta R.O.?\n\n'+
+    'Situação atual: '+currentLabel+'\n\n'+
+    'A R.O. voltará a permitir a escolha entre "Tem PDCA" e "Não tem PDCA". '+
+    'Nenhuma R.O., arquivo ou PDCA salvo será excluído.'
+  ))return;
+
+  try{
+    await withNucleoLoading('Desvinculando definição de PDCA...',async()=>{
+      delete review[target];
+      nucleoSavePdcaReviewMap2026(review);
+
+      const map=getSavedTriageMap();
+      const records=getTriageRecordsForRoNumber(roKey,map);
+
+      for(const old of records){
+        const updated={...old};
+        delete updated.pdcaReviewDecision;
+        delete updated.pdcaReviewAt;
+        delete updated.pdcaReviewBy;
+
+        // Retorna à regra operacional da triagem sem excluir PDCA ou arquivo.
+        if(String(updated.decision||'')==='directed')updated.pdcaRequired=true;
+
+        map.set(String(updated.roKey||roKey),updated);
+        if(portalBackendEnabled()){
+          await portalBackendSaveConfirmed('triage',String(updated.roKey||roKey),updated);
+        }
+      }
+
+      localStorage.setItem(TRIAGE_KEY,JSON.stringify([...map.values()]));
+
+      try{render()}catch(e){}
+      try{renderPdcaReview2026()}catch(e){}
+      try{renderPdcaPdfSummary()}catch(e){}
+      try{renderCurrentOverview()}catch(e){}
+      try{refreshRoSummary()}catch(e){}
+    },'Atualizando R.O.');
+
+    alert('Definição de PDCA desvinculada. Você pode escolher novamente entre Tem PDCA e Não tem PDCA.');
+  }catch(e){
+    console.error('[NUCLEO DESVINCULAR PDCA]',e);
+    alert('Não foi possível desvincular a definição de PDCA.\n\n'+String(e?.message||e));
+  }
+}
+
 async function nucleoMarkPdcaReview2026(roKey,origin,decision){
   if(!nucleoFeatureRequire('pdca','import'))return;
   const target=nucleoPdcaReviewCanonical2026(roKey,origin);
@@ -1820,7 +1876,77 @@ async function confirmReceivedPdcaClaimant(id){
  }catch(e){const status=document.getElementById('ndStatus');if(status)status.textContent=e.message;else alert(e.message);}
 }
 
-function nucleoPdcaDelivery(p){const deliveries=Array.isArray(nucleoCentralPdcaDispatches)?nucleoCentralPdcaDispatches:[];return deliveries.find(d=>d.ro===p.ro&&d.unit===explicitRecordUnit(p)&&(d.pdcaFileId===p.pdcaFileId||d.fileId&&d.fileId===p.fileId)&&Number(d.version||1)===Number(p.version||1));}
+function nucleoPdcaDelivery(p){
+  if(!p)return null;
+
+  const deliveries=Array.isArray(nucleoCentralPdcaDispatches)?nucleoCentralPdcaDispatches:[];
+  const direct=deliveries.find(d=>
+    d.ro===p.ro &&
+    d.unit===explicitRecordUnit(p) &&
+    (d.pdcaFileId===p.pdcaFileId || (d.fileId&&d.fileId===p.fileId)) &&
+    Number(d.version||1)===Number(p.version||1)
+  );
+  if(direct)return direct;
+
+  // A própria resposta já pode ter a confirmação de entrega gravada pelo backend.
+  const deliveredAt=String(
+    p.claimantDeliveredAt ||
+    p.pdcaEnviadoReclamanteEm ||
+    p.deliveredAt ||
+    p.deliveryAt ||
+    ''
+  ).trim();
+  if(deliveredAt){
+    return {
+      ro:p.ro,
+      unit:explicitRecordUnit(p),
+      pdcaId:p.id,
+      deliveredAt,
+      deliveredBy:p.claimantDeliveredBy||p.deliveredBy||'',
+      source:'pdca_sent'
+    };
+  }
+
+  // A planilha/R.O. também é fonte válida de encerramento. É justamente esta
+  // informação que a tela de apresentação já usa para exibir "Apresentação concluída".
+  try{
+    const source=typeof findRoByAnyNumber==='function'
+      ? findRoByAnyNumber(p.ro||'',p.origemBase||p.sourceRoOrigin||'')
+      : null;
+
+    const sourceDeliveredAt=String(source?.pdcaEnviadoReclamanteEm||'').trim();
+    if(source?.reclamanteRecebeuPdca || sourceDeliveredAt){
+      return {
+        ro:p.ro,
+        unit:explicitRecordUnit(p),
+        pdcaId:p.id,
+        deliveredAt:sourceDeliveredAt,
+        deliveredBy:'Registrado na planilha',
+        source:'ro_sheet'
+      };
+    }
+  }catch(e){}
+
+  // Compatibilidade com apresentações registradas no Núcleo antes da criação
+  // do despacho central.
+  try{
+    const presentation=typeof getPdcaPresentationMap==='function'
+      ? getPdcaPresentationMap().get(String(p.id||''))
+      : null;
+    if(presentation?.presentationCompleted){
+      return {
+        ro:p.ro,
+        unit:explicitRecordUnit(p),
+        pdcaId:p.id,
+        deliveredAt:presentation.claimantDeliveredAt||presentation.completedAt||presentation.presentedAt||'',
+        deliveredBy:presentation.presentedBy||presentation.registeredBy||'',
+        source:'presentation'
+      };
+    }
+  }catch(e){}
+
+  return null;
+}
 
 function nucleoConsultPdcaClaimant(id){const p=getAllSentPdcas().find(p=>p.id===id);if(!p)return;const ro=getAllRoRecords().find(r=>String(r.numero||r.id)===p.ro&&explicitRecordUnit(r)===explicitRecordUnit(p));const binding=ro&&claimantIdentityIndex().bindings.get(claimantRoKey(ro));const user=ro&&resolveRoClaimant(ro);alert('Reclamante confirmado: '+(user?personDisplayName(user):'Cadastro indisponível')+(binding?.confirmedBy?'\nConfirmado por: '+binding.confirmedBy:'')+(binding?.confirmedAt?'\nData: '+new Date(binding.confirmedAt).toLocaleString('pt-BR'):''));}
 

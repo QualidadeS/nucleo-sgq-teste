@@ -1,6 +1,6 @@
 
 // Núcleo build unificado: todos os navegadores devem carregar a mesma implantação.
-window.NUCLEO_BUILD_VERSION = '20261026-modular-teste-v27-ro-drive-fila-gatilho';
+window.NUCLEO_BUILD_VERSION = '20261028-pdca-review-unlink-v7';
 (function nucleoBuildConsistencyGuard(){
   try {
     var meta=document.querySelector('meta[name="nucleo-build"]');
@@ -33,7 +33,7 @@ function nucleoLoadAdminModule(){
   if(nucleoAdminModulePromise)return nucleoAdminModulePromise;
   nucleoAdminModulePromise=new Promise((resolve,reject)=>{
     const script=document.createElement('script');
-    script.src=new URL('assets/modules/admin-workspaces.js?v=20261026-modular-teste-v13-ro-geometria-no-modelo',document.baseURI).href;
+    script.src=new URL('assets/modules/admin-workspaces.js?v=20261021-0945-unified',document.baseURI).href;
     const timer=setTimeout(()=>finish(new Error('Tempo limite ao carregar o módulo.')),20000);
     function finish(error){clearTimeout(timer);script.onload=script.onerror=null;if(error){script.remove();nucleoAdminModulePromise=null;reject(error)}else resolve();}
     script.onload=()=>finish();
@@ -6238,6 +6238,94 @@ function closeRoReport(){
 function nucleoRoModelNormKey(v){
   return String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9]+/g,' ').trim().toLowerCase();
 }
+function nucleoRoPdfKnownSectors_(){
+  const out=[];
+  try{if(typeof getConfiguredSectorsForTriage==='function')out.push(...(getConfiguredSectorsForTriage()||[]));}catch(_){ }
+  try{if(typeof getConfiguredSectors==='function'){out.push(...(getConfiguredSectors('matriz')||[]));out.push(...(getConfiguredSectors('filial')||[]));}}catch(_){ }
+  return [...new Set(out.map(x=>String(x||'').trim()).filter(Boolean))];
+}
+function nucleoRoPdfIsSector_(v){
+  const n=nucleoRoModelNormKey(v);if(!n)return false;
+  return nucleoRoPdfKnownSectors_().some(s=>nucleoRoModelNormKey(s)===n);
+}
+function nucleoRoPdfLooksNumeric_(v){
+  const s=String(v??'').trim();
+  if(!s)return false;
+  return /^-?\d+(?:[\.,]\d+)?(?:\s*(?:kg|g|un|unid|pc|pcs|peças|pecas))?$/i.test(s);
+}
+function nucleoRoPdfFirstNonEmpty_(arr){
+  for(const v of arr){if(v!==undefined&&v!==null&&String(v).trim()!=='')return v;}
+  return '';
+}
+function nucleoRoPdfSemanticValues_(ro){
+  const raw=ro?.raw||{};
+  const val=(names)=>firstValue(raw,names)||'';
+  const tri=(()=>{try{return typeof getRoTriageRecord==='function'?getRoTriageRecord(ro,typeof getSavedTriageMap==='function'?getSavedTriageMap():undefined):null;}catch(_){return null;}})();
+
+  // V42: os campos oficiais do PDF usam primeiro os marcadores posicionais
+  // enviados pela API. Eles vêm diretamente das colunas reais da planilha e
+  // não sofrem com cabeçalhos antigos/deslocados do Google Forms.
+  const tipo=String(raw.__tipoOcorrencia ?? ro?.tipoRO ?? ro?.assunto ?? val(['Tipo de Ocorrência','Tipo de ocorrência','Classificação']) ?? '').trim();
+  const descricao=String(raw.__descricaoProblema ?? ro?.descricao ?? val(['Descreva sobre o problema encontrado:','Descreva sobre o problema encontrado','Descrição','Descricao']) ?? '').trim();
+  const setorIdentificado=String(raw.__setorIdentificado ?? ro?.setorIdentificado ?? val(['Setor (onde foi identificado o desvio de qualidade):','Setor (onde foi identificado o desvio de qualidade)','Setor onde foi identificado o desvio de qualidade','Setor onde foi identificado','Setor identificado']) ?? '').trim();
+  const quantidade=String(raw.__quantidadeDesvio ?? ro?.quantidade ?? val(['Quantidade de peças com desvio:','Quantidade de peças com desvio','Quantidade','Qtd','Qtd.']) ?? '').trim();
+  const peso=String(raw.__pesoMaterial ?? val(['Peso do material descartado e/ou reaproveitado:','Peso do material descartado e/ou reaproveitado','Peso do material descartado/reaproveitado']) ?? '').trim();
+  const liberado=String(raw.__liberadoQualidade ?? val(['Liberado pelo setor de qualidade?','Liberado pelo setor de qualidade']) ?? '').trim();
+  const quemLiberou=String(raw.__quemLiberou ?? val(['Registre o nome de quem liberou:','Registre o nome de quem liberou','Quem liberou']) ?? '').trim();
+
+  let resultado=String(ro?.resultadoEnvio||raw?.__resultadoOperacional||val(['Resultado'])||'').trim();
+  if(/nenhum\s+email\s+encontrado/i.test(resultado))resultado='';
+
+  const destinatario=String(nucleoRoPdfFirstNonEmpty_([
+    tri?.responsibleUserName,
+    tri?.responsibleUserEmail,
+    tri?.destinatario,
+    tri?.recipient,
+    raw?.__pessoaResponsavel,
+    ro?.pessoaResponsavel
+  ])||'').trim();
+  const setorCausa=String(nucleoRoPdfFirstNonEmpty_([
+    tri?.responsibleSector,
+    tri?.setorDirecionado,
+    raw?.__setorResponsavel,
+    ro?.setorResponsavelPlanilha,
+    ro?.setor
+  ])||'').trim();
+
+  return {
+    'R.O.':ro?.numero||ro?.id||ro?.codigo||'',
+    'RO':ro?.numero||ro?.id||ro?.codigo||'',
+    'Data':ro?.data||ro?.dataSolicitacao||'',
+    'Unidade':ro?.unidade||'',
+    'Cliente':raw.__cliente||val(['Nome do cliente:','Nome do cliente','Cliente','Cliente / origem'])||ro?.cliente||'',
+    'Tipo de ocorrência':tipo,
+    'Tipo de ocorrencia':tipo,
+    'Identificação do desvio':raw.__identificacaoDesvio||val(['Identifique o desvio de qualidade:  Problemas oriundos ou que deveriam ser pegos em:  F -  Fabricação PA - Processos Administrativos E - Expedição C - Clicheria DT - Desenvolvimento Técnico FT - Fábrica de Tintas G - Geral EP - Estoque MP'])||'',
+    'Descrição':descricao,
+    'Descricao':descricao,
+    'Setor identificado':setorIdentificado,
+    'Setor onde foi identificado':setorIdentificado,
+    'Quantidade de peças com desvio':quantidade,
+    'Peso do material descartado/reaproveitado':peso,
+    'Liberado pelo setor de qualidade?':liberado,
+    'Quem liberou':quemLiberou,
+    'Resultado':resultado,
+    'Destinatário da triagem':destinatario,
+    'Destinatario da triagem':destinatario,
+    'Setor causa/responsável':setorCausa,
+    'Setor causa / responsável':setorCausa,
+    'Setor':setorCausa,
+    'Status':ro?.status||'',
+    'Matrícula':val(['Matrícula','Matricula']),
+    'Responsável pelo registro':raw?.['Nome e Sobrenome (responsável pelo registro deste formulário):']||val(['Nome e Sobrenome (responsável pelo registro deste formulário):','Nome e Sobrenome (responsável pelo registro deste formulário)','Responsável pelo registro','Responsavel pelo registro']),
+    'Número do pedido':val(['Número do pedido:','Número do pedido','Numero do pedido:','Numero do pedido']),
+    'Código do item':val(['Código do item:','Código do item','Codigo do item:','Codigo do item']),
+    'Ordem de produção':val(['Ordem de produção (código de barras):','Ordem de produção (código de barras)','Ordem de produção','Ordem de producao']),
+    'Nota fiscal de venda':val(['Nota fiscal de venda','Nota fiscal de venda:','NF de venda','NF venda','Nota Fiscal']),
+    'Ação preventiva':raw?.__acaoPreventiva||val(['Ação preventiva','Acao preventiva']),
+    'Prazo conclusão ação':raw?.__prazoConclusaoAcao||val(['Prazo conclusão ação','Prazo conclusao acao'])
+  };
+}
 function nucleoRoModelValue(ro,source,model,pageNo=1,totalPages=1){
   const raw=ro?.raw||{},src=String(source||'');
   if(src==='#TITLE')return model?.title||'RELATO DE OCORRÊNCIA';
@@ -6248,48 +6336,27 @@ function nucleoRoModelValue(ro,source,model,pageNo=1,totalPages=1){
   if(src==='#PAGE')return totalPages>1?(pageNo+' / '+totalPages):String(pageNo);
   if(src==='#FOOTER')return model?.footer||'';
   if(src==='#GENERATED')return new Date().toLocaleString('pt-BR');
-  if(src==='#EVIDENCE')return '';
-  if(src==='#HISTORY')return '';
+  if(src==='#EVIDENCE'||src==='#HISTORY')return '';
 
-  if(Object.prototype.hasOwnProperty.call(raw,src) && String(raw[src]??'').trim()!=='')return raw[src];
   const wanted=nucleoRoModelNormKey(src);
+  const semantic=nucleoRoPdfSemanticValues_(ro);
+  for(const [k,v] of Object.entries(semantic)){
+    if(nucleoRoModelNormKey(k)===wanted)return v??'';
+  }
+
+  // Somente campos não padronizados recorrem diretamente ao raw. Isso evita
+  // cabeçalhos históricos deslocados contaminarem os campos oficiais do PDF.
+  if(Object.prototype.hasOwnProperty.call(raw,src) && String(raw[src]??'').trim()!=='')return raw[src];
   for(const [k,v] of Object.entries(raw))if(nucleoRoModelNormKey(k)===wanted && String(v??'').trim()!=='')return v;
 
-  const values={
-    'R.O.':ro?.numero||ro?.id||ro?.codigo||'',
-    'RO':ro?.numero||ro?.id||ro?.codigo||'',
-    'Data':ro?.data||ro?.dataSolicitacao||'',
-    'Unidade':ro?.unidade||'',
-    'Cliente':firstValue(raw,['Nome do cliente:','Nome do cliente','Cliente','Cliente / origem'])||ro?.cliente||'',
-    'Tipo de ocorrência':ro?.tipoRO||ro?.assunto||'',
-    'Setor identificado':ro?.setorIdentificado||'',
-    'Setor onde foi identificado':ro?.setorIdentificado||'',
-    'Setor causa/responsável':ro?.setor||'',
-    'Setor causa / responsável':ro?.setor||'',
-    'Setor':ro?.setor||'',
-    'Status':ro?.status||'',
-    'Descrição':ro?.descricao||'',
-    'Matrícula':firstValue(raw,['Matrícula','Matricula']),
-    'Responsável pelo registro':firstValue(raw,['Nome e Sobrenome (responsável pelo registro deste formulário):','Nome e Sobrenome (responsável pelo registro deste formulário)','Responsável pelo registro','Responsavel pelo registro']),
-    'Número do pedido':firstValue(raw,['Número do pedido:','Número do pedido','Numero do pedido:','Numero do pedido']),
-    'Código do item':firstValue(raw,['Código do item:','Código do item','Codigo do item:','Codigo do item']),
-    'Ordem de produção':firstValue(raw,['Ordem de produção (código de barras):','Ordem de produção (código de barras)','Ordem de produção','Ordem de producao']),
-    'Nota fiscal de venda':firstValue(raw,['Nota fiscal de venda','Nota fiscal de venda:','NF de venda','NF venda']),
-    'Quantidade de peças com desvio':firstValue(raw,['Quantidade de peças com desvio:','Quantidade de peças com desvio']),
-    'Peso do material descartado/reaproveitado':firstValue(raw,['Peso do material descartado e/ou reaproveitado:','Peso do material descartado e/ou reaproveitado']),
-    'Liberado pelo setor de qualidade?':firstValue(raw,['Liberado pelo setor de qualidade?','Liberado pelo setor de qualidade']),
-    'Quem liberou':firstValue(raw,['Registre o nome de quem liberou:','Registre o nome de quem liberou']),
-    'Ação preventiva':firstValue(raw,['Ação preventiva','Acao preventiva']),
-    'Prazo conclusão ação':firstValue(raw,['Prazo conclusão ação','Prazo conclusao acao'])
-  };
-  for(const [k,v] of Object.entries(values))if(nucleoRoModelNormKey(k)===wanted)return v??'';
   const f=(model?.fields||[]).find(x=>nucleoRoModelNormKey(x?.source)===wanted||nucleoRoModelNormKey(x?.label)===wanted);
   if(f){
     const fw=nucleoRoModelNormKey(f.source||f.label||'');
-    for(const [k,v] of Object.entries(values))if(nucleoRoModelNormKey(k)===fw)return v??'';
+    for(const [k,v] of Object.entries(semantic))if(nucleoRoModelNormKey(k)===fw)return v??'';
   }
   return '';
 }
+
 function nucleoRoModelEsc(v){return String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function nucleoRoCellPersistMeta(cell){
   const raw=String(cell?.id||''),mark='~nmeta~',i=raw.indexOf(mark);
@@ -6300,149 +6367,117 @@ function nucleoRoCellPersistMeta(cell){
   return {source:dec(parts[0]),mask:/^[01]{4}$/.test(parts[1]||'')?parts[1]:'',fill:hasFill?parts[2]:'',label:dec(parts.slice(hasFill?3:2).join('~'))};
 }
 function nucleoRoModelRowUnits(row){const cells=row?.cells||[];if(!cells.length)return[];const total=cells.reduce((s,c)=>s+Math.max(.01,Number(c.width)||50),0)||100;let used=0;return cells.map((c,i)=>{if(i===cells.length-1)return Math.max(1,100-used);const rem=cells.length-i-1;let u=Math.max(1,Math.round((Math.max(.01,Number(c.width)||50)/total)*100));u=Math.min(u,Math.max(1,100-used-rem));used+=u;return u;});}
-function nucleoRoModelHeightPx(value,kind='cell'){
-  // A altura do editor universal já é salva em unidade visual (px).
-  // Não converter nem compactar: a impressão deve reproduzir o que foi escolhido.
-  const px=Number(value);
-  if(!Number.isFinite(px)||px<=0)return kind==='image'?40:24;
-  return Math.max(3,Math.min(120,px));
+
+function nucleoRoPdfCanonicalRowLabel_(v){
+  const n=nucleoRoModelNormKey(v);
+  const map={
+    'r o':'R.O.','ro':'RO','data':'Data','unidade':'Unidade','cliente':'Cliente',
+    'codigo do item':'Código do item','numero do pedido':'Número do pedido',
+    'nota fiscal de venda':'Nota fiscal de venda','ordem de producao':'Ordem de produção',
+    'tipo de ocorrencia':'Tipo de ocorrência','descricao':'Descrição',
+    'setor onde foi identificado':'Setor onde foi identificado',
+    'setor identificado':'Setor onde foi identificado',
+    'quantidade de pecas com desvio':'Quantidade de peças com desvio',
+    'peso do material descartado reaproveitado':'Peso do material descartado/reaproveitado',
+    'liberado pelo setor de qualidade':'Liberado pelo setor de qualidade?',
+    'liberado pelo setor da qualidade':'Liberado pelo setor de qualidade?',
+    'quem liberou':'Quem liberou','resultado':'Resultado',
+    'destinatario da triagem':'Destinatário da triagem',
+    'setor causa responsavel':'Setor causa / responsável',
+    'responsavel pelo registro':'Responsável pelo registro',
+    'matricula':'Matrícula'
+  };
+  return map[n]||'';
 }
+function nucleoRoPdfRowField_(row){
+  const cells=Array.isArray(row?.cells)?row.cells:[];
+  for(const c of cells){
+    const meta=nucleoRoCellPersistMeta(c);
+    const candidates=[
+      c?.labelText,c?.systemLabelText,meta?.label,
+      c?.text
+    ];
+    for(const candidate of candidates){
+      const canonical=nucleoRoPdfCanonicalRowLabel_(candidate);
+      if(canonical)return canonical;
+    }
+  }
+  return '';
+}
+
 function nucleoRoModelRowsHtml(grid,ro,model,images,pageNo=1,totalPages=1){
   const safeColor=(v,d)=>/^#[0-9a-f]{6}$/i.test(String(v||''))?v:d;
   const safeFill=(v,d='#ffffff')=>String(v||'').toLowerCase()==='transparent'?'transparent':safeColor(v,d);
   const rows=Array.isArray(grid)?grid:[];
-  if(!rows.length)return '';
+  return rows.map(row=>{const units=nucleoRoModelRowUnits(row);const rowField=nucleoRoPdfRowField_(row);return '<tr>'+((row.cells||[]).map((cell,ci)=>{
+    const meta=nucleoRoCellPersistMeta(cell);
+    // V62: alguns backends preservam o texto do placeholder, mas removem a origem
+    // especial da célula. Nesse caso, recupere a origem pelo próprio placeholder
+    // para que PÁGINA (e os demais campos dinâmicos) continuem funcionando no PDF.
+    const persistedText=String(cell.text||'').trim();
+    const placeholderSource={
+      '[CÓDIGO DO DOCUMENTO]':'#CODE',
+      '[CODIGO DO DOCUMENTO]':'#CODE',
+      '[REVISÃO]':'#REVISION',
+      '[REVISAO]':'#REVISION',
+      '[NÚMERO / REGISTRO]':'#REGISTER',
+      '[NUMERO / REGISTRO]':'#REGISTER',
+      '[PÁGINA]':'#PAGE',
+      '[PAGINA]':'#PAGE'
+    };
+    let src=String(cell.source||meta.source||cell.systemSource||'');
+    if(!src)src=placeholderSource[persistedText]||'';
 
-  const rowHeights=rows.map((row)=>{
-    const own=(row?.cells||[]).filter(c=>(Number(c.rowSpan)||1)<=1).map(c=>nucleoRoModelHeightPx(c.height,'cell'));
-    return Math.max(3,...own,24);
-  });
-
-  // A célula mesclada define a altura total do bloco. Distribui somente o que faltar
-  // pelas linhas ocupadas, sem deixar a tabela/navegador recalcular as proporções.
-  rows.forEach((row,ri)=>{
-    (row?.cells||[]).forEach(cell=>{
-      const span=Math.max(1,Math.floor(Number(cell.rowSpan)||1));
-      if(span<=1)return;
-      const wanted=nucleoRoModelHeightPx(cell.height,'cell');
-      const stop=Math.min(rows.length,ri+span);
-      const current=rowHeights.slice(ri,stop).reduce((a,b)=>a+b,0);
-      if(current<wanted){
-        const add=(wanted-current)/(stop-ri);
-        for(let r=ri;r<stop;r++)rowHeights[r]+=add;
-      }
-    });
-  });
-
-  const occupied={};
-  const cellsHtml=[];
-
-  rows.forEach((row,ri)=>{
-    const rowNo=ri+1;
-    const blocks=(occupied[rowNo]||[]).slice().sort((a,b)=>a[0]-b[0]);
-    const free=[];
-    let cursor=0;
-    blocks.forEach(([l,r])=>{
-      if(l>cursor)free.push([cursor,l]);
-      cursor=Math.max(cursor,r);
-    });
-    if(cursor<1000)free.push([cursor,1000]);
-
-    const cells=row?.cells||[];
-    const total=cells.reduce((s,c)=>s+Math.max(.01,Number(c.width)||50),0)||100;
-    const freeTotal=free.reduce((s,z)=>s+z[1]-z[0],0)||1000;
-    let segment=0,segmentPos=free[0]?.[0]||0;
-
-    cells.forEach((cell)=>{
-      let want=Math.max(1,(Math.max(.01,Number(cell.width)||50)/total)*freeTotal);
-      let left=null,right=null;
-
-      while(want>.01 && segment<free.length){
-        const [sl,sr]=free[segment];
-        segmentPos=Math.max(segmentPos,sl);
-        const avail=sr-segmentPos;
-        if(avail<=.01){
-          segment++;
-          segmentPos=free[segment]?.[0]||1000;
-          continue;
-        }
-        const take=Math.min(want,avail);
-        if(left===null)left=segmentPos;
-        right=segmentPos+take;
-        segmentPos+=take;
-        want-=take;
-        if(segmentPos>=sr-.01){
-          segment++;
-          segmentPos=free[segment]?.[0]||1000;
-        }
-      }
-
-      if(left===null){left=0;right=1;}
-
-      const span=Math.max(1,Math.floor(Number(cell.rowSpan)||1));
-      if(span>1){
-        for(let z=1;z<span && rowNo+z<=rows.length;z++){
-          (occupied[rowNo+z]||(occupied[rowNo+z]=[])).push([left,right]);
-        }
-      }
-
-      const meta=nucleoRoCellPersistMeta(cell);
-      const persistedText=String(cell.text||'').trim();
-      const placeholderSource={
-        '[CÓDIGO DO DOCUMENTO]':'#CODE','[CODIGO DO DOCUMENTO]':'#CODE',
-        '[REVISÃO]':'#REVISION','[REVISAO]':'#REVISION',
-        '[NÚMERO / REGISTRO]':'#REGISTER','[NUMERO / REGISTRO]':'#REGISTER',
-        '[PÁGINA]':'#PAGE','[PAGINA]':'#PAGE'
-      };
-      let src=String(cell.systemSource||meta.source||cell.source||'');
-      if(!src)src=placeholderSource[persistedText]||'';
-
-      const rawBw=Number(cell.borderWidth);
-      const bw=Math.max(0,Math.min(4,Number.isFinite(rawBw)?rawBw:.5));
-      const bc=safeColor(cell.borderColor,'#999999');
-      const sideIndex={Top:0,Right:1,Bottom:2,Left:3};
-      const side=(name)=>{
-        const explicit=meta.mask?meta.mask[sideIndex[name]]==='1':cell['border'+name]!==false;
-        return explicit?`${bw}pt solid ${safeColor(cell['border'+name+'Color'],bc)}`:'0';
-      };
-
-      let content='';
-      if(cell.type==='image'){
-        const img=images?.[cell.imageFileId]||'';
-        content=img?`<img src="${nucleoRoModelEsc(img)}" style="display:block;width:100%;height:100%;object-fit:${cell.imageFit==='cover'?'cover':'contain'}">`:'';
-      }else if(src){
-        content=nucleoRoModelEsc(nucleoRoModelValue(ro,src,model,pageNo,totalPages)).replace(/\n/g,'<br>');
-      }else{
-        content=nucleoRoModelEsc(cell.text||'').replace(/\n/g,'<br>');
-      }
-
-      const visibleLabel=String(cell.labelText||cell.systemLabelText||meta.label||'');
-      if(visibleLabel){
-        content=`<div class="cell-stack"><span class="cell-label" style="font-size:${Math.max(5,Number(cell.labelFontSize)||7)}pt;font-weight:${cell.labelBold===false?'400':'700'}">${nucleoRoModelEsc(visibleLabel)}</span><span>${content||''}</span></div>`;
-      }
-
-      const cs=Math.max(1,Math.round(left)+1);
-      const ce=Math.max(cs+1,Math.round(right)+1);
-      const rs=rowNo,re=Math.min(rows.length+1,rowNo+span);
-
-      cellsHtml.push(
-        `<div class="ro-model-cell" style="grid-column:${cs}/${ce};grid-row:${rs}/${re};`+
-        `background:${cell.backgroundNone===true||meta.fill==='1'?'transparent':safeFill(cell.background,'#ffffff')};`+
-        `color:${safeColor(cell.textColor,'#222222')};border-top:${side('Top')};border-right:${side('Right')};`+
-        `border-bottom:${side('Bottom')};border-left:${side('Left')};`+
-        `padding:${Number.isFinite(Number(cell.padding))?Math.max(0,Math.min(24,Number(cell.padding))):4}px;`+
-        `text-align:${['left','center','right'].includes(cell.align)?cell.align:'left'};`+
-        `align-items:${cell.verticalAlign==='top'?'flex-start':cell.verticalAlign==='bottom'?'flex-end':'center'};`+
-        `justify-content:${cell.align==='center'?'center':cell.align==='right'?'flex-end':'flex-start'};`+
-        `font-size:${Math.max(6,Number(cell.fontSize)||9)}pt;font-weight:${cell.bold?'700':'400'};`+
-        `font-style:${cell.italic?'italic':'normal'}">${content||'&nbsp;'}</div>`
+    // V43: em linhas padrão "rótulo | valor", o rótulo da própria linha é a
+    // fonte oficial do valor. Isso ignora source/systemSource antigas salvas no modelo.
+    if(rowField){
+      const thisCellCanonical=nucleoRoPdfCanonicalRowLabel_(
+        String(cell.labelText||cell.systemLabelText||meta.label||cell.text||'')
       );
-    });
-  });
+      const isLabelCell=thisCellCanonical===rowField;
+      if(!isLabelCell && cell.type!=='image'){
+        src=rowField;
+      }
+    }
 
-  return `<div class="ro-model-grid" style="grid-template-rows:${rowHeights.map(h=>`${Math.max(3,h)}px`).join(' ')}">${cellsHtml.join('')}</div>`;
+    // V40: campos padrão da R.O. são resolvidos pelo rótulo visível quando ele
+    // identifica inequivocamente um campo do formulário. Isso impede que uma
+    // `source` antiga salva no modelo desloque todos os valores uma linha.
+    const visibleLabelForSource=String(cell.labelText||cell.systemLabelText||meta.label||'').trim();
+    const knownRoFieldLabels=new Set([
+      'R.O.','RO','Data','Unidade','Cliente','Código do item','Codigo do item',
+      'Número do pedido','Numero do pedido','Nota fiscal de venda','Ordem de produção','Ordem de producao',
+      'Tipo de ocorrência','Tipo de ocorrencia','Descrição','Descricao',
+      'Setor identificado','Setor onde foi identificado','Setor causa/responsável','Setor causa / responsável',
+      'Quantidade de peças com desvio','Peso do material descartado/reaproveitado',
+      'Liberado pelo setor de qualidade?','Liberado pelo setor da qualidade?','Quem liberou',
+      'Ação preventiva','Acao preventiva','Prazo conclusão ação','Prazo conclusao acao','Status'
+    ].map(nucleoRoModelNormKey));
+    if(visibleLabelForSource && knownRoFieldLabels.has(nucleoRoModelNormKey(visibleLabelForSource))){
+      src=visibleLabelForSource;
+    }
+    const rawBw=Number(cell.borderWidth),bw=Math.max(0,Math.min(4,Number.isFinite(rawBw)?rawBw:.5)),bc=safeColor(cell.borderColor,'#999999');
+    const sideIndex={Top:0,Right:1,Bottom:2,Left:3};
+    const side=(name)=>{const explicit=meta.mask?meta.mask[sideIndex[name]]==='1':cell['border'+name]!==false;return explicit?`${bw}pt solid ${safeColor(cell['border'+name+'Color'],bc)}`:'0';};
+    let content='';
+    if(cell.type==='image'){
+      const img=images?.[cell.imageFileId]||'';
+      content=img?`<img src="${nucleoRoModelEsc(img)}" style="display:block;width:100%;height:100%;max-height:${Math.max(3,Number(cell.height)||9)}mm;object-fit:${cell.imageFit==='cover'?'cover':'contain'}">`:'';
+    }else if(src){
+      content=nucleoRoModelEsc(nucleoRoModelValue(ro,src,model,pageNo,totalPages)).replace(/\n/g,'<br>');
+    }else content=nucleoRoModelEsc(cell.text||'').replace(/\n/g,'<br>');
+    const visibleLabel=String(cell.labelText||cell.systemLabelText||meta.label||'');
+    if(visibleLabel){content=`<div class="cell-stack"><span class="cell-label" style="font-size:${Math.max(5,Number(cell.labelFontSize)||7)}pt;font-weight:${cell.labelBold===false?'400':'700'}">${nucleoRoModelEsc(visibleLabel)}</span><span>${content||''}</span></div>`;}
+    const cellHeight=Math.max(3,Number(cell.height)||9);
+    const heightCss=cell.type==='image'?`height:${cellHeight}mm;`:`height:auto;`;
+    return `<td colspan="${units[ci]||1}" ${Number(cell.rowSpan)>1?`rowspan="${Math.floor(Number(cell.rowSpan))}"`:''} style="${heightCss}background:${cell.backgroundNone===true||meta.fill==='1'?'transparent':safeFill(cell.background,'#ffffff')};color:${safeColor(cell.textColor,'#222222')};border-top:${side('Top')};border-right:${side('Right')};border-bottom:${side('Bottom')};border-left:${side('Left')};padding:1.3mm;text-align:${['left','center','right'].includes(cell.align)?cell.align:'left'};vertical-align:${['top','middle','bottom'].includes(cell.verticalAlign)?cell.verticalAlign:'middle'};font-size:${Math.max(6,Number(cell.fontSize)||9)}pt;font-weight:${cell.bold?'700':'400'};font-style:${cell.italic?'italic':'normal'};overflow-wrap:anywhere;white-space:pre-wrap">${content||'&nbsp;'}</td>`;
+   }).join(''))+'</tr>';}).join('');
 }
 function nucleoRoEvidenceUrls(ro){
+  const embedded=Array.isArray(ro?.__nucleoEvidenceDataUrls)
+    ? ro.__nucleoEvidenceDataUrls.map(x=>String(x||'').trim()).filter(Boolean)
+    : [];
+  if(embedded.length)return [...new Set(embedded)];
   const raw=ro?.raw||{};
   const evidence=String(ro?.evidencia||firstValue(raw,[
     'Insira imagens e/ou vídeos relacionado a ocorrência relatada.',
@@ -12391,7 +12426,24 @@ function renderSentPdcas(){
   const date=new Date(p.sentAt||p.envio),when=Number.isNaN(date.getTime())?p.envio:date.toLocaleString('pt-BR');
   const claimant=user?personDisplayName(user):(ro?roRegistrantName(ro):'');
   const delivery=nucleoPdcaDelivery(p),confirmed=!!delivery||!!(ro&&claimantIdentityIndex().bindings.get(claimantRoKey(ro))?.confirmedAt);
-  const pdfPending=!!(p.pdfPending||p.legacyMissingPdf||p.controlImported);
+  const realPdfOnThisRecord=!!(
+    p.externalPdf===true ||
+    String(p.fileId||p.pdfFileId||p.driveFileId||p.storageFileId||'').trim()
+  );
+  const realPdfOnSibling=data.some(other=>{
+    if(other===p)return false;
+    const sameRo=String(other?.ro||other?.roId||other?.numeroRo||'').trim()===String(p?.ro||p?.roId||p?.numeroRo||'').trim();
+    if(!sameRo)return false;
+    const sameSector=normalizeAnswer(other?.setor||other?.responsibleSector||'')===normalizeAnswer(p?.setor||p?.responsibleSector||'');
+    if(!sameSector)return false;
+    const sameUnit=!explicitRecordUnit(p)||!explicitRecordUnit(other)||explicitRecordUnit(p)===explicitRecordUnit(other);
+    if(!sameUnit)return false;
+    return !!(
+      other?.externalPdf===true ||
+      String(other?.fileId||other?.pdfFileId||other?.driveFileId||other?.storageFileId||'').trim()
+    );
+  });
+  const pdfPending=!!(p.pdfPending||p.legacyMissingPdf||p.controlImported) && !realPdfOnThisRecord && !realPdfOnSibling;
   const detail=pdfPending
     ? (String(p.status||'').toLowerCase().includes('apresent')?'Já apresentado — falta subir o PDF no Núcleo':'Já respondido — falta subir o PDF no Núcleo')
     : delivery?'Encerrada — entregue ao reclamante'
@@ -12791,53 +12843,35 @@ async function adminCleanupDeleteRecord(collection,id){
 }
 
 async function adminCleanupSaveSharedState(key,value){
-  await adminCleanupEnsureTestBackend();
-
   const id='global:'+String(key);
-  const expectedValue=String(value??'');
   const record={
     id,
     key:String(key),
-    value:expectedValue,
+    value:String(value??''),
     scope:'global',
     userKey:'',
     updatedAt:new Date().toISOString(),
     updatedBy:getSession()?.name||'SGQ'
   };
 
-  // Usa a mesma rota central confirmada das demais gravações do Núcleo.
-  // Isso evita depender de fetch/form POST bloqueado pelo navegador/CORS.
-  const saveResult=await portalBackendSaveConfirmedPost(
-    'shared_state',
+  await adminCleanupMutation({
+    acao:'portal_save',
+    colecao:'shared_state',
     id,
-    record,
-    150000
-  );
+    dados:JSON.stringify(record),
+    ator:getSession()?.name||'SGQ'
+  },60000);
 
-  if(!saveResult){
-    throw new Error('A base central não confirmou a atualização do marcador administrativo.');
-  }
-
-  // Confirma novamente lendo o valor autoritativo.
-  const finalVerify=await portalJsonp({
+  const verify=await portalJsonp({
     acao:'portal_get_record',
     colecao:'shared_state',
     id
-  },20000).catch(()=>null);
+  },15000).catch(()=>null);
 
-  if(String(finalVerify?.registro?.value??'')===expectedValue){
-    return true;
+  if(!verify?.registro || String(verify.registro.value??'')!==String(value??'')){
+    throw new Error('A base central não confirmou o marcador da correção.');
   }
-
-  // Se a própria gravação confirmada retornou sucesso, aceita a confirmação
-  // mesmo que a leitura imediata ainda esteja propagando.
-  if(saveResult===true || saveResult?.ok===true || saveResult?.sucesso===true || saveResult?.registro){
-    return true;
-  }
-
-  throw new Error(
-    'A base central não confirmou a atualização do marcador administrativo.'
-  );
+  return true;
 }
 
 function cleanupRoKey(){
@@ -13202,23 +13236,59 @@ async function adminDeleteTestDataForRo(){
 async function saveIntegrationSettingsConfirmed(){
   if(!isAdmin()){alert('Configuração indisponível.');return false}
   if(!requireIntegrationUnlock())return false;
+
   const candidate=String(document.getElementById('apiUrl')?.value||portalApiBase()).trim();
-  const currentBase=portalApiBase();
+  const currentBase=String(portalApiBase()||'').trim();
+  const apiChanged=!!candidate && candidate!==currentBase;
   const keys=[INTEGRATION_PERSIST_KEY,'ro-sync-settings',ADMIN_CONFIG_KEY];
   const before=keys.map(key=>localStorage.getItem(key));
   const st=document.getElementById('configSavedState');
-  if(st){st.classList.remove('hidden');st.textContent='Verificando conexão antes de salvar...'}
+
+  if(st){
+    st.classList.remove('hidden');
+    st.textContent=apiChanged
+      ? 'Validando a nova API...'
+      : 'Verificando conexão antes de salvar...';
+  }
+
   try{
     await nucleoCheckApiUrl(candidate);
+
     const sync=saveIntegrationSettings(true);
     if(!sync)return false;
-    const res=await portalJsonp({acao:'portal_save_config',dados:JSON.stringify(getAdminConfig()),ator:getSession()?.name||'SGQ'},60000,candidate);
+
+    if(apiChanged){
+      // A sessão atual pertence à API antiga. Não tente reutilizar esse token
+      // na API nova; isso sempre resulta em "Sessão inválida ou expirada".
+      nucleoConfirmedApiUrl=candidate;
+
+      try{localStorage.removeItem(SESSION_KEY)}catch(e){}
+      try{sessionStorage.removeItem(SESSION_KEY)}catch(e){}
+      try{nucleoSessionMemory=null}catch(e){}
+      try{nucleoSessionLastRaw=undefined}catch(e){}
+
+      if(st)st.textContent='Nova API salva. Entre novamente para criar uma sessão nesta API.';
+      alert('Nova API salva. Como a sessão atual pertence à API anterior, você será desconectado. Entre novamente no Núcleo para concluir a troca.');
+      location.reload();
+      return true;
+    }
+
+    // Se a API não mudou, a sessão atual continua válida e a confirmação
+    // central pode seguir normalmente.
+    const res=await portalJsonp({
+      acao:'portal_save_config',
+      dados:JSON.stringify(getAdminConfig()),
+      ator:getSession()?.name||'SGQ'
+    },60000,candidate);
+
     if(!res?.sucesso)throw new Error(res?.erro||'A base central não confirmou a integração.');
+
     nucleoConfirmedApiUrl=candidate;
     if(st)st.textContent='Integração confirmada e salva na base central.';
     await syncPortalBackend(false);
     alert('Integração salva na base central. Todos os dispositivos usarão esta configuração ao atualizar o Núcleo.');
     return true;
+
   }catch(e){
     keys.forEach((key,i)=>before[i]===null?localStorage.removeItem(key):localStorage.setItem(key,before[i]));
     if(st)st.textContent='Alteração não confirmada. A conexão anterior foi mantida.';
@@ -13226,7 +13296,6 @@ async function saveIntegrationSettingsConfirmed(){
     return false;
   }
 }
-
 function saveIntegrationSettings(silent=false){
   if(!requireIntegrationUnlock())return;
 
@@ -14615,9 +14684,9 @@ function getAdminModuleRecordsRaw(){
 
 
 
-
-
-
+function adminModuleRecord(id){
+  return getAdminModuleRecords().find(x=>String(x.id)===String(id))||null;
+}
 
 
 
@@ -14756,16 +14825,16 @@ const defaultDocumentTypes={fispq:'FISPQ / FDS',technical_sheet:'Ficha Técnica'
 
 
 
-
-
-
-
-
-
-
-
-
-
+function adminModuleStatusLabel(v){
+  return ({open:'Aberto',progress:'Em andamento',pending:'Pendente',done:'Concluído',
+    elaboration:'Em elaboração',review:'Em revisão',approval:'Aguardando aprovação',published:'Vigente',
+    doc_analysis:'Em análise',doc_preparation:'Em preparação',doc_ready:'Pronto para entrega',
+    cancelled:'Cancelado',obsolete:'Obsoleto / substituído'})[v]||v||'—';
+}
+function adminModuleDate(v){
+  const s=String(v||''); const m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m?`${m[3]}/${m[2]}/${m[1]}`:(s||'—');
+}
 function isAdminModulePending(r,key){
   if(r.status==='done'||r.status==='published')return false;
   if(r.status==='pending'||r.status==='approval')return true;
@@ -14836,11 +14905,9 @@ function filterAdminModuleRecords(key,mode){
 
 
 
+function showAdminOperationalModule(...args){return nucleoOpenLazyAdmin('showAdminOperationalModule',args);}
 
-
-
-
-
+function openAdminOperationalWorkspace(...args){return nucleoOpenLazyAdmin('openAdminOperationalWorkspace',args);}
 
 
 
@@ -15311,57 +15378,57 @@ function collectAdminModuleForm(key,existing){
     updatedBy:getSession()?.name||'SGQ'
   };
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+function saveAdminOperationalRecord(key,id){
+  const permissionModule={nccapa:'nc'}[key]||key,permissionKey=key==='documents'?(id?'prepare':'request'):'edit';if(!nucleoFeatureRequire(permissionModule,permissionKey))return;
+  const existing=id?adminModuleRecord(id):null;
+  const r=collectAdminModuleForm(key,existing);
+  if(key==='equipment'&&!['matriz','filial'].includes(r.unit)){alert('Selecione a unidade do equipamento.');return;}
+  if(!r.title){alert('Informe o título/nome principal do registro.');return}
+  if(key==='nccapa'&&r.ncType==='supplier'){
+    if(!r.supplier){alert('Informe o fornecedor da RNC.');return}
+    if(!r.rncNumber)r.rncNumber=nextRncNumber();
+  }
+  if(key==='documents'&&!r.code){alert('Selecione o documento solicitado.');return}
+  if(key==='documents'&&!isAdmin()){
+    r.status='open';
+    r.createdBy=existing?.createdBy||getSession()?.name||'Usuário';
+    r.createdByEmail=existing?.createdByEmail||getSession()?.email||'';
+    r.sector=existing?.sector||getSession()?.sector||r.sector||'';
+    r.recipient=r.recipient||getSession()?.name||'';
+    r.recipientEmail=r.recipientEmail||getSession()?.email||'';
+    r.responsible=existing?.responsible||'';
+    r.link=existing?.link||'';
+  }
+  if(key==='processes'){
+    if(!r.docType){alert('Selecione o tipo de documento interno.');return}
+    if(!r.code){alert('Informe o código do documento interno.');return}
+    if(!['matriz','filial'].includes(r.unit)){alert('Selecione a unidade do documento.');return}
+    if(existing?.processAttachments?.length&&explicitRecordUnit(existing)!==r.unit){alert('Remova os anexos antes de mudar a unidade do documento.');return}
+  }
+  if(key==='processes'){void nucleoSaveProcessRecordConfirmed(r);return;}
+  let all=getAdminModuleRecords();
+  const ix=all.findIndex(x=>String(x.id)===String(r.id));
+  if(ix>=0)all[ix]=r; else all.unshift(r);
+  saveAdminModuleRecords(all);
+  // RNC usa salvamento confirmado abaixo; não dispara um segundo POST em paralelo.
+  if(!(key==='nccapa'&&r.ncType==='supplier')) portalBackendSave('admin_modules',r.id,r);
+  if(key==='documents'&&!isAdmin()){
+    const match=findMatchingStandardDocument(r);
+    if(match){
+      alert('Solicitação registrada. Existe um documento padrão vigente; o Portal vai enviá-lo automaticamente para '+(r.recipientEmail||getSession()?.email||'seu e-mail')+'.');
+      autoFulfillDocumentRequest(r).then(ok=>{if(!ok)alert('A solicitação foi registrada, mas a entrega automática não pôde ser confirmada. O SGQ receberá a pendência normalmente.');showAdminOperationalModule(key)});
+      return;
+    }
+    alert('Solicitação registrada. Não há documento padrão compatível; o pedido foi encaminhado ao SGQ.');
+    showAdminOperationalModule(key);return;
+  }
+  if(key==='nccapa'&&r.ncType==='supplier'){
+    finishRncCreation(r,ix>=0);
+    return;
+  }
+  alert('Registro salvo.');
+  showAdminOperationalModule(key);
+}
 
 
 
@@ -16755,67 +16822,66 @@ let rncPreviewZoom='fit';
 
 
 
+function editAdminOperationalRecord(...args){return nucleoOpenLazyAdmin('editAdminOperationalRecord',args);}
 
+async function deleteAdminOperationalRecord(id){
+  const r=adminModuleRecord(id);if(!r)return;
+  if(!nucleoFeatureRequire(r.module==='nccapa'?'nc':r.module,r.module==='documents'?'prepare':'delete'))return;
 
+  if(r.module==='nccapa'&&!canOperateNcCapa()){
+    alert('Somente o SGQ/ADM pode excluir uma RNC.');
+    return;
+  }
 
+  const nome=String(r.rncNumber||r.title||'esta RNC').trim();
+  const fornecedor=String(r.supplier||'').trim();
+  const enviada=r.rncEmailStatus==='sent';
 
+  let msg=
+    `Excluir ${nome}${fornecedor?` — ${fornecedor}`:''}?\n\n`+
+    `A RNC será removida da central e a exclusão será sincronizada com a base.`;
 
+  if(enviada){
+    msg+=`\n\nATENÇÃO: esta RNC já foi enviada por e-mail. Excluir o registro não desfaz o e-mail já enviado.`;
+  }
 
+  if(!confirm(msg))return;
 
+  showNucleoLoading('Excluindo RNC...');
 
+  try{
+    await portalBackendDeleteConfirmed('admin_modules',id);
 
+    // Garante a remoção visual mesmo se a tela estiver usando um array antigo.
+    saveAdminModuleRecords(
+      getAdminModuleRecordsRaw().filter(x=>String(x?.id||'')!==String(id))
+    );
 
+    hideNucleoLoading();
 
+    if(document.getElementById('ncTreatmentList')){
+      renderNcCapaTreatmentList();
+    }else{
+      showAdminOperationalModule('nccapa');
+    }
 
+    // Reenvia mais uma vez alguns segundos depois.
+    setTimeout(()=>portalSendPendingRncDelete(id),2500);
+  }catch(e){
+    hideNucleoLoading();
 
+    // Mesmo em uma falha local inesperada, mantém a RNC marcada para
+    // exclusão e tenta sincronizar novamente.
+    markRncDeletedLocally(id);
+    setTimeout(()=>portalSendPendingRncDelete(id),2500);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    if(document.getElementById('ncTreatmentList')){
+      renderNcCapaTreatmentList();
+    }else{
+      showAdminOperationalModule('nccapa');
+    }
+  }
+}
 
 function openAdmin(){
   if(nucleoPersonPermissions(getSession()).sgq)nucleoReadAvatarGalleryConfig();
@@ -17287,27 +17353,72 @@ let selected=ros[0],activeStage=0;let answers={};
 
 
 function assignedRoStatus(r,preloadedMap=null){
-  const raw=String(r?.status||'').trim().toLowerCase();
+  const rawObj=r?.raw||{};
   const tri=getRoTriageRecord(r,preloadedMap)||{};
+  const raw=String(r?.status||'').trim();
   const triDecision=String(tri?.decision||tri?.status||'').trim().toLowerCase();
 
-  // O encerramento pode estar registrado apenas na triagem central.
-  // Considerar a decisão da triagem evita que "Cancelar R.O." permaneça
-  // em Em andamento e evita exibir ações de PDCA para uma R.O. encerrada.
-  if(raw.includes('cancel')||['cancelled','canceled','cancelada','cancelado','cancel'].includes(triDecision)) return 'Cancelada';
-  if(raw.includes('obsolet')||['obsolete','obsoleto','obsoleta'].includes(triDecision)) return 'Obsoleto';
-  if(['record','registro'].includes(triDecision)||raw==='falta de caixa'||raw==='falta de caixas'||raw.includes('registro')) return 'Registro';
-  if(tri.pdcaExternal===true&&!tri.pdcaFileId) return 'PDCA externo';
+  function interpretarStatus(v){
+    const s=normalizeAnswer(String(v||'').trim());
+    if(!s)return '';
+    if(s.includes('cancel'))return 'Cancelada';
+    if(s.includes('obsolet'))return 'Obsoleto';
+    if(s.includes('registro')||s==='falta de caixa'||s==='falta de caixas')return 'Registro';
+    if(s.includes('apresentad')||s.includes('retorno entregue ao reclamante'))return 'Apresentada';
+    if(s.includes('respondid'))return 'Respondida';
+    if(s.includes('pendente')||s.includes('nao enviada')||s.includes('não enviada')||s==='enviado'||s==='enviada'||s.includes('aguardando'))return 'Pendente';
+    return '';
+  }
 
-  // Fonte de verdade para "PDCA respondido": precisa existir um PDCA REAL
-  // salvo/enviado na coleção pdca_sent para esta R.O. Não usa mais r.status/r.pdca
-  // das planilhas antigas, pois esses campos estavam promovendo registros sem resposta.
+  // 1) Se a R.O. realmente tem situação da aba Controle, ela é a fonte oficial.
+  const statusControle=String(r?.statusControle||rawObj?.__statusControle||'').trim();
+  const controleEncontrado=(
+    r?.statusControleEncontrado===true||
+    rawObj?.__statusControleEncontrado===true||
+    !!statusControle
+  );
+  if(controleEncontrado){
+    const st=interpretarStatus(statusControle);
+    if(st)return st;
+  }
+
+  // 2) Estados administrativos/terminais continuam prevalecendo.
+  const rawNorm=normalizeAnswer(raw);
+  if(rawNorm.includes('cancel')||['cancelled','canceled','cancelada','cancelado','cancel'].includes(triDecision))return 'Cancelada';
+  if(rawNorm.includes('obsolet')||['obsolete','obsoleto','obsoleta'].includes(triDecision))return 'Obsoleto';
+  if(['record','registro'].includes(triDecision)||rawNorm==='falta de caixa'||rawNorm==='falta de caixas'||rawNorm.includes('registro'))return 'Registro';
+
+  // 3) A MESMA marcação que desenha "Tem PDCA / Sem PDCA" decide o fallback.
+  const reviewCanonical=nucleoPdcaReviewCanonical2026(
+    nucleoPdcaReviewRoKey2026(r),
+    String(r?.origemBase||rawObj?.__origemBase||'')
+  );
+  const reviewState=nucleoPdcaReviewMap2026()[reviewCanonical];
+  const reviewHasEvidence=nucleoPdcaReviewHasEvidence2026(r);
+  const reviewDecision=reviewState?.decision||(reviewHasEvidence?'yes':'');
+
+  if(reviewDecision==='yes'){
+    const sentPdca=getPdcaReturnForRo(r);
+    if(sentPdca){
+      const presented=Boolean(sentPdca.apresentadoEm||sentPdca.presented||sentPdca.presentedAt)||
+        (!sentPdca.externalPdf&&typeof getPdcaPresentationMap==='function'&&getPdcaPresentationMap().has(String(sentPdca.id||sentPdca.pdcaId||'')));
+      if(presented)return 'Apresentada';
+    }
+    return 'Respondida';
+  }
+  if(reviewDecision==='no')return 'Pendente';
+
+  // 4) PDCA real recebido também significa respondida/apresentada.
   const sentPdca=getPdcaReturnForRo(r);
   if(sentPdca){
-    const presented = Boolean(sentPdca.apresentadoEm) ||
-      (!sentPdca.externalPdf&&typeof getPdcaPresentationMap==='function' && getPdcaPresentationMap().has(String(sentPdca.id||sentPdca.pdcaId||'')));
-    return presented ? 'PDCA apresentado' : 'PDCA respondido';
+    const presented=Boolean(sentPdca.apresentadoEm||sentPdca.presented||sentPdca.presentedAt)||
+      (!sentPdca.externalPdf&&typeof getPdcaPresentationMap==='function'&&getPdcaPresentationMap().has(String(sentPdca.id||sentPdca.pdcaId||'')));
+    return presented?'Apresentada':'Respondida';
   }
+
+  // Compatibilidade com marcação externa antiga quando não há revisão 2026.
+  if(tri.pdcaExternal===true||pdcaExternalExists(r,preloadedMap))return 'Respondida';
+
   return 'Pendente';
 }
 
@@ -17349,6 +17460,15 @@ function currentUserCanRespondAssignedRo(ro,tri){
 
 let roListVisibleLimit=60;
 let roListFilterSignature='';
+
+function nucleoAssignedSectorVisualKey(value){
+  let n=normalizeAnswer(String(value||'').trim()).replace(/\s+/g,' ').trim();
+  if(!n)return '__sem_setor__';
+  n=n.split(' ').map(function(part){
+    return part.length>4&&part.endsWith('s')?part.slice(0,-1):part;
+  }).join(' ');
+  return n;
+}
 let assignedLifecycle='active';
 function setAssignedLifecycle(mode){
   assignedLifecycle=mode==='history'?'history':'active';
@@ -17972,7 +18092,7 @@ function render(){
     const bySector=new Map();
     records.forEach(t=>{
       const sector=String(t.responsibleSector||t.setorDirecionado||'').trim();
-      const visualKey=triageCompositeKey(base,sector||'__sem_setor__');
+      const visualKey=base+'::'+nucleoAssignedSectorVisualKey(sector);
       const prev=bySector.get(visualKey);
       const score=x=>{
         const composite=String(x?.roKey||'').includes('::')?10000000000000:0;
@@ -18016,10 +18136,10 @@ function render(){
         const pdcaMarcadoComoTem=reviewDecision==='yes';
         const pdcaJaRecebido=!!getPdcaReturnForRo(r)||pdcaExternalExists(r,renderTriageMap);
 
-        // pdcaRequired=true significa que o setor AINDA precisa responder.
-        // Só sai desta tela quando já existe PDCA real/externo ou quando
-        // a revisão histórica confirmou que já havia PDCA.
-        if(pdcaMarcadoComoTem||pdcaJaRecebido)return false;
+        // PDCA real/externo já recebido continua fora da fila operacional.
+        // A definição manual "Tem PDCA" permanece visível para o SGQ poder
+        // desfazer/desvincular a marcação diretamente em R.O.s atribuídas.
+        if(pdcaJaRecebido)return false;
 
         if(assignedLifecycle==='history'){
           if(!encerrada)return false;
@@ -18038,7 +18158,7 @@ function render(){
       const text=nucleoRoSearchMatches(r,q);
       const displayStatus=assignedRoStatus(r,renderTriageMap);
       const statusKey={'Cancelada':'cancelada','Registro':'registro','Obsoleto':'obsoleto'}[displayStatus]||'';
-      const hasAnswer=assignedHasAnswerWithoutPdca(r,renderTriageMap);
+      const hasAnswer=['Respondida','Apresentada'].includes(displayStatus)||assignedHasAnswerWithoutPdca(r,renderTriageMap);
       const filt=
         f==='todas'||
         (f==='precisa_resposta'&&!assignedTerminalStatus(displayStatus)&&!hasAnswer)||
@@ -18072,13 +18192,13 @@ function render(){
     const review2026Eligible=admin&&reviewDate&&reviewDate>=new Date(2026,0,1)&&!terminalAssigned&&!nucleoPdcaReviewOwnTerminal2026(r);
     const reviewHasEvidence=nucleoPdcaReviewHasEvidence2026(r);
     const reviewDecision=reviewState?.decision||(reviewHasEvidence?'yes':'');
+    const reviewRoKeyEsc=escapeHtml(nucleoPdcaReviewRoKey2026(r));
+    const reviewOriginEsc=escapeHtml(String(r.origemBase||r.raw?.__origemBase||''));
     const pdcaReviewAction=review2026Eligible&&!reviewDecision
-      ? `<div class="pdca-review-choice" style="display:flex;gap:6px;align-items:center;justify-content:center;white-space:nowrap"><button class="btn primary" style="padding:5px 9px;font-size:11px;min-width:76px" type="button" onclick="event.stopPropagation();nucleoMarkPdcaReview2026('${escapeHtml(nucleoPdcaReviewRoKey2026(r))}','${escapeHtml(String(r.origemBase||r.raw?.__origemBase||''))}','yes')">Tem PDCA</button><button class="btn secondary" style="padding:5px 9px;font-size:11px;min-width:92px" type="button" onclick="event.stopPropagation();nucleoMarkPdcaReview2026('${escapeHtml(nucleoPdcaReviewRoKey2026(r))}','${escapeHtml(String(r.origemBase||r.raw?.__origemBase||''))}','no')">Não tem PDCA</button></div>`
-      : review2026Eligible&&reviewDecision==='no'
-        ? '<span class="status-badge answered">Sem PDCA</span>'
-        : review2026Eligible&&reviewDecision==='yes'
-          ? '<span class="status-badge answered">Tem PDCA</span>'
-          : '';
+      ? `<div class="pdca-review-choice" style="display:flex;gap:6px;align-items:center;justify-content:center;white-space:nowrap"><button class="btn primary" style="padding:5px 9px;font-size:11px;min-width:76px" type="button" onclick="event.stopPropagation();nucleoMarkPdcaReview2026('${reviewRoKeyEsc}','${reviewOriginEsc}','yes')">Tem PDCA</button><button class="btn secondary" style="padding:5px 9px;font-size:11px;min-width:92px" type="button" onclick="event.stopPropagation();nucleoMarkPdcaReview2026('${reviewRoKeyEsc}','${reviewOriginEsc}','no')">Não tem PDCA</button></div>`
+      : review2026Eligible&&reviewDecision
+        ? `<span class="status-badge answered">${reviewDecision==='yes'?'Tem PDCA':'Sem PDCA'}</span>`
+        : '';
 
     let operationalActions='';
     const canRespondHere=currentUserCanRespondAssignedRo(r,tri);
@@ -18108,7 +18228,7 @@ function render(){
     }
 
     const statusControl =
-      `<span class="${displayStatus==='PDCA respondido'||displayStatus==='PDCA apresentado'?'badge ok':displayStatus==='Pendente'?'badge warn':badgeClass(displayStatus)}">${escapeHtml(displayDecisionLabel)}</span>`;
+      `<span class="${displayStatus==='Respondida'||displayStatus==='Apresentada'?'badge ok':displayStatus==='Pendente'?'badge warn':badgeClass(displayStatus)}">${escapeHtml(displayStatus)}</span>`;
 
     return `<tr>
       <td><button type="button" class="ro-link-btn" onclick="openRO('${escapeHtml(r.numero)}')"><b>${escapeHtml(r.numero)}</b></button>${isArchivedRo(r.numero)?'<div class="small">Arquivada</div>':''}</td>
@@ -18117,7 +18237,7 @@ function render(){
       <td><span class="status-badge">${escapeHtml(r.origemBase||'')}</span></td>
       <td>${escapeHtml(assignedRoDeadline(r,renderTriageMap))}</td>
       <td>${statusControl}</td>
-      <td class="ro-eye-cell"><div class="ro-row-actions" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px">${pdcaReviewAction}<div style="display:flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap"><button class="ro-eye-btn" type="button" onclick="openRoReport('${escapeHtml(r.numero)}')" title="Visualizar R.O." aria-label="Visualizar R.O. ${escapeHtml(r.numero)}">👁</button>${admin&&tri?.roKey?`<button class="ro-eye-btn ro-edit-btn" type="button" onclick="openAssignedSectorEdit('${escapeHtml(tri.roKey)}')" title="Editar setor causa" aria-label="Editar setor causa">✎</button><button class="ro-eye-btn ro-delete-btn" type="button" onclick="deleteAssignedDirection('${escapeHtml(tri.roKey)}')" title="Excluir este direcionamento" aria-label="Excluir este direcionamento">🗑</button>`:''}</div></div></td>
+      <td class="ro-eye-cell"><div class="ro-row-actions" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px">${pdcaReviewAction}<div style="display:flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap"><button class="ro-eye-btn" type="button" onclick="openRoReport('${escapeHtml(r.numero)}')" title="Visualizar R.O." aria-label="Visualizar R.O. ${escapeHtml(r.numero)}">👁</button>${admin&&tri?.roKey?`<button class="ro-eye-btn ro-edit-btn" type="button" onclick="openAssignedSectorEdit('${escapeHtml(tri.roKey)}')" title="Editar setor causa" aria-label="Editar setor causa">✎</button><button class="ro-eye-btn ro-delete-btn" type="button" onclick="openRoRemovalManager('${escapeHtml(tri.roKey)}')" title="Gerenciar remoção" aria-label="Gerenciar remoção desta R.O.">🗑</button>`:''}</div></div></td>
       ${operationalActions}
     </tr>`;
   }).join('');
@@ -18133,32 +18253,309 @@ function render(){
   });
 }
 
-async function deleteAssignedDirection(triageKey){
+let nucleoRoRemovalContext=null;
+
+function nucleoRemovalClose(){
+  document.getElementById('nucleoRoRemovalOverlay')?.remove();
+  nucleoRoRemovalContext=null;
+}
+
+function nucleoRemovalSetExtraFields(){
+  const type=document.getElementById('nucleoRoRemovalType')?.value||'';
+  const dup=document.getElementById('nucleoRoRemovalDuplicateBox');
+  if(dup)dup.hidden=type!=='duplicate';
+  const note=document.getElementById('nucleoRoRemovalHelp');
+  if(note){
+    const messages={
+      unlink_pdca:'Remove somente a marcação Tem PDCA / Não tem PDCA. A R.O. voltará a mostrar essa pergunta. Setor, R.O., arquivos e PDCAs reais não serão alterados.',
+      assignment:'Remove somente este direcionamento. A R.O. principal e os outros setores são preservados.',
+      person:'Mantém o setor atribuído e remove somente a pessoa responsável.',
+      duplicate:'A R.O. será retirada do fluxo ativo como cancelada por duplicidade. O registro permanece no histórico.',
+      mistake:'A R.O. será retirada do fluxo ativo como cancelada por lançamento indevido. O registro permanece no histórico.',
+      cancel:'Mantém o registro e altera a decisão para Cancelada.',
+      obsolete:'Mantém o registro e altera a decisão para Obsoleta.'
+    };
+    note.textContent=messages[type]||'';
+  }
+}
+
+function openRoRemovalManager(triageKey){
   if(!nucleoFeatureRequire('ros','triage'))return;
-  if(!isAdmin()){alert('Somente o SGQ pode remover duplicatas da visualização.');return;}
+  if(!isAdmin()){alert('Somente o SGQ pode gerenciar remoções de R.O.');return;}
   const key=String(triageKey||'').trim();
   if(!key)return;
-  const map=getSavedTriageMap();
-  const tri=map.get(key);
+  const tri=getSavedTriageMap().get(key);
   if(!tri){alert('Este direcionamento não foi encontrado. Sincronize e tente novamente.');return;}
   const ro=triageRoNumberPart(key);
   const sector=String(tri.responsibleSector||tri.setorDirecionado||'').trim();
-  if(!confirm(`Ocultar esta linha duplicada em R.O.s atribuídas?\n\n${ro}${sector?' • '+sector:''}\n\nNenhum direcionamento, setor ou dado da planilha será apagado.`))return;
-  try{
-    await withNucleoLoading('Removendo somente a duplicata da visualização...',async()=>{
-      // Esta ação é EXCLUSIVAMENTE visual. Não apaga SGQ_TRIAGENS e não altera
-      // a planilha original. O direcionamento continua existindo e a R.O. segue triada.
-      const hidden=getHiddenAssignedKeys();
-      hidden.add(key);
-      saveHiddenAssignedKeys(hidden);
-      render();
-      try{renderCurrentOverview()}catch(e){}
-    },'Atualizando visualização');
-    alert('Linha removida da visualização. O direcionamento foi preservado.');
-  }catch(err){
-    console.error('[NUCLEO OCULTAR DUPLICATA]',err);
-    alert('Não foi possível remover a duplicata da visualização. '+(err?.message||err||''));
+  nucleoRoRemovalContext={triageKey:key,ro,sector};
+  document.getElementById('nucleoRoRemovalOverlay')?.remove();
+  const overlay=document.createElement('div');
+  overlay.id='nucleoRoRemovalOverlay';
+  overlay.className='modal-overlay';
+  overlay.style.cssText='position:fixed;inset:0;z-index:10050;background:rgba(15,23,42,.52);display:flex;align-items:center;justify-content:center;padding:20px';
+  overlay.innerHTML=`<div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="nucleoRoRemovalTitle" style="width:min(620px,96vw);max-height:90vh;overflow:auto;background:#fff;border-radius:18px;padding:22px;box-shadow:0 24px 70px rgba(0,0,0,.24)">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px">
+      <div><h3 id="nucleoRoRemovalTitle" style="margin:0 0 6px">Gerenciar remoção da R.O.</h3><p class="small" style="margin:0">${escapeHtml(ro)}${sector?' · '+escapeHtml(sector):''}</p></div>
+      <button type="button" class="btn secondary" onclick="nucleoRemovalClose()" aria-label="Fechar">Fechar</button>
+    </div>
+    <label style="display:block;margin-top:18px"><span>O que deseja fazer?</span>
+      <select id="nucleoRoRemovalType" onchange="nucleoRemovalSetExtraFields()">
+        <option value="unlink_pdca">Desvincular PDCA</option>
+        <option value="assignment">Remover esta atribuição da R.O.</option>
+        <option value="person">Remover somente a pessoa responsável</option>
+        <option value="duplicate">Excluir R.O. duplicada do fluxo ativo</option>
+        <option value="mistake">Excluir R.O. lançada por engano do fluxo ativo</option>
+        <option value="cancel">Cancelar R.O.</option>
+        <option value="obsolete">Marcar R.O. como obsoleta</option>
+      </select>
+    </label>
+    <div id="nucleoRoRemovalDuplicateBox" hidden style="margin-top:12px">
+      <label><span>R.O. original que deve permanecer</span><input id="nucleoRoRemovalDuplicateOf" placeholder="Ex.: 325" autocomplete="off"></label>
+    </div>
+    <label style="display:block;margin-top:12px"><span>Motivo *</span><textarea id="nucleoRoRemovalReason" rows="4" maxlength="600" placeholder="Registre o motivo para o histórico"></textarea></label>
+    <p id="nucleoRoRemovalHelp" class="small" style="margin:10px 0 0"></p>
+    <p id="nucleoRoRemovalStatus" class="small" role="status"></p>
+    <div class="actions" style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px">
+      <button type="button" class="btn secondary" onclick="nucleoRemovalClose()">Cancelar</button>
+      <button type="button" class="btn primary" id="nucleoRoRemovalConfirm" onclick="nucleoConfirmRoRemoval(this)">Confirmar</button>
+    </div>
+  </div>`;
+  overlay.addEventListener('click',e=>{if(e.target===overlay)nucleoRemovalClose();});
+  document.body.appendChild(overlay);
+  nucleoRemovalSetExtraFields();
+  setTimeout(()=>document.getElementById('nucleoRoRemovalType')?.focus(),0);
+}
+
+
+async function nucleoRemovalSaveVerified(collection,id,data,verifyFn,timeoutMs=90000){
+  if(!nucleoRequireCentralData('salvar esta alteração'))throw new Error('A base central ainda não confirmou os dados.');
+  if(!portalBackendEnabled())throw new Error('Apps Script não configurado.');
+
+  const eventoId='ROREMOVE-'+Date.now()+'-'+Math.random().toString(36).slice(2,9);
+  const submitted=portalPostForm({
+    acao:'portal_save',
+    colecao:String(collection||''),
+    id:String(id||''),
+    dados:JSON.stringify(data||{}),
+    ator:getSession()?.name||'SGQ',
+    eventoId
+  });
+
+  if(!submitted)throw new Error('Não foi possível enviar a alteração para a base central.');
+
+  const started=Date.now();
+
+  while(Date.now()-started<timeoutMs){
+    await new Promise(resolve=>setTimeout(resolve,800));
+
+    const statusRes=await portalJsonp({
+      acao:'portal_save_status',
+      eventoId
+    },12000).catch(()=>null);
+
+    if(statusRes?.status==='done'){
+      return {sucesso:true,status:'done',eventoId};
+    }
+
+    if(statusRes?.status==='error'){
+      throw new Error(statusRes.erro||'A base central recusou o salvamento.');
+    }
   }
+
+  throw new Error('A base central não confirmou o salvamento dentro do tempo esperado.');
+}
+
+async function nucleoPersistTriageRemovalRecord(key,changes,reason,type){
+  const map=getSavedTriageMap();
+  const current=map.get(key);
+  if(!current)throw new Error('O direcionamento não foi encontrado na base carregada.');
+  const now=new Date().toISOString();
+  const actor=getSession()?.name||'SGQ';
+  const record={...current,...changes,updatedAt:now,updatedBy:actor,administrativeChange:{type,reason,at:now,by:actor}};
+  await nucleoRemovalSaveVerified('triage',key,record,(saved)=>{
+    const adm=saved?.administrativeChange||{};
+    return String(adm.type||'')===String(type||'') &&
+      String(adm.reason||'').trim()===String(reason||'').trim();
+  },90000);
+  map.set(key,record);
+  localStorage.setItem(TRIAGE_KEY,JSON.stringify([...map.values()]));
+  return record;
+}
+
+async function nucleoUnlinkPdcaFromAssignment(key,reason){
+  const map=getSavedTriageMap(),tri=map.get(key);
+  if(!tri)throw new Error('Direcionamento não encontrado.');
+
+  const ro=triageRoNumberPart(key);
+  const sourceRo=(getAllRoRecords()||[]).find(r=>{
+    const n=String(r?.numero||r?.id||r?.codigo||'').trim();
+    return n===ro || (
+      roDigits(n)===roDigits(ro) &&
+      normalizeAnswer(roOriginFromNumber(n,r?.origemBase||r?.raw?.__origemBase||''))===
+      normalizeAnswer(roOriginFromNumber(ro,tri?.origin||tri?.origem||tri?.origemBase||''))
+    );
+  });
+
+  const origin=String(
+    sourceRo?.origemBase||
+    sourceRo?.raw?.__origemBase||
+    tri?.origin||
+    tri?.origem||
+    tri?.origemBase||
+    roOriginFromNumber(ro,'')
+  ).trim();
+
+  const target=nucleoPdcaReviewCanonical2026(ro,origin);
+  if(!target)throw new Error('Não foi possível identificar a definição de PDCA desta R.O.');
+
+  const review=nucleoPdcaReviewMap2026();
+  delete review[target];
+  nucleoSavePdcaReviewMap2026(review);
+
+  const records=getTriageRecordsForRoNumber(ro,map);
+  const now=new Date().toISOString();
+  const actor=getSession()?.name||'SGQ';
+
+  for(const old of records){
+    const recordKey=String(old?.roKey||ro);
+    const updated={...old};
+    delete updated.pdcaReviewDecision;
+    delete updated.pdcaReviewAt;
+    delete updated.pdcaReviewBy;
+
+    updated.pdcaReviewUnlinkedAt=now;
+    updated.pdcaReviewUnlinkedBy=actor;
+    updated.pdcaReviewUnlinkReason=reason;
+    updated.updatedAt=now;
+    updated.updatedBy=actor;
+
+    await nucleoRemovalSaveVerified('triage',recordKey,updated,null,90000);
+    map.set(recordKey,updated);
+  }
+
+  localStorage.setItem(TRIAGE_KEY,JSON.stringify([...map.values()]));
+
+  try{
+    if(typeof nucleoPersistSharedState==='function'){
+      await Promise.resolve(
+        nucleoPersistSharedState(
+          NUCLEO_PDCA_REVIEW_2026_KEY,
+          JSON.stringify(review)
+        )
+      );
+    }
+  }catch(e){
+    console.warn('[NUCLEO PDCA REVIEW] persistência compartilhada seguirá pelo sincronizador.',e);
+  }
+
+  try{render()}catch(e){}
+  try{renderPdcaReview2026()}catch(e){}
+  try{renderPdcaPdfSummary()}catch(e){}
+  try{refreshRoSummary()}catch(e){}
+
+  try{
+    Promise.resolve(syncPortalBackend(false,{foreground:false}))
+      .catch(e=>console.warn('[NUCLEO PDCA REVIEW] sincronização posterior falhou',e));
+  }catch(e){}
+
+  return {removed:true,ro,origin};
+}
+async function nucleoRemoveSingleAssignment(key,reason){
+  const tri=getSavedTriageMap().get(key);
+  if(!tri)throw new Error('Direcionamento não encontrado.');
+  // Salva o motivo antes da exclusão para que a auditoria central registre a causa.
+  const annotated={...tri,administrativeRemoval:{type:'assignment',reason,at:new Date().toISOString(),by:getSession()?.name||'SGQ'},updatedAt:new Date().toISOString()};
+  await nucleoRemovalSaveVerified('triage',key,annotated,(saved)=>{
+    const adm=saved?.administrativeRemoval||{};
+    return String(adm.type||'')==='assignment' &&
+      String(adm.reason||'').trim()===String(reason||'').trim();
+  },90000);
+  await adminCleanupDeleteRecord('triage',key);
+  const deleted=getDeletedTriageKeys();
+  deleted.add(key);
+  saveDeletedTriageKeys(deleted);
+  await adminCleanupSaveSharedState(DELETED_TRIAGE_KEYS_KEY,JSON.stringify([...deleted]));
+  const map=getSavedTriageMap();map.delete(key);localStorage.setItem(TRIAGE_KEY,JSON.stringify([...map.values()]));
+  try{await syncPortalBackend(false,{foreground:true})}catch(e){}
+  const finalDeleted=getDeletedTriageKeys();finalDeleted.add(key);saveDeletedTriageKeys(finalDeleted);
+}
+
+async function nucleoRemoveAssignedPerson(key,reason){
+  await nucleoPersistTriageRemovalRecord(key,{responsibleUserEmail:'',responsibleUserName:'',personRemovedAt:new Date().toISOString(),personRemovalReason:reason},reason,'person');
+}
+
+async function nucleoSetAdministrativeRoDecision(key,decision,reason,extra={}){
+  const map=getSavedTriageMap();
+  const base=triageRoNumberPart(key);
+  let records=getTriageRecordsForRoNumber(base,map).filter(x=>x?.decision);
+  if(!records.length&&map.get(key))records=[map.get(key)];
+  if(!records.length)throw new Error('Nenhuma triagem foi encontrada para esta R.O.');
+  const now=new Date().toISOString(),actor=getSession()?.name||'SGQ';
+  for(const old of records){
+    const recordKey=String(old.roKey||base);
+    const record={...old,
+      decision,decisionId:decision,decisionLabel:decision==='obsolete'?'Obsoleta':'Cancelar R.O.',
+      pdcaRequired:false,pdcaDeadline:'',responsibleUserEmail:'',responsibleUserName:'',
+      note:reason,updatedAt:now,updatedBy:actor,
+      administrativeRemoval:{type:extra.type||decision,reason,duplicateOf:extra.duplicateOf||'',at:now,by:actor}
+    };
+    await nucleoRemovalSaveVerified('triage',recordKey,record,(saved)=>{
+      const adm=saved?.administrativeRemoval||{};
+      return String(saved?.decision||'')===String(decision||'') &&
+        String(adm.type||'')===String(extra.type||decision||'') &&
+        String(adm.reason||'').trim()===String(reason||'').trim();
+    },90000);
+    map.set(recordKey,record);
+  }
+  localStorage.setItem(TRIAGE_KEY,JSON.stringify([...map.values()]));
+  try{
+    await portalUpdateRoSheetConfirmed(base,{status:decision==='obsolete'?'Obsoleto':'Cancelada',pessoa:'',resultado:reason});
+  }catch(e){console.warn('[NUCLEO REMOÇÃO] decisão salva, mas planilha não confirmou status',e);}
+  try{await syncPortalBackend(false,{foreground:true})}catch(e){}
+}
+
+async function nucleoConfirmRoRemoval(button){
+  const ctx=nucleoRoRemovalContext;
+  if(!ctx)return;
+  const type=document.getElementById('nucleoRoRemovalType')?.value||'';
+  const reason=String(document.getElementById('nucleoRoRemovalReason')?.value||'').trim();
+  const duplicateOf=String(document.getElementById('nucleoRoRemovalDuplicateOf')?.value||'').trim();
+  const status=document.getElementById('nucleoRoRemovalStatus');
+  if(!reason){status.textContent='Informe o motivo da alteração.';document.getElementById('nucleoRoRemovalReason')?.focus();return;}
+  if(type==='duplicate'&&!duplicateOf){status.textContent='Informe qual R.O. original deve permanecer.';document.getElementById('nucleoRoRemovalDuplicateOf')?.focus();return;}
+  button.disabled=true;status.textContent='Aplicando alteração e conferindo a base central…';
+  try{
+    if(type==='unlink_pdca'){
+      status.textContent='Removendo a definição Tem PDCA / Não tem PDCA…';
+      await nucleoUnlinkPdcaFromAssignment(ctx.triageKey,reason);
+      status.textContent='Definição removida. A pergunta será exibida novamente.';
+    }
+    else if(type==='assignment')await nucleoRemoveSingleAssignment(ctx.triageKey,reason);
+    else if(type==='person')await nucleoRemoveAssignedPerson(ctx.triageKey,reason);
+    else if(type==='duplicate')await nucleoSetAdministrativeRoDecision(ctx.triageKey,'cancelled',reason,{type:'duplicate',duplicateOf});
+    else if(type==='mistake')await nucleoSetAdministrativeRoDecision(ctx.triageKey,'cancelled',reason,{type:'mistake'});
+    else if(type==='cancel')await nucleoSetAdministrativeRoDecision(ctx.triageKey,'cancelled',reason,{type:'cancel'});
+    else if(type==='obsolete')await nucleoSetAdministrativeRoDecision(ctx.triageKey,'obsolete',reason,{type:'obsolete'});
+    else throw new Error('Escolha uma ação válida.');
+    try{render()}catch(e){}
+    try{renderAssignedRos()}catch(e){}
+    try{renderTriage()}catch(e){}
+    try{refreshRoSummary()}catch(e){}
+    try{refreshMenuNotificationBadges()}catch(e){}
+    status.textContent='Alteração confirmada.';
+    setTimeout(nucleoRemovalClose,350);
+  }catch(e){
+    console.error('[NUCLEO GERENCIAR REMOÇÃO]',e);
+    status.textContent='Não foi possível concluir: '+String(e?.message||e);
+    button.disabled=false;
+  }
+}
+
+// Compatibilidade com botões antigos/caches anteriores: o antigo delete agora abre
+// o gerenciador e nunca executa exclusão direta.
+async function deleteAssignedDirection(triageKey){
+  openRoRemovalManager(triageKey);
 }
 
 function openAssignedSectorEdit(triageKey){
@@ -20269,10 +20666,12 @@ async function syncNow(){
     }
   }catch(err){
     const detail=String(err?.message||err||'Erro não informado');
+    const stack=String(err?.stack||'').split('\n').slice(0,4).join(' | ');
+    const diagnostic=stack?(' · Diagnóstico: '+stack):'';
     nucleoSetCentralSyncState('error','Sincronização não confirmada: '+detail);
-    syncMsg.textContent='Não foi possível concluir a carga das R.O.s: '+detail+'.';
+    syncMsg.textContent='Não foi possível concluir a carga das R.O.s: '+detail+diagnostic+'.';
     syncMsg.className='statusline';
-    console.error('[NÚCLEO SYNC] Falha na sincronização manual',err);
+    console.error('[NÚCLEO SYNC] Falha na sincronização manual',err,err?.stack);
   }finally{
     hideNucleoLoading();
     syncNow.inProgress=false;
@@ -20568,7 +20967,7 @@ function applySettingsUnitSelection(){
 
 // Módulo de arquivos carregado sob demanda.
 let nucleoDriveModulePromise=null;
-function nucleoDriveLoad(){if(typeof nucleoDriveShow==='function')return Promise.resolve();if(!nucleoDriveModulePromise)nucleoDriveModulePromise=new Promise((resolve,reject)=>{const script=document.createElement('script');script.src=new URL('assets/modules/drive-documents.js?v=20261021-0945-unified',document.baseURI).href;const timer=setTimeout(()=>finish(new Error('Tempo limite ao carregar o módulo de arquivos. Tente novamente.')),20000);function finish(error){clearTimeout(timer);script.onload=script.onerror=null;if(error){script.remove();nucleoDriveModulePromise=null;reject(error);}else resolve();}script.onload=()=>finish();script.onerror=()=>finish(new Error('Não foi possível carregar o módulo de arquivos.'));document.head.appendChild(script);});return nucleoDriveModulePromise;}
+function nucleoDriveLoad(){if(typeof nucleoDriveShow==='function')return Promise.resolve();if(!nucleoDriveModulePromise)nucleoDriveModulePromise=new Promise((resolve,reject)=>{const script=document.createElement('script');script.src=new URL('assets/modules/drive-documents.js?v=20261028-no-pdca-list-v9',document.baseURI).href;const timer=setTimeout(()=>finish(new Error('Tempo limite ao carregar o módulo de arquivos. Tente novamente.')),20000);function finish(error){clearTimeout(timer);script.onload=script.onerror=null;if(error){script.remove();nucleoDriveModulePromise=null;reject(error);}else resolve();}script.onload=()=>finish();script.onerror=()=>finish(new Error('Não foi possível carregar o módulo de arquivos.'));document.head.appendChild(script);});return nucleoDriveModulePromise;}
 async function nucleoDriveOpen(tab){try{await nucleoDriveLoad();await nucleoDriveShow(tab);}catch(e){alert(e.message);}}
 function nucleoDriveSettingsShortcut(){
  const box=document.getElementById('unitQualitySettings');if(!box)return;
@@ -20754,13 +21153,12 @@ function nucleoApplyFeatureAccess(){
  });
 }
 
-
-
-
-
-
-
-
+function nucleoWorkspaceFeature(key,mode){
+ const module=key==='nccapa'?'nc':key;
+ const maps={documents:{new:'request',mine:'consult',standards:'standards',deliveries:'history',doc_analysis:'prepare',doc_preparation:'prepare',doc_ready:'deliver',history:'consult'},processes:{new:'edit',published:'consult',review:'review',pending:'review',history:'history',templates:'templates'},equipment:{new:'edit',active:'consult',pending:'pending',history:'history'},training:{new:'edit',active:'consult',pending:'pending',history:'history'},nccapa:{new_rnc:'edit',new_internal:'edit',active:'consult',history:'consult',suppliers:'edit',supplier_indicators:'consult'}};
+ return [module,maps[key]?.[mode]||'consult'];
+}
+function nucleoWorkspaceAllowed(key,mode){const [module,feature]=nucleoWorkspaceFeature(key,mode);return nucleoPersonFeatureCan(module,feature);}
 function nucleoApplyFeatureButtons(){
  if(getSession()?.permissions?.detailVersion!==1)return;
  document.querySelectorAll('[onclick]').forEach(el=>{

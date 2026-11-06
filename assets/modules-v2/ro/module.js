@@ -224,6 +224,180 @@ function openExternalRoPdf(url){
   modal.classList.add('open');
 }
 
+
+function nucleoRoEvidenceFileId_(value){
+  const u=String(value||'').trim();
+  if(!u)return '';
+  if(/^[A-Za-z0-9_-]{20,}$/.test(u))return u;
+  const m=u.match(/\/d\/([A-Za-z0-9_-]{20,})/i)
+    ||u.match(/[?&]id=([A-Za-z0-9_-]{20,})/i)
+    ||u.match(/thumbnail\?[^#]*\bid=([A-Za-z0-9_-]{20,})/i);
+  return m?.[1]||'';
+}
+
+
+function nucleoEvidenceChunkJsonpV57_(params,timeoutMs=90000){
+  return new Promise((resolve,reject)=>{
+    const base=portalApiBase();
+    if(!base){
+      reject(new Error('URL do Apps Script não configurada.'));
+      return;
+    }
+
+    const cb='nucleoEvidenceV57_'+Date.now()+'_'+Math.floor(Math.random()*100000);
+    const script=document.createElement('script');
+    let done=false;
+
+    function cleanup(){
+      try{clearTimeout(timer)}catch(_){}
+      try{delete window[cb]}catch(_){window[cb]=undefined}
+      try{script.remove()}catch(_){}
+    }
+    function finish(err,data){
+      if(done)return;
+      done=true;
+      cleanup();
+      if(err)reject(err);else resolve(data);
+    }
+
+    window[cb]=data=>finish(null,data);
+
+    const request={
+      mode:'nucleo_evidence_chunk_v57',
+      nucleoAction:'portal_ro_evidence_chunk',
+      acao:'portal_ro_evidence_chunk',
+      ...(params||{})
+    };
+
+    const token=String(getSession()?.authToken||'').trim();
+    if(token&&!request.token)request.token=token;
+
+    const parts=[];
+    Object.entries(request).forEach(([k,v])=>{
+      if(v!==undefined&&v!==null){
+        parts.push(encodeURIComponent(k)+'='+encodeURIComponent(String(v)));
+      }
+    });
+    parts.push('callback='+encodeURIComponent(cb));
+    parts.push('_='+Date.now());
+
+    script.async=true;
+    script.src=base+'?'+parts.join('&');
+    script.onerror=()=>finish(new Error('Falha ao carregar a rota dedicada de evidência.'));
+    const timer=setTimeout(
+      ()=>finish(new Error('A rota dedicada da evidência não respondeu dentro do limite.')),
+      timeoutMs
+    );
+
+    document.head.appendChild(script);
+  });
+}
+
+async function nucleoLoadRoEvidenceDataUrls_(ro){
+  const original=nucleoRoEvidenceUrls(ro).filter(x=>!/^data:image\//i.test(String(x||'')));
+  ro.__nucleoEvidenceDiagnostics=ro.__nucleoEvidenceDiagnostics||{};
+
+  const existing=Array.isArray(ro?.__nucleoEvidenceDataUrls)
+    ? ro.__nucleoEvidenceDataUrls.filter(x=>/^data:image\//i.test(String(x||'')))
+    : [];
+
+  if(existing.length && existing.length>=original.length)return existing;
+
+  const ids=[...new Set(original.map(nucleoRoEvidenceFileId_).filter(Boolean))];
+  if(!ids.length)return existing;
+
+  const loaded=[];
+
+  for(const fileId of ids){
+    try{
+      const common={
+        acao:'portal_ro_evidence_chunk',
+        ro:ro.numero||ro.id||ro.codigo,
+        origin:ro.__origemBase||ro.origem||ro.origin||'',
+        fileId:fileId
+      };
+
+      const first=await nucleoEvidenceChunkJsonpV57_({...common,part:0},90000);
+
+      if(!first?.sucesso||!first.chunk){
+        let raw='';
+        try{ raw=JSON.stringify(first); }catch(_){ raw=String(first); }
+        ro.__nucleoEvidenceDiagnostics[fileId]={
+          sucesso:false,
+          etapa:first?.etapa||'primeiro_chunk',
+          detalhe:'V57 | Rota dedicada não devolveu chunk. '+
+                  'API: '+portalApiBase()+'. '+
+                  (first?.__route?('Rota backend: '+first.__route+'. '):'')+
+                  (first?.erro?('Erro backend: '+first.erro+'. '):'')+
+                  'Resposta recebida: '+raw,
+          http:first?.http||''
+        };
+        continue;
+      }
+
+      const totalParts=Math.max(1,Number(first.totalParts)||1);
+      const chunks=new Array(totalParts);
+      chunks[0]=String(first.chunk||'');
+
+      for(let part=1;part<totalParts;part++){
+        const result=await nucleoEvidenceChunkJsonpV57_({...common,part},90000);
+        if(!result?.sucesso||typeof result.chunk!=='string'){
+          throw new Error(
+            (result?.etapa?('Etapa '+result.etapa+': '):'')+
+            (result?.erro||('falha ao carregar o bloco '+(part+1)+' de '+totalParts))
+          );
+        }
+        chunks[part]=result.chunk;
+      }
+
+      const base64=chunks.join('');
+      if(!base64){
+        throw new Error('A imagem foi recebida em blocos, mas o base64 ficou vazio.');
+      }
+
+      const mime=String(first.mime||'image/jpeg');
+      const dataUrl='data:'+mime+';base64,'+base64;
+      loaded.push(dataUrl);
+
+      ro.__nucleoEvidenceDiagnostics[fileId]={
+        sucesso:true,
+        etapa:'chunks_concluidos',
+        detalhe:'Imagem recebida em '+totalParts+' bloco(s) pelo Apps Script.',
+        mime:mime,
+        bytes:Number(first.bytes||0)
+      };
+    }catch(err){
+      console.warn('Falha ao incorporar evidência '+fileId,err);
+      ro.__nucleoEvidenceDiagnostics[fileId]={
+        sucesso:false,
+        etapa:'chunks',
+        detalhe:String(err?.message||err||'Falha ao remontar a imagem.')
+      };
+    }
+  }
+
+  if(loaded.length){
+    ro.__nucleoEvidenceDataUrls=loaded;
+  }
+
+  return loaded.length?loaded:existing;
+}
+
+function nucleoRoEvidenceDiagnosticText_(ro,url){
+  const fileId=nucleoRoEvidenceFileId_(url);
+  const d=fileId&&ro?.__nucleoEvidenceDiagnostics
+    ? ro.__nucleoEvidenceDiagnostics[fileId]
+    : null;
+  if(!d)return 'Diagnóstico: o frontend não recebeu resultado do backend para esta evidência.';
+  if(d.sucesso){
+    const size=d.bytes?(' · '+Math.round(Number(d.bytes)/1024)+' KB'):'';
+    return 'Diagnóstico: o backend baixou a imagem'+size+', mas ela não foi renderizada.';
+  }
+  const stage=d.etapa?('Etapa '+d.etapa+': '):'';
+  const http=d.http?('HTTP '+d.http+' · '):'';
+  return 'Diagnóstico: '+stage+http+String(d.detalhe||'falha sem detalhe.');
+}
+
 function nucleoBuildRoModelPrintHtml(ro,model,assets={}){
   const layout=model?.universalLayout||{},design=model?.design||{},orientation=design.orientation==='landscape'?'landscape':'portrait',margin=Math.max(5,Math.min(35,Number(model?.marginMm)||10));
   const images={...(assets.standardImagePreviews||{}),...(assets.gridImagePreviews||{})};
@@ -243,7 +417,7 @@ function nucleoBuildRoModelPrintHtml(ro,model,assets={}){
     const headerRows=nucleoRoModelRowsHtml(header,ro,model,images,pageNo,totalPages);
     const footerRows=nucleoRoModelRowsHtml(footer,ro,model,images,pageNo,totalPages);
     const fallbackLogo=logo&&!Object.values(images).includes(logo)?`<div style="text-align:${['left','center','right'].includes(design.align)?design.align:'center'};margin-bottom:2mm"><img src="${nucleoRoModelEsc(logo)}" style="width:${Math.max(10,Math.min(80,Number(design.logoWidth)||30))}mm;max-height:25mm;object-fit:contain"></div>`:'';
-    return `<section class="page">${fallbackLogo}${layout.repeatHeader===false&&pageNo>1?'':table(headerRows)}${inner}${layout.repeatFooter===false&&pageNo<totalPages?'':(footerRows?`<div class="footer-wrap">${table(footerRows)}</div>`:'')}</section>`;
+    return `<section class="page">${fallbackLogo}${layout.repeatHeader===false&&pageNo>1?'':table(headerRows)}<div class="page-main">${inner}</div>${layout.repeatFooter===false&&pageNo<totalPages?'':(footerRows?`<div class="footer-wrap">${table(footerRows)}</div>`:'')}</section>`;
   };
 
   const bodyRows=nucleoRoModelRowsHtml(body,ro,model,images,1,totalPages);
@@ -254,12 +428,17 @@ function nucleoBuildRoModelPrintHtml(ro,model,assets={}){
     const pageNo=groupIndex+2;
     const cards=group.map(url=>{
       evidenceNumber++;
-      const imageUrl=nucleoRoEvidenceImageUrl(url);
+      const isEmbedded=/^data:image\//i.test(String(url||''));
       return `<div class="evidence-card">
         <div class="evidence-title">EVIDÊNCIA ${evidenceNumber}</div>
         <div class="evidence-frame">
-          <img src="${nucleoRoModelEsc(imageUrl)}" alt="Evidência ${evidenceNumber}" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
-          <div class="evidence-fallback" style="display:none">Não foi possível carregar a imagem nesta visualização.<br><a href="${nucleoRoModelEsc(url)}" target="_blank" rel="noopener noreferrer">Abrir evidência ${evidenceNumber}</a></div>
+          ${isEmbedded
+            ? `<canvas class="evidence-canvas" data-evidence-index="${evidenceNumber-1}" aria-label="Evidência ${evidenceNumber}"></canvas>`
+            : `<div class="evidence-fallback" style="display:block">
+                <div style="font-weight:700;margin-bottom:1mm">Não foi possível incorporar esta imagem.</div>
+                <div class="evidence-debug">${nucleoRoModelEsc(nucleoRoEvidenceDiagnosticText_(ro,url))}</div>
+                <div style="margin-top:1mm"><a href="${nucleoRoModelEsc(url)}" target="_blank" rel="noopener noreferrer">Abrir evidência ${evidenceNumber}</a></div>
+              </div>`}
         </div>
       </div>`;
     }).join('');
@@ -269,10 +448,63 @@ function nucleoBuildRoModelPrintHtml(ro,model,assets={}){
   return `<!doctype html><html><head><meta charset="utf-8"><title>${nucleoRoModelEsc(ro?.numero||'R.O.')}</title><style>
   @page{size:A4 ${orientation};margin:0}*{box-sizing:border-box;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}html,body{margin:0;padding:0;background:#e5e7eb;font-family:Arial,Helvetica,sans-serif;color:${nucleoRoModelEsc(design.textColor||'#222222')}}
   .page{width:${orientation==='landscape'?'297mm':'210mm'};height:${orientation==='landscape'?'210mm':'297mm'};margin:0 auto 8mm;background:#fff;padding:${margin}mm;font-size:${Math.max(7,Math.min(18,Number(model?.fontSize)||9))}pt;display:flex;flex-direction:column;overflow:hidden;page-break-after:always}.page:last-child{page-break-after:auto}
-  .grid{width:100%;border-collapse:collapse;table-layout:fixed}.grid col{width:1%}.cell-stack{display:flex;flex-direction:column;gap:.35mm;min-width:0}.cell-label{line-height:1.05}.before,.after{white-space:pre-wrap;margin:2mm 0}.footer-wrap{margin-top:auto;padding-top:3mm}
-  .evidence-page{display:flex;flex:1;min-height:0;flex-direction:column;padding-top:2mm}.evidence-section-title{font-size:10pt;font-weight:700;margin:0 0 2mm}.evidence-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr));gap:3mm;flex:1;min-height:0}.evidence-grid.count-1{grid-template-columns:1fr;grid-template-rows:1fr}.evidence-grid.count-2{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:1fr}.evidence-card{display:flex;min-width:0;min-height:0;flex-direction:column;border:.5pt solid #c8cdd3;padding:2mm;overflow:hidden}.evidence-title{font-size:8pt;font-weight:700;margin:0 0 1.5mm}.evidence-frame{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;overflow:hidden}.evidence-frame img{display:block;max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain}.evidence-fallback{text-align:center;font-size:8pt;line-height:1.35}
+  .grid{width:100%;border-collapse:collapse;table-layout:fixed}.grid col{width:1%}.page-main{flex:1 1 auto;min-height:0;overflow:hidden;display:block}.cell-stack{display:flex;flex-direction:column;gap:.35mm;min-width:0}.cell-label{line-height:1.05}.before,.after{white-space:pre-wrap;margin:2mm 0}.footer-wrap{margin-top:2mm;padding-top:0;flex:0 0 auto;page-break-inside:avoid;break-inside:avoid}
+  .evidence-page{display:flex;flex:1;min-height:0;flex-direction:column;padding-top:2mm}.evidence-section-title{font-size:10pt;font-weight:700;margin:0 0 2mm}.evidence-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr));gap:3mm;flex:1;min-height:0}.evidence-grid.count-1{grid-template-columns:1fr;grid-template-rows:1fr}.evidence-grid.count-2{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:1fr}.evidence-card{display:flex;min-width:0;min-height:0;flex-direction:column;border:.5pt solid #c8cdd3;padding:2mm;overflow:hidden}.evidence-title{font-size:8pt;font-weight:700;margin:0 0 1.5mm}.evidence-frame{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;overflow:hidden}.evidence-canvas{display:block;width:100%;height:100%;max-width:100%;max-height:100%}.evidence-fallback{text-align:center;font-size:8pt;line-height:1.35}.evidence-debug{font-size:6.8pt;line-height:1.25;color:#8a1c1c;overflow-wrap:anywhere}
   @media screen{body{padding:8mm}.page{box-shadow:0 2px 12px #0003}}@media print{body{background:#fff;padding:0}.page{box-shadow:none;margin:0}}
-  </style></head><body>${pages}</body></html>`;
+  </style></head><body>${pages}<script>
+  (function(){
+    var evidenceData=${JSON.stringify(evidenceUrls)};
+    function decodeDataUrl(dataUrl){
+      var m=String(dataUrl||'').match(/^data:([^;]+);base64,(.+)$/);
+      if(!m)return null;
+      var bin=atob(m[2]),bytes=new Uint8Array(bin.length);
+      for(var i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);
+      return new Blob([bytes],{type:m[1]||'image/jpeg'});
+    }
+    async function drawEvidenceCanvases(){
+      var canvases=document.querySelectorAll('canvas.evidence-canvas');
+      for(var i=0;i<canvases.length;i++){
+        var canvas=canvases[i];
+        try{
+          var idx=Number(canvas.getAttribute('data-evidence-index'));
+          var blob=decodeDataUrl(evidenceData[idx]);
+          if(!blob)throw new Error('Imagem não incorporada');
+          var bitmap=await createImageBitmap(blob);
+          var box=canvas.parentElement.getBoundingClientRect();
+          var dpr=Math.max(1,Math.min(2,window.devicePixelRatio||1));
+          canvas.width=Math.max(1,Math.floor(box.width*dpr));
+          canvas.height=Math.max(1,Math.floor(box.height*dpr));
+          var ctx=canvas.getContext('2d');
+          ctx.clearRect(0,0,canvas.width,canvas.height);
+          var scale=Math.min(canvas.width/bitmap.width,canvas.height/bitmap.height);
+          var w=bitmap.width*scale,h=bitmap.height*scale;
+          ctx.drawImage(bitmap,(canvas.width-w)/2,(canvas.height-h)/2,w,h);
+          if(bitmap.close)bitmap.close();
+        }catch(err){
+          canvas.style.display='none';
+          var fallback=document.createElement('div');
+          fallback.className='evidence-fallback';
+          fallback.style.display='block';
+          fallback.textContent='Não foi possível renderizar a imagem incorporada.';
+          canvas.parentElement.appendChild(fallback);
+        }
+      }
+    }
+    function fitFirstPage(){
+      var page=document.querySelector('.page'); if(!page)return;
+      var main=page.querySelector('.page-main'); if(!main)return;
+      main.style.zoom='1'; main.style.width='100%';
+      var available=main.clientHeight, needed=main.scrollHeight;
+      if(!available||needed<=available+2)return;
+      var scale=Math.max(.82,Math.min(1,(available-2)/needed));
+      main.style.zoom=String(scale);
+      main.style.width=(100/scale)+'%';
+    }
+    if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(function(){fitFirstPage();drawEvidenceCanvases();},30)});
+    else setTimeout(function(){fitFirstPage();drawEvidenceCanvases();},30);
+    window.addEventListener('beforeprint',function(){fitFirstPage();drawEvidenceCanvases();});
+  })();
+  <\/script></body></html>`;
 }
 
 function nucleoShowRoModelPreview(ro,model,assets){
@@ -319,6 +551,14 @@ async function openRoPdf(id){
     const u=model?.universalLayout;
     const hasUniversal=!!(u&&Number(u.version)>=2&&(Array.isArray(u.headerGrid)||Array.isArray(u.bodyGrid)||Array.isArray(u.footerGrid)));
     if(hasUniversal){
+      try{
+        updateNucleoLoading('Carregando as evidências da R.O.…','Incorporando as fotos sem depender do login do Drive.');
+        await nucleoLoadRoEvidenceDataUrls_(ro);
+      }catch(e){
+        console.warn('Não foi possível incorporar as evidências pela API.',e);
+      }finally{
+        hideNucleoLoading(true);
+      }
       nucleoShowRoModelPreview(ro,model,assets);
       return;
     }
