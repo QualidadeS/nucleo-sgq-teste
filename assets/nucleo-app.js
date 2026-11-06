@@ -428,7 +428,7 @@ function pendingHubData(){
   const sentRos=new Set((Array.isArray(sent)?sent:[]).map(p=>String(p?.ro||p?.numeroRo||p?.roNumber||'').trim()));
 
   const roItems=getAllRoRecords()
-    .filter(ro=>canAdminSeeAllPortalRecords()?true:canViewRO(ro))
+    .filter(ro=>canAdminSeeAllPortalRecords()?true:canViewRO(ro,triageMap))
     .filter(ro=>{
       const st=normalizeAnswer(ro.status||'');
       if(st.includes('cancel')||st.includes('somente para registro'))return false;
@@ -10508,7 +10508,7 @@ function nucleoOperationalSectorAllowed(sector){
 }
 function nucleoCanTriageRos(){return nucleoBroadRoScope();}
 
-function canViewRO(ro){
+function canViewRO(ro,preloadedTriageMap=null){
   if(!nucleoManagerScopeAllows(ro))return false;
 
   // Somente SGQ e Qualidade possuem visão ampla de R.O.s.
@@ -10517,7 +10517,7 @@ function canViewRO(ro){
     return getSession()?.role==='quality'?qualityRecordAllowed(ro):true;
   }
 
-  const tri=getRoTriageRecord(ro);
+  const tri=getRoTriageRecord(ro,preloadedTriageMap);
   if(!tri || tri.decision!=='directed')return false;
 
   // Usuário operacional NÃO herda escopo de sectorMemberships/cache antigo.
@@ -14742,7 +14742,7 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
   }) : ros;
   const list=assignedSource.filter(nucleoManagerScopeAllows)
     .filter(r=>{
-      if(roListMode!=='assigned')return canViewRO(r);
+      if(roListMode!=='assigned')return canViewRO(r,renderTriageMap);
       const tri=getRoTriageRecord(r,renderTriageMap);
       // R.O. que já possui PDCA não pertence mais à fila de atribuídas.
       // Usa somente a triagem/status que já estão carregados neste mesmo render.
@@ -14762,7 +14762,7 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
       if(!assignedByTriage && !assignedBySheet)return false;
       // Somente SGQ real/Qualidade real pulam o filtro setorial.
       // Usuário comum SEMPRE passa por canViewRO(), mesmo se um role antigo vier como admin.
-      return nucleoBroadRoScope()?true:canViewRO(r);
+      return nucleoBroadRoScope()?true:canViewRO(r,renderTriageMap);
     })
     .map(r=>nucleoBroadRoScope()?r:getOperationalRoView(r,renderTriageMap))
     .filter(r=>{
@@ -14974,9 +14974,10 @@ function view(id){
   document.getElementById('submittedRoDecisionInfo')?.remove();dNumero.textContent=selected.numero;dCliente.textContent=selected.cliente;dStatus.textContent=selected.status;dStatus.className=badgeClass(selected.status);dUnidade.textContent=selected.unidade;dSetor.textContent=selected.setor;dData.textContent=selected.data;dPrazo.textContent=selected.prazo;dDescricao.textContent=selected.descricao;const noPDCA=['Cancelada','Somente para registro'].includes(selected.status),contest=selected.status==='Em contestação';pdcaBtn.disabled=noPDCA||contest;contestBtn.disabled=noPDCA||contest;if(pdcaBtn&&!noPDCA&&!contest){const roKey=selected.numero||selected.id||selected.codigo||'';pdcaBtn.textContent=isPdcaStarted(roKey)?'Continuar a responder o PDCA':'Responder o PDCA';}dNotice.classList.toggle('hidden',!(noPDCA||contest));dNotice.textContent=contest?'O PDCA está suspenso enquanto a contestação estiver em análise pelo SGQ.':noPDCA?'Esta R.O. não exige PDCA.':'';refreshContestUserStatus();refreshFavoriteButton();renderRoTimeline();renderRoIntelligence()}
 function roSummaryData(){
   const source=(typeof ROs!=='undefined' ? ROs : (typeof ros!=='undefined' ? ros : []));
+  const triageMap=getSavedTriageMap();
   const visibleRos=source
-    .filter(ro=>canViewRO(ro))
-    .map(ro=>isAdmin()?ro:getOperationalRoView(ro));
+    .filter(ro=>canViewRO(ro,triageMap))
+    .map(ro=>isAdmin()?ro:getOperationalRoView(ro,triageMap));
 
   const sent=getSentPdcas().filter(p=>isAdmin() || sameSector(p.setor));
   const byRo=new Map();
@@ -14985,7 +14986,6 @@ function roSummaryData(){
     if(key)byRo.set(key,p);
   });
 
-  const triageMap=getSavedTriageMap();
   let pending=0,noPresentation=0,openActions=0,overdue=0;
   const now=new Date();
 
@@ -15637,7 +15637,7 @@ function renderCurrentOverview(){
     console.error('Falha ao renderizar Visão geral:',e);
     const k=document.getElementById('overviewKpis');
     if(k)k.innerHTML=[
-      overviewKpi(overviewSafe(()=>getAllRoRecords().filter(r=>canViewRO(r)).length,0),'R.O.s disponíveis','','showAssignedRos()','Abrir'),
+      overviewKpi(overviewSafe(()=>{const m=getSavedTriageMap();return getAllRoRecords().filter(r=>canViewRO(r,m)).length},0),'R.O.s disponíveis','','showAssignedRos()','Abrir'),
       overviewKpi(overviewSafe(()=>userSectorPendingActions().length,0),'Ações em acompanhamento','','showActionsDashboard()','Abrir')
     ].join('');
     renderOverviewPriorities([]);
@@ -17223,7 +17223,7 @@ function nucleoKpiExtraCatalog(){return [['ro_total','R.O.s disponíveis','ros',
 function nucleoKpiClassificationNames(){const names=['Método','Máquina','Mão de obra','Material','Medição','Meio ambiente'];if(document.readyState!=='loading'){const map=getSavedTriageMap();map.forEach(t=>{(t.classificationMs||[]).concat(t.classificationOther?[t.classificationOther]:!t.classificationMs&&t.classification?[t.classification]:[]).forEach(n=>{const name=String(n||'').trim();if(name&&!names.some(x=>normalizeAnswer(x)===normalizeAnswer(name)))names.push(name);});});}return names;}
 function nucleoKpiDefaultIds(){return isAdmin()?['triage','sac_classify','action_review','contests','registrations','documents']:['pdca_pending','sector_actions','submitted','sacs','documents'];}
 function nucleoKpiExtraCounts(){
- const map=getSavedTriageMap(),classNames=nucleoKpiClassificationNames(),ros=getAllRoRecords().filter(r=>canViewRO(r)&&nucleoManagerScopeAllows(r)),pdcas=getAllSentPdcas().filter(p=>canViewPdca(p)&&nucleoManagerScopeAllows(p)),byRo=new Map();pdcas.forEach(p=>{const key=String(p.ro||p.roId||'').split('::')[0];if(!byRo.has(key))byRo.set(key,[]);byRo.get(key).push(p);});
+ const map=getSavedTriageMap(),classNames=nucleoKpiClassificationNames(),ros=getAllRoRecords().filter(r=>canViewRO(r,map)&&nucleoManagerScopeAllows(r)),pdcas=getAllSentPdcas().filter(p=>canViewPdca(p)&&nucleoManagerScopeAllows(p)),byRo=new Map();pdcas.forEach(p=>{const key=String(p.ro||p.roId||'').split('::')[0];if(!byRo.has(key))byRo.set(key,[]);byRo.get(key).push(p);});
  const triageByRo=new Map();map.forEach(t=>{const key=String(t.roNumber||t.roKey||'').split('::')[0],old=triageByRo.get(key);if(!old||old.importedFromSheet&&!t.importedFromSheet||old.importedFromSheet===t.importedFromSheet&&String(t.triagedAt||'')>String(old.triagedAt||''))triageByRo.set(key,t);});
  const counts={ro_total:ros.length,ro_pending:0,ro_answered:0,ro_presented:0,ro_finalized:0,ro_record:0,ro_cancelled:0,ro_obsolete:0,ro_box:0,pdca_received:pdcas.length,pdca_dispatch:0,actions_ontime:0,actions_late:0,actions_done:0,sacs_done:0,docs_done:0};
  let deliveries=[];try{deliveries=JSON.parse(localStorage.getItem('nucleo-pdca-dispatches-v1')||'[]');}catch(_){}const delivered=p=>deliveries.some(d=>d.ro===p.ro&&d.unit===explicitRecordUnit(p)&&(d.pdcaFileId&&d.pdcaFileId===p.pdcaFileId||d.fileId&&d.fileId===p.fileId)&&Number(d.version||1)===Number(p.version||1));
@@ -18540,9 +18540,9 @@ function nucleoAssignedExportDataset(){
         .includes(normalizeAnswer(sheetSector));
       const assignedByTriage=!!tri&&!['','new','nova','aguardando','aguardando triagem'].includes(triStatus);
       if(!assignedByTriage&&!validSheetSector)return false;
-      return isAdmin()?true:canViewRO(r);
+      return isAdmin()?true:canViewRO(r,triageMap);
     })
-    .map(r=>isAdmin()?r:getOperationalRoView(r));
+    .map(r=>isAdmin()?r:getOperationalRoView(r,triageMap));
 }
 
 function nucleoAssignedExportDateValue(r){
