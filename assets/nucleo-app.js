@@ -14860,6 +14860,7 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
       operationalActions=`<td class="operational-action-col ro-eye-cell">
         <div class="assigned-operational-icons ro-row-actions">
           <button class="ro-eye-btn" type="button" onclick="openRoReport('${escapeHtml(r.numero)}')" title="Visualizar R.O." aria-label="Visualizar R.O. ${escapeHtml(r.numero)}">👁</button>
+          <button class="ro-eye-btn" type="button" onclick="if(typeof nucleoOpenRoExtension==='function'){nucleoOpenRoExtension('${escapeHtml(r.numero)}','${escapeHtml(responsibleSector)}','${escapeHtml(tri?.roKey||'')}')}else{alert('O módulo Estender R.O. não está disponível.')}" title="Estender R.O. para outros setores" aria-label="Estender R.O. para outros setores">↗</button>
           ${tri?.roKey?`<button class="ro-eye-btn ro-edit-btn" type="button" onclick="openAssignedSectorEdit('${escapeHtml(tri.roKey)}')" title="Editar setor causa" aria-label="Editar setor causa">✎</button><button class="ro-eye-btn ro-delete-btn" type="button" onclick="deleteAssignedDirection('${escapeHtml(tri.roKey)}')" title="Excluir este direcionamento" aria-label="Excluir este direcionamento">🗑</button>`:''}
         </div>
       </td>`;
