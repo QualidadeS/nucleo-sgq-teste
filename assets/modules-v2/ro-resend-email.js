@@ -1,7 +1,7 @@
-/* NÚCLEO | Reenviar e-mail | v34 | fila real de erros sem reenvio */
+/* NÚCLEO | Reenviar e-mail | v35 | ignora falso erro em triagem histórica importada */
 (function(){
-  if(window.__nucleoRoResendEmailV34)return;
-  window.__nucleoRoResendEmailV34=true;
+  if(window.__nucleoRoResendEmailV35)return;
+  window.__nucleoRoResendEmailV35=true;
 
   function esc(v){
     if(typeof escapeHtml==='function')return escapeHtml(String(v??''));
@@ -197,6 +197,17 @@
     );
     if(!all.length)return [];
 
+    // Triagens históricas reconhecidas a partir da planilha existiam antes do Núcleo.
+    // Elas não podem herdar um erro genérico de e-mail da R.O. apenas porque o
+    // histórico antigo não informa claramente setor/destinatário.
+    let assignment=null;
+    try{ assignment=currentAssignment(roNumber,sector,ro); }catch(e){}
+    const assignmentNote=norm(assignment?.note||assignment?.motivo||assignment?.reason||'');
+    const legacyImported=assignment?.importedFromSheet===true ||
+      assignment?.__synthetic===true ||
+      assignmentNote.includes('triagem reconhecida automaticamente a partir da planilha') ||
+      assignmentNote.includes('importado da planilha');
+
     const wanted=norm(sector||'');
     if(wanted && wanted!=='nao direcionado'){
       const exact=all.filter(h=>norm(h?.sector||h?.setor||h?.responsibleSector||'')===wanted);
@@ -231,10 +242,11 @@
       String(h?.email||h?.recipient||h?.destinatario||'').toLowerCase().includes(emails[0])
     );
 
-    // Fallback final: se a R.O. tem QUALQUER erro no histórico e não foi possível
-    // vincular por setor, retorna todos os eventos da R.O. para que o badge apareça.
+    // Fallback final: só atribuições criadas/geridas pelo Núcleo podem herdar um
+    // erro genérico da R.O. quando o histórico antigo não identifica o setor.
+    // Importações históricas da planilha ficam como 'sem tentativa' nesse cenário.
     const hasError=all.some(h=>String(h?.status||'').toLowerCase()==='error');
-    if(hasError)return all;
+    if(hasError && !legacyImported)return all;
 
     return [];
   }
