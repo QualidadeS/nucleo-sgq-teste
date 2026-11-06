@@ -3,7 +3,7 @@
 <html lang="pt-BR"><head>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
-<meta name="nucleo-build" content="20261026-modular-teste-v27-ro-drive-fila-gatilho">
+<meta name="nucleo-build" content="20261030-ro-assigned-test-v4">
 <meta http-equiv="Expires" content="0"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Núcleo SGQ</title><style>
 :root{--bg:#f5f7fb;--card:#fff;--text:#172033;--muted:#667085;--line:#e5e7eb;--blue:#244f86;--blue2:#173b67;--soft:#edf4fb;--danger:#b42318;--warn:#b54708;--ok:#087443}*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:var(--bg);color:var(--text)}header{background:linear-gradient(135deg,var(--blue2),var(--blue));color:#fff;padding:16px 22px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10}header h1{font-size:19px;margin:0}.head-actions{display:flex;gap:8px;align-items:center}.user{font-size:12px;opacity:.9}main{max-width:1180px;margin:22px auto;padding:0 18px}.card{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:0 8px 24px rgba(16,24,40,.05);padding:18px}.toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}input,select,textarea{width:100%;border:1px solid #cfd5df;border-radius:10px;padding:10px 12px;font:inherit;background:#fff}.toolbar input{flex:1;min-width:240px}.toolbar select{width:auto}table{width:100%;border-collapse:collapse}th,td{padding:12px 10px;border-bottom:1px solid var(--line);text-align:left;font-size:14px}th{font-size:12px;color:var(--muted);text-transform:uppercase}tr.click{cursor:pointer}tr.click:hover{background:#f8fafc}.badge{display:inline-flex;align-items:center;padding:5px 9px;border-radius:999px;font-size:12px;font-weight:700;background:var(--soft);color:var(--blue2)}.badge.warn{background:#fff4e5;color:var(--warn)}.badge.off{background:#f2f4f7;color:#475467}.badge.danger{background:#fee4e2;color:var(--danger)}.badge.ok{background:#ecfdf3;color:var(--ok)}.btn{border:0;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer}.primary{background:var(--blue);color:#fff}.secondary{background:#eef2f6;color:#344054}.danger{background:#fff1f0;color:var(--danger);border:1px solid #fecdca}.btn:disabled{opacity:.45}.iconbtn{border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.08);color:#fff;border-radius:9px;padding:8px 10px;cursor:pointer;font-weight:700}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.full{grid-column:1/-1}.label{font-size:12px;color:var(--muted);margin-bottom:5px}.value{font-weight:600}.back{background:none;border:0;color:var(--blue);font-weight:700;cursor:pointer;padding:0;margin-bottom:14px}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}.notice{padding:12px 14px;border-radius:10px;background:#fff7ed;color:#9a3412;margin-top:14px;font-size:14px}.hidden{display:none!important}.small{font-size:12px;color:var(--muted)}.section-title{margin:0 0 10px;font-size:18px}.stage-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}.stage-tab{border:1px solid var(--line);background:#fff;border-radius:999px;padding:8px 12px;cursor:pointer;font-weight:700}.stage-tab.active{background:var(--blue);color:white;border-color:var(--blue)}.question{border:1px solid var(--line);border-radius:13px;padding:14px;margin-bottom:12px}.question h4{margin:0 0 5px;font-size:15px}.question p{margin:0 0 10px;color:var(--muted);font-size:13px}textarea{min-height:78px;resize:vertical}.meta-box{background:#f8fafc;border:1px solid var(--line);padding:14px;border-radius:13px;margin:14px 0}.settings-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.settings-block{border:1px solid var(--line);border-radius:14px;padding:15px;margin-top:14px}.settings-block h3{margin:0 0 5px;font-size:16px}.help{font-size:12px;color:var(--muted);margin:0 0 12px}.statusline{font-size:13px;margin:10px 0;padding:10px 12px;border-radius:10px;background:#f8fafc}.okline{background:#ecfdf3;color:#087443}.modal{position:fixed;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;padding:18px;z-index:30}.modal-box{width:min(620px,100%);background:#fff;border-radius:16px;padding:20px}.modal-box h3{margin-top:0}.modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:14px}
 .settings-side-tab{
@@ -1144,7 +1144,56 @@ body.external-ro-denied #navNewExternalRo{
 .ack-progress>span{display:block;height:100%;background:#2f6f61}
 .channel-grid{display:grid;grid-template-columns:minmax(190px,1.4fr) repeat(2,minmax(140px,1fr));gap:8px;align-items:center}
 .channel-grid>div{padding:8px 0;border-bottom:1px solid #edf1ef}
-.email-history-table td,.email-history-table th{font-size:12px}
+.email-history-table{
+  width:100%;
+  table-layout:fixed;
+  border-collapse:collapse;
+}
+.email-history-table td,.email-history-table th{
+  font-size:12px;
+  vertical-align:top;
+  white-space:normal;
+  overflow-wrap:anywhere;
+  word-break:break-word;
+}
+.email-history-table th:nth-child(1),
+.email-history-table td:nth-child(1){width:92px}
+.email-history-table th:nth-child(2),
+.email-history-table td:nth-child(2){width:70px}
+.email-history-table th:nth-child(3),
+.email-history-table td:nth-child(3){width:92px}
+.email-history-table th:nth-child(4),
+.email-history-table td:nth-child(4){
+  width:auto;
+  min-width:0;
+  max-width:100%;
+}
+.email-history-table th:nth-child(5),
+.email-history-table td:nth-child(5){width:88px}
+.email-history-table td:nth-child(4){
+  line-height:1.45;
+}
+.email-history-table-wrap{
+  width:100%;
+  max-width:100%;
+  overflow-x:hidden;
+  overflow-y:visible;
+  margin-top:10px;
+}
+@media(max-width:760px){
+  .email-history-table th:nth-child(1),
+  .email-history-table td:nth-child(1){width:76px}
+  .email-history-table th:nth-child(2),
+  .email-history-table td:nth-child(2){width:48px}
+  .email-history-table th:nth-child(3),
+  .email-history-table td:nth-child(3){width:76px}
+  .email-history-table th:nth-child(5),
+  .email-history-table td:nth-child(5){width:70px}
+  .email-history-table td,.email-history-table th{
+    padding:9px 7px;
+    font-size:11px;
+  }
+}
 .email-status-ok{font-weight:700}
 .email-status-err{font-weight:700}
 .announcement-attachment{display:inline-flex;align-items:center;gap:6px;margin-top:10px;padding:7px 10px;border:1px solid #d9e2ec;border-radius:8px;background:#fff;font-size:13px}
@@ -2675,6 +2724,212 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
 .action-timeline-meta span{font-size:11px;background:#f2f4f7;border-radius:999px;padding:4px 7px;color:#475467}
 </style>
 
+
+<style id="nucleoRoAssignedActionsLayoutV6">
+#rows .ro-eye-cell{white-space:nowrap}
+#rows .ro-row-actions{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:7px!important;
+  flex-wrap:nowrap!important;
+  white-space:nowrap!important;
+}
+#rows .ro-row-actions .ro-eye-btn{
+  flex:0 0 auto!important;
+  margin:0!important;
+}
+</style>
+
+
+
+
+
+<style id="nucleoAssignedTestLayoutV4">
+#roListView .ro-control-table-wrap{width:100%;overflow-x:auto}
+#roListView .ro-control-table{
+  width:100%;
+  min-width:1180px;
+  table-layout:fixed;
+  border-collapse:collapse;
+}
+#roListView .ro-control-table th,
+#roListView .ro-control-table td{
+  vertical-align:middle!important;
+  box-sizing:border-box;
+}
+#roListView .ro-control-table th:nth-child(1){width:100px}
+#roListView .ro-control-table th:nth-child(2){width:185px}
+#roListView .ro-control-table th:nth-child(3){width:185px}
+#roListView .ro-control-table th:nth-child(4){width:105px}
+#roListView .ro-control-table th:nth-child(5){width:100px}
+#roListView .ro-control-table th:nth-child(6){width:145px;text-align:center}
+#roListView .ro-control-table th:nth-child(7){width:240px;text-align:center}
+#roListView .ro-control-table th:nth-child(8){width:220px;text-align:center}
+
+#roListView .assigned-status-cell,
+#roListView .assigned-pdca-cell,
+#roListView .operational-action-col{
+  text-align:center!important;
+  white-space:nowrap!important;
+}
+
+#roListView .assigned-pdca-control{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:6px!important;
+  flex-wrap:nowrap!important;
+  white-space:nowrap!important;
+}
+
+#roListView .assigned-pdca-control .btn{
+  padding:5px 8px!important;
+  min-height:28px!important;
+  font-size:11px!important;
+}
+
+#roListView .assigned-pdca-control .btn.is-selected{
+  background:#075da8!important;
+  color:#fff!important;
+  border-color:#075da8!important;
+}
+
+#roListView .assigned-operational-icons{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:10px!important;
+  flex-wrap:nowrap!important;
+  white-space:nowrap!important;
+  width:100%;
+}
+
+#roListView .assigned-operational-icons .ro-eye-btn,
+#roListView .assigned-operational-icons [data-ro-resend-email]{
+  flex:0 0 auto!important;
+  margin:0!important;
+}
+
+#roListView .assigned-status-cell .badge,
+#roListView .assigned-status-cell .status-badge{
+  max-width:135px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+</style>
+
+
+<style id="nucleoAssignedTestLayoutV6Final">
+#roListView .ro-control-table{min-width:1260px}
+#roListView .ro-control-table th:nth-child(7){width:260px!important}
+#roListView .ro-control-table th:nth-child(8){width:250px!important}
+
+#roListView .assigned-pdca-control{
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:4px!important;
+  padding:3px!important;
+  border:1px solid #d0d5dd!important;
+  border-radius:10px!important;
+  background:#f9fafb!important;
+}
+#roListView .assigned-pdca-option{
+  border:0!important;
+  border-radius:7px!important;
+  background:transparent!important;
+  color:#475467!important;
+  font:600 11px/1.2 inherit!important;
+  padding:7px 9px!important;
+  cursor:pointer!important;
+  white-space:nowrap!important;
+}
+#roListView .assigned-pdca-option:hover{background:#eef2f6!important}
+#roListView .assigned-pdca-option.yes.is-selected{background:#e8f3ff!important;color:#075da8!important;box-shadow:inset 0 0 0 1px #84c5f4!important}
+#roListView .assigned-pdca-option.no.is-selected{background:#fff1f0!important;color:#b42318!important;box-shadow:inset 0 0 0 1px #fda29b!important}
+
+#roListView td.operational-action-col{
+  text-align:center!important;
+  white-space:nowrap!important;
+}
+#roListView td.operational-action-col br{display:none!important}
+#roListView td.operational-action-col > *{vertical-align:middle!important}
+#roListView .assigned-operational-icons{
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:5px!important;
+  flex-wrap:nowrap!important;
+  width:auto!important;
+  vertical-align:middle!important;
+}
+#roListView .assigned-operational-icons .ro-eye-btn,
+#roListView td.operational-action-col > button,
+#roListView td.operational-action-col [data-ro-resend-email]{
+  width:32px!important;
+  height:32px!important;
+  min-width:32px!important;
+  padding:0!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  border:1px solid #d0d5dd!important;
+  border-radius:8px!important;
+  background:#fff!important;
+  color:#344054!important;
+  font-size:15px!important;
+  line-height:1!important;
+  margin:0 2px!important;
+  vertical-align:middle!important;
+}
+#roListView .assigned-operational-icons .ro-eye-btn:hover,
+#roListView td.operational-action-col > button:hover,
+#roListView td.operational-action-col [data-ro-resend-email]:hover{background:#f2f4f7!important;border-color:#98a2b3!important}
+#roListView .assigned-operational-icons .ro-delete-btn{color:#b42318!important}
+
+/* Qualquer ação injetada pelos módulos de e-mail/encaminhamento permanece na mesma linha. */
+#roListView td.operational-action-col > div:not(.assigned-operational-icons){
+  display:inline-flex!important;
+  align-items:center!important;
+  gap:4px!important;
+  flex-wrap:nowrap!important;
+  vertical-align:middle!important;
+}
+</style>
+
+
+
+
+
+
+
+
+<style id="nucleoAssignedStableColumnsV12">
+#roListView #rows td:nth-child(6){text-align:center!important}
+#roListView #rows td:nth-child(7){text-align:center!important;white-space:nowrap!important}
+#roListView #rows td:nth-child(8){text-align:center!important;white-space:nowrap!important}
+#roListView #rows td:nth-child(8) [data-ro-resend-email]{
+  flex:0 0 auto!important;
+}
+</style>
+
+
+<style id="nucleoAssignedMoveActionsOnlyV13Css">
+#roListView #rows td:nth-child(8){
+  text-align:center!important;
+  white-space:nowrap!important;
+}
+#roListView #rows td:nth-child(8) > .assigned-operational-icons{
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:6px!important;
+  flex-wrap:nowrap!important;
+}
+</style>
+
 </head><body>
 
 <div id="nucleoLoadingOverlay" role="status" aria-live="polite" aria-busy="true">
@@ -2895,7 +3150,7 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
       <h2 style="margin:4px 0 0">R.O.s atribuídas</h2>
       <p class="small" style="margin:6px 0 0">Consulte as ocorrências disponíveis para sua atuação.</p>
     </div>
-    <button class="btn secondary" type="button" onclick="nucleoOpenAssignedExcelExport()">Exportar Excel</button>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span id="nucleoAssignedQuotaBadge">✉ E-mail hoje: —</span><button class="btn secondary" type="button" onclick="nucleoOpenAssignedExcelExport()">Exportar Excel</button></div>
   </div>
   <div id="sectorAccessNote" class="small" style="margin:12px 0;color:#667085"></div>
   <div id="assignedLifecycleTabs" style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 12px">
@@ -2909,10 +3164,53 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
     <select id="assignedUnitFilter" onchange="render()"><option value="all">Todas as unidades</option></select>
     <select id="filter" onchange="render()"><option value="todas">Todas as situações</option><option value="precisa_resposta">Precisa de resposta</option><option value="ja_respondeu">Já tem resposta</option><option value="cancelada">Cancelada</option><option value="registro">Registro</option><option value="obsoleto">Obsoleto</option></select>
   </div>
-  <div class="ro-control-table-wrap"><table class="ro-control-table"><thead><tr><th>R.O.</th><th>Unidade</th><th>Setor responsável</th><th>Origem</th><th>Prazo</th><th>Status</th><th aria-label="Visualizar R.O."></th><th class="operational-action-col">AÇÕES</th></tr></thead><tbody id="rows"></tbody></table></div>
+  <div class="ro-control-table-wrap"><table class="ro-control-table"><thead><tr>
+<th>R.O.</th>
+<th>Unidade</th>
+<th>Setor responsável</th>
+<th>Origem</th>
+<th>Prazo</th>
+<th>Status</th>
+<th>PDCA</th>
+<th class="operational-action-col">Ações operacionais</th>
+</tr></thead><tbody id="rows"></tbody></table></div>
   <div id="roListMore" class="small" style="margin-top:12px;text-align:center"></div>
 </section>
 
+
+
+<section id="assignedMaintenanceView" class="card hidden" style="min-height:420px">
+  <div style="min-height:380px;display:flex;align-items:center;justify-content:center;padding:30px">
+    <div style="max-width:620px;text-align:center">
+      <div style="width:54px;height:54px;margin:0 auto 16px;border-radius:16px;display:flex;align-items:center;justify-content:center;background:#eef6ff;border:1px solid #cfe3f8;font-size:26px">🛠</div>
+      <div class="overview-eyebrow">R.O.s atribuídas</div>
+      <h2 style="margin:8px 0 10px">Página em manutenção</h2>
+      <p style="margin:0;color:#667085;line-height:1.6">
+        Este módulo está passando por ajustes e ficará temporariamente indisponível.
+      </p>
+      <p class="small" style="margin:10px 0 0">
+        Os demais módulos do Núcleo continuam disponíveis normalmente.
+      </p>
+    </div>
+  </div>
+</section>
+
+
+<section id="moduleMaintenanceView" class="card hidden" style="min-height:420px">
+  <div style="min-height:380px;display:flex;align-items:center;justify-content:center;padding:30px">
+    <div style="max-width:620px;text-align:center">
+      <div style="width:54px;height:54px;margin:0 auto 16px;border-radius:16px;display:flex;align-items:center;justify-content:center;background:#eef6ff;border:1px solid #cfe3f8;font-size:26px">🛠</div>
+      <div id="moduleMaintenanceEyebrow" class="overview-eyebrow">Módulo</div>
+      <h2 style="margin:8px 0 10px">Página em manutenção</h2>
+      <p style="margin:0;color:#667085;line-height:1.6">
+        Este módulo está passando por ajustes e ficará temporariamente indisponível.
+      </p>
+      <p class="small" style="margin:10px 0 0">
+        Os demais módulos do Núcleo continuam disponíveis normalmente.
+      </p>
+    </div>
+  </div>
+</section>
 
 <section id="audit5sView" class="card hidden" style="padding:0;overflow:hidden">
   <div style="padding:16px 18px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
@@ -4392,7 +4690,6 @@ Diretoria"></textarea>
   <p class="small" style="margin-top:5px">Usuários, setores, triagem, avisos, base central e integração.</p>
 
   <div class="admin-config-nav" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
-    <button class="sgq-only" type="button" onclick="nucleoOpenAvatarGalleryConfig()">🖼 Galeria de avatares</button>
     <button type="button" onclick="openUnitDriveSettings()">🏭 Unidades e pastas do Drive</button>
     <button type="button" onclick="document.getElementById('cfgUsers')?.scrollIntoView({behavior:'smooth'})">👥 Usuários e acessos</button>
     <button type="button" onclick="document.getElementById('cfgUnits')?.scrollIntoView({behavior:'smooth'})">🏭 Setores</button>
@@ -4411,7 +4708,6 @@ Diretoria"></textarea>
   </div>
 
   <div id="cfgUsers" class="config-section active"><h2 style="margin:0 0 12px">1. Usuários e acessos</h2><button class="btn secondary" type="button" onclick="openPersonIdentityManager()">Identidades e confirmação de reclamantes</button>
-    <div class="settings-block" id="avatarGalleryConfig"><h3>Galeria de avatares</h3><p class="small">Cole o link da pasta do Drive com as imagens aprovadas (JPG, PNG ou WebP). Cada pessoa pode escolher em Meu perfil.</p><input id="avatarGalleryFolder" placeholder="Link da pasta do Drive"><button type="button" class="btn primary" onclick="nucleoConfigureAvatarGallery(this)">Salvar pasta da galeria</button><p id="avatarGalleryConfigStatus" role="status"></p></div>
     <div class="settings-block sgq-only" id="sgqAdminRegistration">
       <h3>Administradores / SGQ</h3>
       <p class="help">Usuários com acesso à triagem, indicadores, conferência de ações e configurações.</p>
@@ -4428,8 +4724,10 @@ Diretoria"></textarea>
     </div>
 
     <div class="settings-block">
-      <h3>Usuários e acessos</h3>
-      <p class="help">O setor define quais R.O.s e PDCAs o usuário pode visualizar. Por segurança, o painel mostra apenas se existe senha cadastrada; a senha atual não é exibida.</p>
+      <div style="margin-bottom:12px">
+        <h3 style="margin:0 0 4px">Cadastro de usuário</h3>
+        <p class="help" style="margin:0">O setor define quais R.O.s e PDCAs o usuário pode visualizar. Por segurança, o painel mostra apenas se existe senha cadastrada; a senha atual não é exibida.</p>
+      </div>
       <div class="settings-grid">
         <label><div class="label">Nome</div><input id="newUserName" placeholder="Nome de acesso único"></label>
         <label><div class="label">E-mail SETA</div><input id="newUserEmail" type="email" placeholder="nome@seta..."></label>
@@ -4443,6 +4741,11 @@ Diretoria"></textarea>
         <button class="btn primary" type="button" onclick="addOperationalUser()">Adicionar usuário</button>
         <button class="btn secondary" type="button" onclick="refreshPendingRegistrations(true)">↻ Atualizar cadastros pendentes</button><button class="btn secondary" type="button" onclick="diagnoseUserRegistry()">Diagnosticar cadastro</button>
         <span id="pendingRegistrationStatus" class="small"></span>
+      </div>
+
+      <div style="border-top:1px solid #d7e0ea;margin:20px 0 14px;padding-top:16px">
+        <h3 style="margin:0 0 4px">Consulta de usuários</h3>
+        <p class="help" style="margin:0">Pesquise, filtre e consulte os usuários já cadastrados.</p>
       </div>
       <div id="operationalUsersList" class="admin-users"></div>
     </div>
@@ -4462,8 +4765,9 @@ Manutenção
 Comercial
 Faturamento</textarea></label>
         <div style="align-self:end">
-          <button class="btn primary" type="button" onclick="saveSectorConfiguration()">Salvar setores</button>
-          <div class="help" style="margin-top:6px">Alterações passam a valer nas listas do sistema após salvar.</div>
+          <button class="btn primary" id="saveSectorConfigurationBtn" type="button" onclick="saveSectorConfiguration()">Salvar setores</button>
+          <div id="sectorSaveStatus" class="small" role="status" aria-live="polite" style="margin-top:7px;min-height:18px;font-weight:600"></div>
+          <div class="help" style="margin-top:4px">Alterações passam a valer nas listas do sistema após salvar.</div>
         </div>
       </div>
     </div>
@@ -4539,7 +4843,7 @@ Cancelada</textarea></label>
         </div>
       </div>
       <div id="emailQueueSummary" class="small" style="margin-top:10px">Ainda não carregado.</div>
-      <div style="overflow:auto;margin-top:10px">
+      <div class="email-history-table-wrap">
         <table class="email-history-table"><thead><tr><th>Data</th><th>Evento</th><th>R.O.</th><th>Destino</th><th>Status</th></tr></thead><tbody id="emailHistoryRows"><tr><td colspan="5">Sem dados.</td></tr></tbody></table>
       </div>
     </div>
@@ -4679,8 +4983,8 @@ Cancelada</textarea></label>
 </main>
 </div>
 </div><div id="contestModal" class="modal hidden"><div class="modal-box"><h3>Contestar R.O.</h3><div class="label">Motivo da contestação</div><textarea id="contestText" placeholder="Explique por que a R.O. deve ser revista, cancelada ou redirecionada."></textarea><div class="label" style="margin-top:10px">Setor que considera correto (opcional)</div><input id="contestSector" placeholder="Ex.: Expedição"><div class="modal-actions"><button class="btn secondary" type="button" onclick="closeContest()">Cancelar</button><button class="btn danger" type="button" onclick="submitContest()">Enviar contestação</button></div></div></div>
-<script src="assets/nucleo-runtime-config.js"></script>
-<script src="assets/model-save-fix-v38.js?v=20261026-modular-teste-v27-ro-drive-fila-gatilho"></script>
+<script src="assets/nucleo-runtime-config.js?v=20261030-api-single-source-v20"></script>
+<script src="assets/model-save-fix-v38.js?v=20261017-model-save-v42"></script>
 
 <div id="presentationModal" class="presentation-modal">
   <div class="presentation-card">
@@ -5507,34 +5811,430 @@ function renderSupplierIndicatorsWorkspace(){
 })();
 </script>
 
-<script src="assets/core/module-registry.js?v=20261026-modular-teste-v27-ro-drive-fila-gatilho"></script>
-<script src="assets/core/core-registry.js?v=20261026-modular-teste-v27-ro-drive-fila-gatilho"></script>
-<script src="assets/core/core-facade.js?v=20261026-modular-teste-v27-ro-drive-fila-gatilho"></script>
-<script src="assets/core/auth.js?v=20261026-modular-teste-v27-ro-drive-fila-gatilho"></script>
-<script src="assets/core/api-sync.js?v=20261026-modular-teste-v27-ro-drive-fila-gatilho"></script>
-<script src="assets/core/settings.js?v=20261026-modular-teste-v27-ro-drive-fila-gatilho"></script>
-<script src="assets/core/notifications.js?v=20261026-modular-teste-v27-ro-drive-fila-gatilho"></script>
-<script src="assets/core/navigation.js?v=20261026-modular-teste-v27-ro-drive-fila-gatilho"></script>
-<script src="assets/core/storage.js?v=20261026-modular-teste-v27-ro-drive-fila-gatilho"></script>
-<script src="assets/core/files.js?v=20261026-modular-teste-v27-ro-drive-fila-gatilho"></script>
-<script src="assets/core/ui.js?v=20261026-modular-teste-v27-ro-drive-fila-gatilho"></script>
-<script src="assets/core/utils.js?v=20261026-modular-teste-v27-ro-drive-fila-gatilho"></script>
-<script src="assets/core/module-host.js?v=20261026-modular-teste-v27-ro-drive-fila-gatilho"></script>
-<script src="assets/modulos/usuarios-acessos/module.js?v=20261026-modular-teste-v27-ro-drive-fila-gatilho"></script>
-<script src="assets/modulos/relato-ocorrencia/module.js?v=20261026-modular-teste-v27-ro-drive-fila-gatilho"></script>
-<script src="assets/modulos/pdca/module.js?v=20261026-modular-teste-v27-ro-drive-fila-gatilho"></script>
-<script src="assets/modulos/sac/module.js?v=20261026-modular-teste-v27-ro-drive-fila-gatilho"></script>
-<script src="assets/modulos/auditoria-5s/module.js?v=20261026-modular-teste-v27-ro-drive-fila-gatilho"></script>
-<script src="assets/modulos/equipamentos/module.js?v=20261026-modular-teste-v27-ro-drive-fila-gatilho"></script>
-<script src="assets/modulos/treinamentos/module.js?v=20261026-modular-teste-v27-ro-drive-fila-gatilho"></script>
-<script src="assets/modulos/documentos/module.js?v=20261026-modular-teste-v27-ro-drive-fila-gatilho"></script>
-<script src="assets/modulos/gestao-processos/module.js?v=20261026-modular-teste-v27-ro-drive-fila-gatilho"></script>
-<script src="assets/modulos/rnc/module.js?v=20261026-modular-teste-v27-ro-drive-fila-gatilho"></script>
-<script src="assets/modulos/indicadores/module.js?v=20261026-modular-teste-v27-ro-drive-fila-gatilho"></script>
-<script src="assets/modulos/comunicados/module.js?v=20261026-modular-teste-v27-ro-drive-fila-gatilho"></script>
-<script src="assets/core/runtime.js?v=20261026-modular-teste-v27-ro-drive-fila-gatilho"></script>
-<script src="assets/ro-model-geometry-snapshot.js?v=20261026-v38-stackfix"></script>
-<script src="assets/ro-drive-template-verify.js?v=20261026-v38-stackfix"></script>
-<script src="assets/core/health-check.js?v=20261026-modular-teste-v27-ro-drive-fila-gatilho"></script>
-<script src="assets/nucleo-app.js?v=20261026-modular-teste-v27-ro-drive-fila-gatilho"></script>
+<script src="assets/core/module-registry.js?v=20261023-modular-full-test-v4-safe"></script>
+<script src="assets/core/core-registry.js?v=20261023-modular-full-test-v4-safe"></script>
+<script src="assets/core/core-facade.js?v=20261023-modular-full-test-v4-safe"></script>
+<script src="assets/core/auth.js?v=20261023-modular-full-test-v4-safe"></script>
+<script src="assets/core/api-sync.js?v=20261023-modular-full-test-v4-safe"></script>
+<script src="assets/core/settings.js?v=20261023-modular-full-test-v4-safe"></script>
+<script src="assets/core/notifications.js?v=20261023-modular-full-test-v4-safe"></script>
+<script src="assets/core/navigation.js?v=20261023-modular-full-test-v4-safe"></script>
+<script src="assets/core/storage.js?v=20261023-modular-full-test-v4-safe"></script>
+<script src="assets/core/files.js?v=20261023-modular-full-test-v4-safe"></script>
+<script src="assets/core/ui.js?v=20261023-modular-full-test-v4-safe"></script>
+<script src="assets/core/utils.js?v=20261023-modular-full-test-v4-safe"></script>
+<script src="assets/modules-v2/users/module.js?v=20261028-login-view-fix-v5"></script>
+<script src="assets/modules-v2/ro/module.js?v=20261023-modular-full-test-v4-safe"></script>
+<script src="assets/modules-v2/pdca/module.js?v=20261028-pdca-history-delivery-v1"></script>
+<script src="assets/modules-v2/sac/module.js?v=20261023-modular-full-test-v4-safe"></script>
+<script src="assets/modules-v2/sac-origin-fix.js?v=20261028-sac-origin-fix-v1"></script>
+<script src="assets/modules-v2/audit5s/module.js?v=20261023-modular-full-test-v4-safe"></script>
+<script src="assets/modules-v2/equipment/module.js?v=20261023-modular-full-test-v4-safe"></script>
+<script src="assets/modules-v2/training/module.js?v=20261023-modular-full-test-v4-safe"></script>
+<script src="assets/modules-v2/documents/module.js?v=20261023-modular-full-test-v4-safe"></script>
+<script src="assets/modules-v2/processes/module.js?v=20261023-modular-full-test-v4-safe"></script>
+<script src="assets/modules-v2/nc/module.js?v=20261023-modular-full-test-v4-safe"></script>
+<script src="assets/modules-v2/indicators/module.js?v=20261023-modular-full-test-v4-safe"></script>
+<script src="assets/modules-v2/announcements/module.js?v=20261023-modular-full-test-v4-safe"></script>
+<script src="assets/core/runtime.js?v=20261103-status-review-source-v26"></script>
+<script src="assets/team-load-local-v47.js?v=20261027-team-local-central"></script>
+<script src="assets/nucleo-app.js?v=20261103-status-review-source-v26"></script>
+<script src="assets/api-source-lock-v20.js?v=20261105-api-editavel-v59"></script>
+
+<script id="nucleoModuleMaintenanceGuardV1">
+(function(){
+  const MODULE_MAINTENANCE = {
+    training: 'Treinamentos e competências',
+    processes: 'Gestão de processos'
+  };
+
+  const TEST_USERS = [
+    'gabrielly.silva@setaembalagens.com.br'
+  ];
+
+  function currentEmail(){
+    try{
+      return String((typeof getSession==='function' ? getSession()?.email : '') || '')
+        .trim()
+        .toLowerCase();
+    }catch(e){
+      return '';
+    }
+  }
+
+  function isTestUser(){
+    return TEST_USERS.includes(currentEmail());
+  }
+
+  function openMaintenance(moduleKey){
+    const label = MODULE_MAINTENANCE[moduleKey] || 'Módulo';
+    const eyebrow = document.getElementById('moduleMaintenanceEyebrow');
+    if(eyebrow)eyebrow.textContent = label;
+
+    // Esconde explicitamente a view dinâmica compartilhada por
+    // Equipamentos, Treinamentos, Processos, NC etc.
+    const adminModule=document.getElementById('adminModuleView');
+    if(adminModule){
+      adminModule.classList.add('hidden');
+      adminModule.style.display='none';
+    }
+
+    // Também evita deixar R.O.s atribuídas ou sua manutenção visível ao fundo.
+    const assigned=document.getElementById('roListView');
+    if(assigned){
+      assigned.classList.add('hidden');
+      assigned.style.display='';
+    }
+    const assignedMaint=document.getElementById('assignedMaintenanceView');
+    if(assignedMaint){
+      assignedMaint.classList.add('hidden');
+      assignedMaint.style.display='';
+    }
+
+    if(typeof view==='function')view('moduleMaintenanceView');
+
+    const maint=document.getElementById('moduleMaintenanceView');
+    if(maint){
+      maint.classList.remove('hidden');
+      maint.style.display='';
+    }
+
+    try{
+      document.querySelectorAll('.side-item.active').forEach(el=>el.classList.remove('active'));
+      const navId = moduleKey==='training' ? 'navTraining' : moduleKey==='processes' ? 'navProcesses' : '';
+      if(navId)document.getElementById(navId)?.classList.add('active');
+    }catch(e){}
+  }
+
+  function install(){
+    const original = window.showAdminOperationalModule;
+    if(typeof original!=='function' || original.__moduleMaintenanceGuardInstalled)return false;
+
+    const wrapped = function(key){
+      key = String(key||'').trim();
+
+      if(MODULE_MAINTENANCE[key] && !isTestUser()){
+        openMaintenance(key);
+        return;
+      }
+
+      const maint=document.getElementById('moduleMaintenanceView');
+      if(maint){
+        maint.classList.add('hidden');
+        maint.style.display='';
+      }
+
+      const adminModule=document.getElementById('adminModuleView');
+      if(adminModule)adminModule.style.display='';
+
+      return original.apply(this, arguments);
+    };
+
+    wrapped.__moduleMaintenanceGuardInstalled = true;
+    wrapped.__original = original;
+    window.showAdminOperationalModule = wrapped;
+    return true;
+  }
+
+  if(!install()){
+    let tries=0;
+    const timer=setInterval(function(){
+      if(install() || ++tries>100)clearInterval(timer);
+    },100);
+  }
+
+  window.nucleoModuleMaintenance = {
+    modules: Object.assign({}, MODULE_MAINTENANCE),
+    allowed: TEST_USERS.slice()
+  };
+})();
+</script>
+
+
+<script id="nucleoAssignedMaintenanceGuardV1">
+(function(){
+  const ASSIGNED_MAINTENANCE_MODE = true;
+  const ASSIGNED_TEST_USERS = [
+    'gabrielly.silva@setaembalagens.com.br'
+  ];
+
+  function currentEmail(){
+    try{
+      return String((typeof getSession==='function' ? getSession()?.email : '') || '')
+        .trim()
+        .toLowerCase();
+    }catch(e){
+      return '';
+    }
+  }
+
+  function canSeeAssignedTestVersion(){
+    if(!ASSIGNED_MAINTENANCE_MODE)return true;
+    return ASSIGNED_TEST_USERS.includes(currentEmail());
+  }
+
+  function installGuard(){
+    const original = window.showAssignedRos;
+    if(typeof original !== 'function' || original.__maintenanceGuardInstalled)return false;
+
+    const wrapped = function(){
+      if(canSeeAssignedTestVersion()){
+        const maint=document.getElementById('assignedMaintenanceView');
+        if(maint){maint.classList.add('hidden');maint.style.display='';}
+        return original.apply(this, arguments);
+      }
+
+      try{ roListMode='assigned'; }catch(e){}
+
+      // A view de módulos administrativos é dinâmica e não é escondida por view().
+      const adminModule=document.getElementById('adminModuleView');
+      if(adminModule){
+        adminModule.classList.add('hidden');
+        adminModule.style.display='none';
+      }
+
+      // Administração geral (settingsView) também precisa sair da tela.
+      // Ela não é escondida de forma confiável pelo view() quando já estava aberta.
+      const settings=document.getElementById('settingsView');
+      if(settings){
+        settings.classList.add('hidden');
+        settings.style.display='none';
+      }
+
+      if(typeof view==='function')view('assignedMaintenanceView');
+
+      const maint=document.getElementById('assignedMaintenanceView');
+      if(maint){
+        maint.classList.remove('hidden');
+        maint.style.display='';
+      }
+
+      if(typeof setNav==='function')setNav('assigned');
+    };
+
+    wrapped.__maintenanceGuardInstalled = true;
+    wrapped.__original = original;
+    window.showAssignedRos = wrapped;
+    return true;
+  }
+
+  if(!installGuard()){
+    let tries=0;
+    const timer=setInterval(function(){
+      if(installGuard() || ++tries>80)clearInterval(timer);
+    },100);
+  }
+
+  window.nucleoAssignedMaintenance = {
+    enabled: ASSIGNED_MAINTENANCE_MODE,
+    allowed: ASSIGNED_TEST_USERS.slice()
+  };
+})();
+</script>
+
+<script src="assets/modules-v2/ro-extension.js?v=20261028-ro-extension-v3-email-async"></script>
+<script src="assets/modules-v2/ro-resend-email.js?v=20261103-email-error-filter-v28"></script>
+<script src="assets/modules-v2/ro-resend-email-guard-v12.js?v=20261103-single-envelope-v12"></script>
+<script src="assets/modules-v2/email-quota-panel.js?v=20261029-email-quota-v1"></script>
+
+<script id="nucleoMaintenanceMutualExclusionV3">
+(function(){
+  function hideAssignedMaintenance(){
+    const el=document.getElementById('assignedMaintenanceView');
+    if(el){
+      el.classList.add('hidden');
+      el.style.display='none';
+    }
+  }
+
+  function hideModuleMaintenance(){
+    const el=document.getElementById('moduleMaintenanceView');
+    if(el){
+      el.classList.add('hidden');
+      el.style.display='none';
+    }
+  }
+
+  function patchAssigned(){
+    const fn=window.showAssignedRos;
+    if(typeof fn!=='function' || fn.__mutualMaintenanceV3)return false;
+
+    const wrapped=function(){
+      hideModuleMaintenance();
+      return fn.apply(this,arguments);
+    };
+    wrapped.__mutualMaintenanceV3=true;
+    window.showAssignedRos=wrapped;
+    return true;
+  }
+
+  function patchAdminModules(){
+    const fn=window.showAdminOperationalModule;
+    if(typeof fn!=='function' || fn.__mutualMaintenanceV3)return false;
+
+    const wrapped=function(){
+      hideAssignedMaintenance();
+      return fn.apply(this,arguments);
+    };
+    wrapped.__mutualMaintenanceV3=true;
+    window.showAdminOperationalModule=wrapped;
+    return true;
+  }
+
+  function install(){
+    patchAssigned();
+    patchAdminModules();
+  }
+
+  install();
+  let tries=0;
+  const timer=setInterval(function(){
+    install();
+    if(++tries>80)clearInterval(timer);
+  },100);
+})();
+</script>
+<script id="nucleoRestrictUnitDriveSettingsToMatrixV10">
+(function(){
+  function session(){
+    try{return typeof getSession==='function' ? (getSession()||{}) : {};}
+    catch(e){return {};}
+  }
+
+  function isFilialQuality(){
+    const s=session();
+    return String(s.role||'').trim().toLowerCase()==='quality';
+  }
+
+  function applyVisibility(){
+    const restricted=isFilialQuality();
+
+    // Atalho da Administração: disponível somente para SGQ/Matriz.
+    document.querySelectorAll('button[onclick*="openUnitDriveSettings"]').forEach(btn=>{
+      btn.style.display=restricted?'none':'';
+      btn.hidden=restricted;
+    });
+
+    // Caso o bloco já tenha sido criado dinamicamente, a Qualidade da filial
+    // não pode vê-lo nem editá-lo.
+    const box=document.getElementById('unitQualitySettings');
+    if(box && restricted){
+      box.classList.add('hidden');
+      box.hidden=true;
+      box.style.display='none';
+    }
+  }
+
+  function installGuard(){
+    const original=window.openUnitDriveSettings;
+    if(typeof original!=='function' || original.__matrixOnlyV10)return false;
+
+    const wrapped=function(){
+      if(isFilialQuality()){
+        applyVisibility();
+        return;
+      }
+      return original.apply(this,arguments);
+    };
+    wrapped.__matrixOnlyV10=true;
+    wrapped.__original=original;
+    window.openUnitDriveSettings=wrapped;
+    return true;
+  }
+
+  function install(){
+    installGuard();
+    applyVisibility();
+  }
+
+  install();
+  let tries=0;
+  const timer=setInterval(function(){
+    install();
+    if(++tries>120)clearInterval(timer);
+  },100);
+
+  document.addEventListener('click',function(){setTimeout(applyVisibility,0);},true);
+})();
+</script>
+
+
+
+
+<script id="nucleoSectorSaveDirectV17">
+(function(){
+  function setStatus(message,type){
+    const el=document.getElementById('sectorSaveStatus');
+    if(!el)return;
+    el.textContent=message||'';
+    el.style.color=type==='error'?'#b42318':type==='success'?'#067647':'#475467';
+  }
+
+  async function saveDirect(){
+    const btn=document.getElementById('saveSectorConfigurationBtn');
+    const field=document.getElementById('sectorList');
+    if(!btn||!field)return;
+
+    const session=typeof getSession==='function'?getSession():null;
+    const isFilialQuality=session?.role==='quality';
+    const isSgq=typeof isAdmin==='function'&&isAdmin();
+    if(!isSgq&&!isFilialQuality){
+      setStatus('✕ Configuração indisponível para este acesso.','error');
+      return;
+    }
+
+    const sectors=typeof normalizeSectorList==='function'
+      ? normalizeSectorList(field.value||'')
+      : String(field.value||'').split(/\n+/).map(v=>v.trim()).filter(Boolean);
+    if(!sectors.length){
+      setStatus('✕ Cadastre pelo menos um setor.','error');
+      return;
+    }
+
+    field.value=sectors.join('\n');
+    const unit=isFilialQuality?'filial':(document.getElementById('qualityConfigUnit')?.value||'matriz');
+    const original=btn.textContent;
+    btn.disabled=true;
+    btn.textContent='Salvando…';
+    setStatus('Salvando setores…','pending');
+
+    try{
+      if(typeof portalJsonp!=='function')throw new Error('A função de conexão com a base central não foi carregada. Atualize a página com Ctrl+F5.');
+      const req=portalJsonp({acao:'portal_save_unit_config',unit,data:JSON.stringify({sectorList:field.value})},10000);
+      const timeout=new Promise((_,reject)=>setTimeout(()=>reject(new Error('A base central não respondeu em até 10 segundos.')),10500));
+      const result=await Promise.race([req,timeout]);
+      if(!result?.sucesso)throw new Error(result?.erro||'A base central não confirmou a alteração.');
+
+      try{
+        const configs=JSON.parse(localStorage.getItem('nucleo-unit-configs')||'[]');
+        const old=configs.find(c=>c.id===unit)||{};
+        localStorage.setItem('nucleo-unit-configs',JSON.stringify([...configs.filter(c=>c.id!==unit),{...old,id:unit,unit,sectorList:field.value}]));
+      }catch(_){}
+      try{refreshSectorSelectors();}catch(_){}
+      try{populateTriageSectors();}catch(_){}
+      try{renderOperationalUsers();}catch(_){}
+      setStatus('✓ Setores da '+(unit==='filial'?'filial':'matriz')+' salvos com sucesso.','success');
+    }catch(err){
+      setStatus('✕ Erro ao salvar: '+(err?.message||String(err)),'error');
+    }finally{
+      btn.disabled=false;
+      btn.textContent=original||'Salvar setores';
+    }
+  }
+
+  function install(){
+    const btn=document.getElementById('saveSectorConfigurationBtn');
+    if(!btn||btn.dataset.directSaveV17==='1')return false;
+    btn.dataset.directSaveV17='1';
+    btn.removeAttribute('onclick');
+    btn.addEventListener('click',saveDirect);
+    return true;
+  }
+  install();
+  let tries=0;
+  const timer=setInterval(function(){if(install()||++tries>100)clearInterval(timer);},100);
+})();
+</script>
+
+<script src="assets/assigned-ro-move-actions-v13.js?v=20261103-move-actions-only-v13"></script>
 </body></html>
