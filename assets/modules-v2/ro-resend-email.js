@@ -225,7 +225,19 @@
       });
       if(fuzzy.length)return fuzzy;
 
-      // Fallback 2: histórico legado — tenta descobrir setor somente pelo cadastro do destinatário.
+      // Fallback 2: se a própria atribuição guarda um destinatário, erros antigos
+      // sem setor podem ser vinculados diretamente pelo e-mail responsável.
+      const triEmail=String(assignment?.responsibleUserEmail||'').trim().toLowerCase();
+      if(triEmail){
+        const byResponsibleEmail=all.filter(h=>
+          String(h?.email||h?.recipient||h?.destinatario||'')
+            .split(/[;,]/).map(x=>x.trim().toLowerCase()).filter(Boolean)
+            .includes(triEmail)
+        );
+        if(byResponsibleEmail.length)return byResponsibleEmail;
+      }
+
+      // Fallback 3: histórico legado — tenta descobrir setor pelo cadastro atual do destinatário.
       const inferred=all.filter(h=>{
         const raw=String(h?.email||h?.recipient||h?.destinatario||'').trim();
         const emails=raw.split(/[;,]/).map(x=>x.trim()).filter(Boolean);
@@ -244,11 +256,32 @@
       String(h?.email||h?.recipient||h?.destinatario||'').toLowerCase().includes(emails[0])
     );
 
-    // Fallback final: só atribuições criadas/geridas pelo Núcleo podem herdar um
-    // erro genérico da R.O. quando o histórico antigo não identifica o setor.
-    // Importações históricas da planilha ficam como 'sem tentativa' nesse cenário.
+    // Fallback final controlado. Um erro genérico só pode ser associado a uma
+    // importação histórica quando existe UMA ÚNICA atribuição dirigida possível
+    // para a R.O. Assim recuperamos falhas antigas reais sem marcar vários setores
+    // da mesma R.O. como erro por falta de informação no histórico.
     const hasError=all.some(h=>String(h?.status||'').toLowerCase()==='error');
-    if(hasError && !legacyImported)return all;
+    if(hasError){
+      if(!legacyImported)return all;
+      try{
+        const rows=getTriageRecordsForRoNumber(roNumber,getSavedTriageMap())||[];
+        const directed=rows.filter(t=>{
+          const sec=String(t?.responsibleSector||t?.setorDirecionado||'').trim();
+          const bad=['','nao direcionado','nao informado','sem setor','-'].includes(norm(sec));
+          return String(t?.decision||'')==='directed' && !bad;
+        });
+        const unique=new Map();
+        directed.forEach(t=>{
+          const sec=String(t?.responsibleSector||t?.setorDirecionado||'').trim();
+          const k=norm(sec);
+          if(k&&!unique.has(k))unique.set(k,t);
+        });
+        if(unique.size===1){
+          const only=[...unique.keys()][0];
+          if(!wanted || wanted===only)return all;
+        }
+      }catch(e){}
+    }
 
     return [];
   }
