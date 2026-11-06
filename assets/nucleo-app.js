@@ -2808,6 +2808,14 @@ function getConfiguredSectors(unit){
   let sectors=normalizeSectorList(own?.sectorList??(unit==='filial'?'':cfg.sectorList));
   if(unit==='todas'){const configs=JSON.parse(localStorage.getItem('nucleo-unit-configs')||'[]');sectors=[...new Set(sectors.concat(configs.flatMap(c=>normalizeSectorList(c.sectorList))))];}
 
+  // Setores unificados são um único cadastro compartilhado entre Matriz e Filial.
+  // Eles devem aparecer nos seletores das duas unidades sem duplicar o cadastro.
+  const unified=normalizeSectorList(Array.isArray(cfg.unifiedSectors)?cfg.unifiedSectors:[]);
+  if(['matriz','filial','todas'].includes(unit)){
+    const seen=new Set(sectors.map(s=>normalizeAnswer(s)));
+    unified.forEach(s=>{const k=normalizeAnswer(s);if(k&&!seen.has(k)){seen.add(k);sectors.push(s);}});
+  }
+
   // Na primeira utilização, usa a lista padrão exibida nas configurações.
   if(!sectors.length&&unit!=='filial'){
     const field=document.getElementById('sectorList');
@@ -16835,9 +16843,22 @@ function openUnitUserAccess(encoded){
 
 function userHasUnitSector(user,unit,sector){
   const key=normalizeAnswer(sector||'');
-  if(unit==='todas')return normalizeAnswer(user.sector||'')===key||(user.sectorMemberships||[]).some(m=>normalizeAnswer(m.sector)===key);
-  if((user.sectorMemberships||[]).some(m=>m.unit===unit&&normalizeAnswer(m.sector)===key))return true;
-  return normalizePortalUnit(user.unit)===unit&&[user.sector,...(user.managedSectors||[])].some(s=>normalizeAnswer(s||'')===key);
+  if(!key)return false;
+  const sectorMatch=[user?.sector,...(user?.managedSectors||[]),(user?.sectorMemberships||[]).map(m=>m?.sector)].flat().some(s=>normalizeAnswer(s||'')===key);
+  if(unit==='todas')return sectorMatch;
+
+  // Vínculo explícito da pessoa continua tendo prioridade.
+  if((user?.sectorMemberships||[]).some(m=>{
+    const memberUnit=normalizePortalUnit(m?.unit);
+    return (memberUnit===unit||memberUnit==='todas')&&normalizeAnswer(m?.sector)===key;
+  }))return true;
+
+  // Setor unificado: o mesmo cadastro de pessoa/setor vale para Matriz e Filial.
+  if(isUnifiedSector(sector)&&sectorMatch)return true;
+
+  const userUnit=normalizePortalUnit(user?.unit);
+  if(userUnit==='todas'&&sectorMatch)return true;
+  return userUnit===unit&&sectorMatch;
 }
 
 function explicitPortalUnit(value){
