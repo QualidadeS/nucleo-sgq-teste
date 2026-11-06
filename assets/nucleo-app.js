@@ -9277,6 +9277,49 @@ function findSentPdcaById(id){
   return getAllSentPdcas().find(p=>String(p.id||p.pdcaId||'').trim()===wanted) || null;
 }
 
+
+function nucleoReceivedPdcaDisplayData(){
+  const real=getSentPdcas();
+  if(!isAdmin())return real;
+  const out=real.slice();
+  const triageMap=getSavedTriageMap();
+  const reviewMap=(typeof nucleoPdcaReviewMap2026==='function')?nucleoPdcaReviewMap2026():{};
+  const realKeys=new Set();
+  real.forEach(p=>{
+    const ro=String(p?.ro||p?.roId||p?.numeroRo||'').trim();
+    const sector=normalizeAnswer(String(p?.setor||'').trim());
+    const unit=normalizeAnswer(String(explicitRecordUnit(p)||p?.unidade||p?.unit||'').trim());
+    if(ro)realKeys.add([ro,sector,unit].join('@@'));
+  });
+  const seenVirtual=new Set();
+  getAllRoRecords().forEach(ro=>{
+    const roNumber=String(ro?.numero||ro?.id||ro?.codigo||'').trim();
+    if(!roNumber)return;
+    const triages=getTriageRecordsForRoNumber(roNumber,triageMap).filter(t=>{
+      const sector=String(t?.responsibleSector||t?.setorDirecionado||'').trim();
+      const norm=normalizeAnswer(sector);
+      return String(t?.decision||'')==='directed' && !!sector && !['nao direcionado','nao informado','sem setor','-'].includes(norm);
+    });
+    triages.forEach(tri=>{
+      const sector=String(tri?.responsibleSector||tri?.setorDirecionado||'').trim();
+      const unit=String(explicitRecordUnit(ro)||ro?.unidade||'').trim();
+      const key=[roNumber,normalizeAnswer(sector),normalizeAnswer(unit)].join('@@');
+      if(realKeys.has(key)||seenVirtual.has(key))return;
+      const scoped={...ro,__triageRecord:tri,__assignedSector:sector};
+      const canonical=nucleoPdcaReviewCanonical2026(nucleoPdcaReviewRoKey2026(scoped),String(scoped?.origemBase||scoped?.raw?.__origemBase||''));
+      const reviewDecision=reviewMap?.[canonical]?.decision||'';
+      const external=tri?.pdcaExternal===true||String(tri?.pdcaSource||'').toLowerCase()==='external';
+      const displayStatus=assignedRoStatus(scoped,external,null,null,reviewMap,new Set());
+      const received=external || reviewDecision==='yes' || ['Respondida','Apresentada'].includes(displayStatus);
+      if(!received)return;
+      const id='RO-PDCA-RECEIVED-'+roNumber+'-'+normalizeAnswer(sector).replace(/[^a-z0-9]+/g,'-');
+      out.push({id,ro:roNumber,responsavel:String(tri?.responsibleUserName||tri?.pessoaResponsavel||'').trim(),email:String(tri?.responsibleUserEmail||'').trim(),unidade:unit,setor:sector,cliente:String(ro?.cliente||'').trim(),envio:String(tri?.pdcaExternalUpdatedAt||tri?.updatedAt||tri?.triagedAt||ro?.updatedAt||'').trim(),status:displayStatus==='Apresentada'?'Apresentado':'Respondido',__virtualReceived:true,__displayStatus:displayStatus,__sourceRo:ro});
+      seenVirtual.add(key);
+    });
+  });
+  return out;
+}
+
 function pendingActionItems(){
   return getAllSentPdcas()
     .map(p=>{
@@ -10220,8 +10263,8 @@ function showSentPdcas(){
 function renderSentPdcas(){
  refreshPdcaSidebarBadge();
  const q=String(document.getElementById('sentSearch')?.value||'').toLowerCase(),sf=document.getElementById('sentStatusFilter')?.value||'todos';
- let data=getSentPdcas();if(!isAdmin()){const email=currentEmail();data=data.filter(p=>String(p.email||'').toLowerCase()===email);}
- const rows=data.map(p=>{const ro=getAllRoRecords().find(r=>String(r.numero||r.id)===String(p.ro)&&(!explicitRecordUnit(p)||explicitRecordUnit(r)===explicitRecordUnit(p))),user=ro?resolveRoClaimant(ro):null;return {p,ro,user,name:p.externalPdf&&p.fileName?p.fileName.replace(/\.pdf$/i,''):p.id};}).filter(({p,ro,user,name})=>[name,p.ro,p.responsavel,p.setor,p.cliente,ro?roRegistrantName(ro):'',user?personDisplayName(user):''].join(' ').toLowerCase().includes(q)&&(sf==='todos'||p.status===sf));
+ let data=nucleoReceivedPdcaDisplayData();if(!isAdmin()){const email=currentEmail();data=data.filter(p=>String(p.email||'').toLowerCase()===email);}
+ const allRosForReceived=getAllRoRecords(); const rows=data.map(p=>{const ro=p.__sourceRo||allRosForReceived.find(r=>String(r.numero||r.id)===String(p.ro)&&(!explicitRecordUnit(p)||explicitRecordUnit(r)===explicitRecordUnit(p))),user=ro?resolveRoClaimant(ro):null;return {p,ro,user,name:p.externalPdf&&p.fileName?p.fileName.replace(/\.pdf$/i,''):(p.__virtualReceived?'PDCA recebido':p.id)};}).filter(({p,ro,user,name})=>[name,p.ro,p.responsavel,p.setor,p.cliente,ro?roRegistrantName(ro):'',user?personDisplayName(user):''].join(' ').toLowerCase().includes(q)&&(sf==='todos'||p.status===sf));
  const body=document.getElementById('sentRows');if(!body)return;
  const lifecycle=isAdmin()?(document.getElementById('sentLifecycleFilter')?.value||'active'):'all';
  nucleoRenderPdcaLifecycle(data,lifecycle);
@@ -10231,6 +10274,10 @@ function renderSentPdcas(){
   const claimant=user?personDisplayName(user):(ro?roRegistrantName(ro):'');
   const delivery=nucleoPdcaDelivery(p),confirmed=!!delivery||!!(ro&&claimantIdentityIndex().bindings.get(claimantRoKey(ro))?.confirmedAt);
   const detail=delivery?'Encerrada — entregue ao reclamante':confirmed?'Reclamante confirmado — falta entregar a resposta':user?'Cadastro identificado — confirmar':'Reclamante a confirmar';
+  if(p.__virtualReceived){
+    const virtualDetail=p.__displayStatus==='Apresentada'?'Apresentada — aguardando conclusão da etapa final':'PDCA identificado — aguardando envio ao reclamante';
+    return '<tr class="click" onclick="openRO(\''+escapeHtml(p.ro||'')+'\')"><td><b>PDCA recebido</b><div class="small">'+escapeHtml(p.setor||'')+'</div></td><td>'+escapeHtml(p.ro||'')+'</td><td>'+escapeHtml(p.responsavel||'—')+'</td><td>'+escapeHtml(claimant||'—')+'<div class="small">'+escapeHtml(virtualDetail)+'</div></td><td>'+escapeHtml(canonicalUnitName(p.unidade||p.unit||''))+'</td><td>'+escapeHtml(when||'')+'</td><td><span class="badge">'+escapeHtml(p.__displayStatus||'Respondida')+'</span></td><td class="sent-action">Ver R.O. →</td></tr>';
+  }
   return '<tr class="click" onclick="openPdcaReport(\''+escapeHtml(p.id)+'\')"><td><b>'+escapeHtml(name||'PDCA')+'</b>'+(p.externalPdf?'<div class="small">'+escapeHtml(p.setor||'')+' · V'+escapeHtml(p.version||1)+'</div>':'')+'</td><td>'+escapeHtml(p.ro||'')+'</td><td>'+escapeHtml(p.responsavel||'')+'</td><td>'+escapeHtml(claimant||'—')+'<div class="small">'+escapeHtml(detail)+'</div>'+(isAdmin()&&p.externalPdf&&!delivery?'<button class="btn secondary" type="button" onclick="event.stopPropagation();'+(confirmed?'nucleoConsultPdcaClaimant':'confirmReceivedPdcaClaimant')+'(\''+escapeHtml(p.id)+'\')">'+(confirmed?'Consultar reclamante':'Confirmar reclamante')+'</button>'+(confirmed?'<button class="btn primary" type="button" onclick="event.stopPropagation();confirmReceivedPdcaClaimant(\''+escapeHtml(p.id)+'\')">Entregar resposta</button>':''):'')+'</td><td>'+escapeHtml(canonicalUnitName(p.unidade||p.unit||''))+'</td><td>'+escapeHtml(when||'')+'</td><td><span class="badge">'+escapeHtml(delivery?'Encerrada':confirmed?'Aguardando entrega':'Confirmar reclamante')+'</span></td><td class="sent-action">Ver PDCA →</td></tr>';
  }).join(''):'<tr><td colspan="8" class="small">Nenhum PDCA encontrado.</td></tr>';
 }
@@ -14782,11 +14829,19 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
       }else if(terminalAssigned){
         return false;
       }
-      // Só uma resposta realmente registrada/enviada na base de PDCAs tira a
-      // atribuição da fila ativa. Campos legados de status/pdca na própria R.O.
-      // não são prova de que o setor concluiu a resposta no fluxo atual.
-      const assignedHasCompletedResponse = !!computedRow.sentPdca;
-      if(assignedHasCompletedResponse)return false;
+      // A fila de atribuídas é somente o meio do fluxo. Assim que já existe
+      // evidência de PDCA/resposta, a R.O. passa para PDCAs recebidos.
+      const receivedCanonical=nucleoPdcaReviewCanonical2026(
+        nucleoPdcaReviewRoKey2026(r),
+        String(r?.origemBase||r?.raw?.__origemBase||'')
+      );
+      const receivedReviewDecision=renderReviewMap?.[receivedCanonical]?.decision||'';
+      const assignedHasReceivedPdca =
+        !!computedRow.sentPdca ||
+        computedRow.externalPdca===true ||
+        receivedReviewDecision==='yes' ||
+        ['Respondida','Apresentada'].includes(computedRow.displayStatus);
+      if(assignedHasReceivedPdca)return false;
       // Atribuição exige triagem/direcionamento real. Setor preenchido isoladamente
       // na R.O. não basta e não pode duplicar a ocorrência em Para triar + Atribuídas.
       const triSector=String(tri?.responsibleSector||tri?.setorDirecionado||'').trim();
