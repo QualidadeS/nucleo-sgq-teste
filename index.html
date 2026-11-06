@@ -1022,16 +1022,7 @@ main{max-width:1180px;margin:0 auto;padding:54px 54px 36px}
 .side-module-body .side-item{margin:2px 0;width:100%;padding-left:12px}.side-module-body .side-item .side-num{width:28px;height:28px;font-size:10px}
 .side-module.admin-only{display:none}
 
-/* v97.38 — bloqueio visual de permissões por perfil */
-body.role-operator .admin-only,
-body.role-manager .admin-only{
-  display:none !important;
-}
-body.role-operator #moduleManagement,
-body.role-manager #moduleManagement{
-  display:none !important;
-}
-
+/* Permissões personalizadas controlam a visibilidade das áreas. */
 /* v97.41 — cadastro de R.O. Externa/SAC somente para setores autorizados */
 /* v97.72 — login restaurado: nome + unidade + setor + senha, sem seletor de pessoa */
 /* v97.70 — escopo ADM por unidade + suporte a setores unificados */
