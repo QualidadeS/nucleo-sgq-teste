@@ -10482,10 +10482,16 @@ function notifyManagersOfDirectedRo(roKey,sector,triageRo,responsibleUserName){
 function nucleoBroadRoScope(){
   const s=getSession()||{};
   const role=String(s.role||'').toLowerCase();
-  // Regra fixa de segurança: somente SGQ (admin) e Qualidade possuem
-  // visão ampla de R.O.s. Nenhuma permissão/cache legado (permissions.sgq)
-  // pode ampliar o escopo de um usuário operacional/gestor.
-  return role==='admin' || role==='quality';
+  const sector=sectorCompareKey(canonicalSectorName(String(s.sector||'')));
+  const sgqSector=sectorCompareKey(canonicalSectorName('SGQ'));
+
+  // Regra fixa de segurança:
+  // - Qualidade possui visão ampla dentro das unidades permitidas;
+  // - admin só é SGQ quando o próprio cadastro está no setor SGQ.
+  // Um role/cache antigo com admin em Financeiro, PCP etc. NÃO concede visão ampla.
+  if(role==='quality')return true;
+  if(role==='admin')return !!sector && sector===sgqSector;
+  return false;
 }
 function nucleoOperationalAllowedSectors(){
   const s=getSession()||{};
@@ -10533,11 +10539,9 @@ function canViewRO(ro){
 }
 
 function isAdmin(){
-  // A permissão deve vir exclusivamente do perfil autenticado pelo backend.
-  // Não inferir ADM pelo e-mail/cache local: isso fazia um usuário operacional
-  // ganhar o menu completo quando usava um e-mail presente na antiga lista de ADMs.
-  const session=getSession();
-  return !!(session && ['admin','quality'].includes(String(session.role||'').toLowerCase()));
+  // SGQ real ou Qualidade real. Um cadastro operacional que por erro/cache chegue
+  // com role=admin não recebe menus nem atalhos administrativos.
+  return nucleoBroadRoScope();
 }
 
 function showConfigSection(name){
@@ -14756,10 +14760,11 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
       const assignedBySheet=validSheetSector;
       const assignedByTriage=!!tri && !['','new','nova','aguardando','aguardando triagem'].includes(triStatus);
       if(!assignedByTriage && !assignedBySheet)return false;
-      // ADM vê todo o restante; usuário/gestor continua limitado ao que pode visualizar.
-      return isAdmin()?true:canViewRO(r);
+      // Somente SGQ real/Qualidade real pulam o filtro setorial.
+      // Usuário comum SEMPRE passa por canViewRO(), mesmo se um role antigo vier como admin.
+      return nucleoBroadRoScope()?true:canViewRO(r);
     })
-    .map(r=>isAdmin()?r:getOperationalRoView(r,renderTriageMap))
+    .map(r=>nucleoBroadRoScope()?r:getOperationalRoView(r,renderTriageMap))
     .filter(r=>{
       if(roListMode==='assigned'){
         const tri=getRoTriageRecord(r,renderTriageMap);
@@ -15655,25 +15660,38 @@ function showList(){
 function populateAssignedRoFilters(){
   const sectorEl=document.getElementById('assignedSectorFilter');
   const unitEl=document.getElementById('assignedUnitFilter');
+  const broad=nucleoBroadRoScope();
   if(sectorEl){
     const current=sectorEl.value||'all';
-    const sectors=nucleoVisibleManagerSectors(isManager(),managedSectorsForCurrentUser(),getTriageRecords().filter(r=>r.triagemStatus!=='new').map(r=>r.setorDirecionado));
-    sectorEl.setAttribute('aria-label',isManager()?'Setor sob minha gestão':'Setor responsável');
-    sectorEl.title=isManager()?'Escolha o setor que deseja acompanhar':'Filtrar por setor';
-    sectorEl.innerHTML='<option value="all">'+(isManager()?'Todos os meus setores':'Todos os setores')+'</option>'+sectors.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
-    if([...sectorEl.options].some(o=>o.value===current))sectorEl.value=current;
+    const sectors=broad
+      ? nucleoVisibleManagerSectors(isManager(),managedSectorsForCurrentUser(),getTriageRecords().filter(r=>r.triagemStatus!=='new').map(r=>r.setorDirecionado))
+      : nucleoOperationalAllowedSectors();
+    sectorEl.setAttribute('aria-label',broad?(isManager()?'Setor sob minha gestão':'Setor responsável'):'Meu setor');
+    sectorEl.title=broad?'Filtrar por setor':'Seu acesso está limitado ao seu setor';
+    if(broad){
+      sectorEl.disabled=false;
+      sectorEl.innerHTML='<option value="all">'+(isManager()?'Todos os meus setores':'Todos os setores')+'</option>'+sectors.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+      if([...sectorEl.options].some(o=>o.value===current))sectorEl.value=current;
+      else sectorEl.value='all';
+    }else{
+      const own=sectors[0]||String(getSession()?.sector||'').trim()||'Meu setor';
+      sectorEl.innerHTML=`<option value="${escapeHtml(own)}">${escapeHtml(own)}</option>`;
+      sectorEl.value=own;
+      sectorEl.disabled=true;
+    }
   }
   if(unitEl){
     const current=unitEl.value||'all';
     const units=[...new Set(getTriageRecords()
       .filter(r=>r.triagemStatus!=='new')
+      .filter(r=>broad?true:nucleoOperationalSectorAllowed(r.setorDirecionado))
       .map(r=>String(r.unidade||'').trim()).filter(Boolean))]
       .sort((a,b)=>a.localeCompare(b,'pt-BR'));
-    unitEl.innerHTML='<option value="all">Todas as unidades</option>'+units.map(u=>`<option value="${escapeHtml(u)}">${escapeHtml(u)}</option>`).join('');
+    unitEl.innerHTML='<option value="all">Todas as unidades permitidas</option>'+units.map(u=>`<option value="${escapeHtml(u)}">${escapeHtml(u)}</option>`).join('');
     if([...unitEl.options].some(o=>o.value===current))unitEl.value=current;
+    else unitEl.value='all';
   }
 }
-
 function showAssignedRos(){
   if(!nucleoFeatureRequire('ros','assigned'))return;
   roListMode='assigned';
