@@ -14719,7 +14719,10 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
 
   const assignedSource = roListMode==='assigned' ? (operationalAssignedSource || assignedBaseRos.flatMap(r=>{
     const base=String(r.numero||r.id||r.codigo||'').trim();
-    let records=(assignedTriageByRo.get(base)||[]).filter(t=>String(t.decision||'')!=='' && !hiddenAssigned.has(String(t.roKey||'')));
+    // Não descarte uma atribuição válida só porque a chave foi ocultada em algum
+    // momento no cache visual local. A ocultação só deve resolver duplicidade;
+    // se esta for a única linha válida daquele R.O.+setor, ela precisa aparecer.
+    let records=(assignedTriageByRo.get(base)||[]).filter(t=>String(t.decision||'')!=='');
     const confirmed=resolvedTriageForRo(r,renderTriageMap);
     if(confirmed?.decision&&confirmed.decision!=='directed')records=[confirmed];
     // Recuperação segura: se SGQ_TRIAGENS estiver vazio/desatualizado, mas a
@@ -14743,9 +14746,12 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
       const visualKey=base+'::'+nucleoAssignedSectorVisualKey(sector);
       const prev=bySector.get(visualKey);
       const score=x=>{
+        // Uma chave ocultada perde prioridade apenas quando existe outra linha
+        // equivalente para o mesmo R.O.+setor. Nunca esconda a única atribuição.
+        const visibleBonus=hiddenAssigned.has(String(x?.roKey||''))?0:100000000000000;
         const composite=String(x?.roKey||'').includes('::')?10000000000000:0;
         const ts=Date.parse(x?.pdcaExternalUpdatedAt||x?.updatedAt||x?.triagedAt||x?.createdAt||'')||0;
-        return composite+ts;
+        return visibleBonus+composite+ts;
       };
       if(!prev||score(t)>=score(prev))bySector.set(visualKey,t);
     });
@@ -14768,11 +14774,10 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
       }else if(terminalAssigned){
         return false;
       }
-      const normalizedPdca=normalizeAnswer(String(r?.pdca||''));
-      const normalizedStatus=normalizeAnswer(String(r?.status||r?.statusPlanilha||''));
-      const assignedHasCompletedResponse = !!computedRow.sentPdca
-        || ['enviado','respondido','respondida','apresentado','apresentada'].includes(normalizedPdca)
-        || ['pdca enviado','respondida','apresentada'].includes(normalizedStatus);
+      // Só uma resposta realmente registrada/enviada na base de PDCAs tira a
+      // atribuição da fila ativa. Campos legados de status/pdca na própria R.O.
+      // não são prova de que o setor concluiu a resposta no fluxo atual.
+      const assignedHasCompletedResponse = !!computedRow.sentPdca;
       if(assignedHasCompletedResponse)return false;
       // Uma R.O. é atribuída quando existe uma decisão central OU quando a própria
       // planilha ainda comprova o direcionamento. Isso evita esvaziar esta tela se
