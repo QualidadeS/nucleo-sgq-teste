@@ -14744,13 +14744,17 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
     .filter(r=>{
       if(roListMode!=='assigned')return canViewRO(r,renderTriageMap);
       const tri=getRoTriageRecord(r,renderTriageMap);
-      // R.O. que já possui PDCA não pertence mais à fila de atribuídas.
-      // Usa somente a triagem/status que já estão carregados neste mesmo render.
-      const assignedHasPdca = tri?.pdcaExternal===true
-        || String(tri?.pdcaSource||'').toLowerCase()==='external'
-        || ['enviado','respondido','respondida','apresentado','apresentada'].includes(normalizeAnswer(String(r?.pdca||'')))
-        || ['pdca enviado','respondida','apresentada'].includes(normalizeAnswer(String(r?.status||r?.statusPlanilha||'')));
-      if(assignedHasPdca)return false;
+      // A fila de atribuídas deve seguir a mesma lógica da Visão geral:
+      // a R.O. só sai daqui quando existe resposta/PDCA efetivamente enviado
+      // ou um estado final de resposta. Uma simples marcação de PDCA externo
+      // não pode esconder uma pendência que ainda exige atuação do setor.
+      const computedRow=computeAssignedRow(r);
+      const normalizedPdca=normalizeAnswer(String(r?.pdca||''));
+      const normalizedStatus=normalizeAnswer(String(r?.status||r?.statusPlanilha||''));
+      const assignedHasCompletedResponse = !!computedRow.sentPdca
+        || ['enviado','respondido','respondida','apresentado','apresentada'].includes(normalizedPdca)
+        || ['pdca enviado','respondida','apresentada'].includes(normalizedStatus);
+      if(assignedHasCompletedResponse)return false;
       // Uma R.O. é atribuída quando existe uma decisão central OU quando a própria
       // planilha ainda comprova o direcionamento. Isso evita esvaziar esta tela se
       // o cache de SGQ_TRIAGENS ainda não tiver sido restaurado/sincronizado.
@@ -14790,7 +14794,12 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
     const contest=status==='Em contestação';
     const computed=roListMode==='assigned'?computeAssignedRow(r):null;
     const externalPdca=computed?computed.externalPdca:pdcaExternalExists(r);
-    const alreadySent=pdca==='Enviado' || status==='PDCA enviado' || externalPdca;
+    // Para usuário operacional, somente uma resposta realmente enviada/concluída
+    // bloqueia Responder/Contestar. A marcação de PDCA externo, sozinha, não
+    // transforma a pendência em resposta concluída.
+    const alreadySent=!!computed?.sentPdca
+      || ['enviado','respondido','respondida','apresentado','apresentada'].includes(normalizeAnswer(pdca))
+      || ['pdca enviado','respondida','apresentada'].includes(normalizeAnswer(status));
     const tri=computed?computed.tri:getRoTriageRecord(r,renderTriageMap);
     const responsibleSector=String(tri?.responsibleSector||tri?.setorDirecionado||r.__assignedSector||r.setorResponsavelPlanilha||r.raw?.__setorResponsavel||r.setorResponsavel||r.setor||'—').trim()||'—';
     const pdcaSituation=pdcaSituationLabel(r,externalPdca);
