@@ -7426,6 +7426,7 @@ function renderTriage(){
 }
 
 function showTriage(){
+  if(!nucleoCanTriageRos()){alert('Somente SGQ e Qualidade podem triar R.O.s.');return;}
   if(!nucleoFeatureRequire('ros','triage'))return;
   try{refreshMenuNotificationBadges()}catch(e){}
   if(!isAdmin()){showList();return}
@@ -7566,6 +7567,7 @@ function updateRoUnitLocal(roKey,newUnit){
 }
 
 function openTriageRecord(id,originHint=''){
+  if(!nucleoCanTriageRos()){alert('Somente SGQ e Qualidade podem triar R.O.s.');return;}
   if(!nucleoFeatureRequire('ros','triage'))return;
   try{hideNucleoLoading(true)}catch(e){}
 
@@ -10468,32 +10470,56 @@ function notifyManagersOfDirectedRo(roKey,sector,triageRo,responsibleUserName){
   });
 }
 
+function nucleoBroadRoScope(){
+  const s=getSession()||{};
+  const role=String(s.role||'').toLowerCase();
+  // Regra fixa de segurança: somente SGQ (admin) e Qualidade possuem
+  // visão ampla de R.O.s. Nenhuma permissão/cache legado (permissions.sgq)
+  // pode ampliar o escopo de um usuário operacional/gestor.
+  return role==='admin' || role==='quality';
+}
+function nucleoOperationalAllowedSectors(){
+  const s=getSession()||{};
+  const sectors=[String(s.sector||'').trim()];
+  if(String(s.role||'').toLowerCase()==='manager' && Array.isArray(s.managedSectors)){
+    sectors.push(...s.managedSectors.map(v=>String(v||'').trim()));
+  }
+  return [...new Set(sectors.filter(Boolean).map(canonicalSectorName).filter(Boolean))];
+}
+function nucleoOperationalSectorAllowed(sector){
+  const wanted=canonicalSectorName(sector);
+  if(!wanted)return false;
+  return nucleoOperationalAllowedSectors().some(s=>sectorCompareKey(s)===sectorCompareKey(wanted));
+}
+function nucleoCanTriageRos(){return nucleoBroadRoScope();}
+
 function canViewRO(ro){
   if(!nucleoManagerScopeAllows(ro))return false;
-  // ADM Geral vê as duas unidades. ADM Matriz/Filial fica restrito à sua unidade.
-  if(isAdmin())return getSession()?.role==='quality'?qualityRecordAllowed(ro):isGeneralAdmin()||sameUnitAsCurrentUser(ro);
+
+  // Somente SGQ e Qualidade possuem visão ampla de R.O.s.
+  // Qualidade continua limitada às unidades explicitamente permitidas no cadastro.
+  if(nucleoBroadRoScope()){
+    return getSession()?.role==='quality'?qualityRecordAllowed(ro):true;
+  }
 
   const tri=getRoTriageRecord(ro);
   if(!tri || tri.decision!=='directed')return false;
-  const linked=(getSession()?.sectorMemberships||[]).some(m=>normalizePortalUnit(m.unit)===roUnit(ro)&&normalizeAnswer(m.sector)===normalizeAnswer(tri.responsibleSector));
-  if(linked)return userMatchesDirectedPerson(tri);
 
-  // Regra de unidade:
-  // usuário comum vê a própria unidade; setor explicitamente unificado também
-  // recebe R.O.s direcionadas a ele vindas da outra unidade como uma R.O. normal.
-  const crossUnitUnified=isUnifiedSector(tri.responsibleSector) &&
-    (sameSector(tri.responsibleSector) || (isManager() && managesSector(tri.responsibleSector)));
+  // Usuário operacional NÃO herda escopo de sectorMemberships/cache antigo.
+  // A fonte de verdade é o setor principal da sessão; gestor soma apenas
+  // os setores gerenciados explicitamente recebidos do backend no login.
+  if(!nucleoOperationalSectorAllowed(tri.responsibleSector))return false;
+
+  // Regra de unidade: setor unificado pode receber a mesma área entre unidades,
+  // mas nunca amplia para outro setor.
+  const crossUnitUnified=isUnifiedSector(tri.responsibleSector)&&nucleoOperationalSectorAllowed(tri.responsibleSector);
   if(!sameUnitAsCurrentUser(ro) && !crossUnitUnified)return false;
 
-  // Dentro do escopo permitido, a R.O. precisa estar direcionada ao setor.
-  // Gestor vinculado ao setor sempre acompanha, mesmo quando existe
-  // uma pessoa específica responsável.
-  if(isManager() && managesSector(tri.responsibleSector))return true;
+  // Gestor acompanha o setor gerenciado mesmo quando existe uma pessoa específica.
+  if(isManager() && (getSession()?.managedSectors||[]).some(s=>sameCanonicalSector(s,tri.responsibleSector)))return true;
 
-  if(!sameSector(tri.responsibleSector))return false;
-
-  // Se o SGQ escolheu uma pessoa específica, somente ela recebe a R.O.
-  // Sem pessoa específica, todos os usuários cadastrados no setor recebem.
+  // Operacional do setor só recebe a R.O. do próprio setor e, quando houver
+  // responsável nominal, somente a pessoa indicada recebe a ocorrência.
   return userMatchesDirectedPerson(tri);
 }
 
@@ -16810,10 +16836,15 @@ async function nucleoSyncAfterLogin(token){
 }
 
 function nucleoPersonPermissions(user){
- if(user.permissions?.version===1)return user.permissions;
- const elevated=['admin','quality'].includes(user.role),modules={};Object.keys(NUCLEO_PERSON_MODULES).forEach(k=>modules[k]={view:elevated||['ros','pdca','sac'].includes(k),manage:elevated});
+ const role=String(user?.role||'').toLowerCase();
+ if(user?.permissions?.version===1){
+   // Nunca confiar em sgq=true gravado em permissões antigas para um perfil
+   // operacional/gestor. O papel autenticado pelo backend é a fonte de verdade.
+   return {...user.permissions,sgq:role==='admin'};
+ }
+ const elevated=['admin','quality'].includes(role),modules={};Object.keys(NUCLEO_PERSON_MODULES).forEach(k=>modules[k]={view:elevated||['ros','pdca','sac'].includes(k),manage:elevated});
  if(!elevated)modules.documents.view=['comercial interno','comercial externo','diretoria','sgq'].includes(normalizeAnswer(user.sector||''));
- return {version:1,modules,registerRo:user.role!=='admin',registerExternal:user.role==='quality'||['comercial interno','comercial externo','diretoria','processos','sgq'].includes(normalizeAnswer(user.sector||'')),sgq:user.role==='admin'};
+ return {version:1,modules,registerRo:role!=='admin',registerExternal:role==='quality'||['comercial interno','comercial externo','diretoria','processos','sgq'].includes(normalizeAnswer(user.sector||'')),sgq:role==='admin'};
 }
 function nucleoPersonCan(module,manage=false){const user=getSession();if(!user)return false;const p=nucleoPersonPermissions(user);return !!(p.sgq||p.modules[module]?.[manage?'manage':'view']);}
 function nucleoPersonUnits(user){return Array.isArray(user.accessUnits)?user.accessUnits:user.role==='admin'?['matriz','filial']:user.role==='quality'?['filial']:[explicitPortalUnit(user.unit)||'matriz'];}
@@ -16846,6 +16877,11 @@ function nucleoAnnouncementInScope(a,user){
 function nucleoPersonFeatureAllowed(user,module,feature){
  if(!user)return false;
  const p=nucleoPersonPermissions(user),definition=NUCLEO_PERSON_FEATURES[module]?.[feature];if(!definition)return false;
+ // Triagem de R.O. é exclusiva de SGQ e Qualidade, independentemente de
+ // permissões antigas eventualmente gravadas no cadastro operacional.
+ if(module==='ros'&&feature==='triage'){
+   return p.sgq===true || String(user.role||'').toLowerCase()==='quality' || String(user.role||'').toLowerCase()==='admin';
+ }
  if(p.sgq)return true;
  if(p.detailVersion===1)return p.features?.[module]?.[feature]===true;
  return p.modules[module]?.[definition[2]]===true;
