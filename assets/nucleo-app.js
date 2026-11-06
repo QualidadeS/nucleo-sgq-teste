@@ -14706,7 +14706,18 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
     return [...grouped.values()].map(preferredFast).filter(Boolean);
   })() : ros;
 
-  const assignedSource = roListMode==='assigned' ? assignedBaseRos.flatMap(r=>{
+  // Para usuário operacional/gestor, a fonte da tela precisa ser exatamente a
+  // mesma base visível usada por roSummaryData(). Isso garante que toda R.O.
+  // contada como pendente também apareça aqui para Responder/Contestar.
+  const operationalAssignedSource = roListMode==='assigned' && !nucleoBroadRoScope()
+    ? ros.filter(r=>canViewRO(r,renderTriageMap)).map(r=>{
+        const tri=getRoTriageRecord(r,renderTriageMap);
+        const viewRo=getOperationalRoView(r,renderTriageMap);
+        return {...viewRo,__triageRecord:tri,__assignedSector:String(tri?.responsibleSector||'').trim(),__scopeVerified:true};
+      })
+    : null;
+
+  const assignedSource = roListMode==='assigned' ? (operationalAssignedSource || assignedBaseRos.flatMap(r=>{
     const base=String(r.numero||r.id||r.codigo||'').trim();
     let records=(assignedTriageByRo.get(base)||[]).filter(t=>String(t.decision||'')!=='' && !hiddenAssigned.has(String(t.roKey||'')));
     const confirmed=resolvedTriageForRo(r,renderTriageMap);
@@ -14739,7 +14750,7 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
       if(!prev||score(t)>=score(prev))bySector.set(visualKey,t);
     });
     return [...bySector.values()].map(t=>({...r,__triageKey:t.roKey,__triageRecord:t,__assignedSector:t.responsibleSector||''}));
-  }) : ros;
+  })) : ros;
   const list=assignedSource.filter(nucleoManagerScopeAllows)
     .filter(r=>{
       if(roListMode!=='assigned')return canViewRO(r,renderTriageMap);
@@ -14766,6 +14777,10 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
       if(!assignedByTriage && !assignedBySheet)return false;
       // Somente SGQ real/Qualidade real pulam o filtro setorial.
       // Usuário comum SEMPRE passa por canViewRO(), mesmo se um role antigo vier como admin.
+      // Usuários comuns já passaram por canViewRO() ao montar
+      // operationalAssignedSource. Não refaça o filtro nem perca a linha
+      // operacional transformada por getOperationalRoView().
+      if(r.__scopeVerified===true)return true;
       return nucleoBroadRoScope()?true:canViewRO(r,renderTriageMap);
     })
     .map(r=>nucleoBroadRoScope()?r:getOperationalRoView(r,renderTriageMap))
