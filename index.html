@@ -1022,7 +1022,16 @@ main{max-width:1180px;margin:0 auto;padding:54px 54px 36px}
 .side-module-body .side-item{margin:2px 0;width:100%;padding-left:12px}.side-module-body .side-item .side-num{width:28px;height:28px;font-size:10px}
 .side-module.admin-only{display:none}
 
-/* Permissões personalizadas controlam a visibilidade das áreas. */
+/* v97.38 — bloqueio visual de permissões por perfil */
+body.role-operator .admin-only,
+body.role-manager .admin-only{
+  display:none !important;
+}
+body.role-operator #moduleManagement,
+body.role-manager #moduleManagement{
+  display:none !important;
+}
+
 /* v97.41 — cadastro de R.O. Externa/SAC somente para setores autorizados */
 /* v97.72 — login restaurado: nome + unidade + setor + senha, sem seletor de pessoa */
 /* v97.70 — escopo ADM por unidade + suporte a setores unificados */
@@ -2715,6 +2724,211 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
 .action-timeline-meta span{font-size:11px;background:#f2f4f7;border-radius:999px;padding:4px 7px;color:#475467}
 </style>
 
+
+<style id="nucleoRoAssignedActionsLayoutV6">
+#rows .ro-eye-cell{white-space:nowrap}
+#rows .ro-row-actions{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:7px!important;
+  flex-wrap:nowrap!important;
+  white-space:nowrap!important;
+}
+#rows .ro-row-actions .ro-eye-btn{
+  flex:0 0 auto!important;
+  margin:0!important;
+}
+</style>
+
+
+
+
+
+<style id="nucleoAssignedTestLayoutV4">
+#roListView .ro-control-table-wrap{width:100%;overflow-x:auto}
+#roListView .ro-control-table{
+  width:100%;
+  min-width:1180px;
+  table-layout:fixed;
+  border-collapse:collapse;
+}
+#roListView .ro-control-table th,
+#roListView .ro-control-table td{
+  vertical-align:middle!important;
+  box-sizing:border-box;
+}
+#roListView .ro-control-table th:nth-child(1){width:100px}
+#roListView .ro-control-table th:nth-child(2){width:185px}
+#roListView .ro-control-table th:nth-child(3){width:185px}
+#roListView .ro-control-table th:nth-child(4){width:105px}
+#roListView .ro-control-table th:nth-child(5){width:100px}
+#roListView .ro-control-table th:nth-child(6){width:145px;text-align:center}
+#roListView .ro-control-table th:nth-child(7){width:240px;text-align:center}
+#roListView .ro-control-table th:nth-child(8){width:220px;text-align:center}
+
+#roListView .assigned-status-cell,
+#roListView .assigned-pdca-cell,
+#roListView .operational-action-col{
+  text-align:center!important;
+  white-space:nowrap!important;
+}
+
+#roListView .assigned-pdca-control{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:6px!important;
+  flex-wrap:nowrap!important;
+  white-space:nowrap!important;
+}
+
+#roListView .assigned-pdca-control .btn{
+  padding:5px 8px!important;
+  min-height:28px!important;
+  font-size:11px!important;
+}
+
+#roListView .assigned-pdca-control .btn.is-selected{
+  background:#075da8!important;
+  color:#fff!important;
+  border-color:#075da8!important;
+}
+
+#roListView .assigned-operational-icons{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:10px!important;
+  flex-wrap:nowrap!important;
+  white-space:nowrap!important;
+  width:100%;
+}
+
+#roListView .assigned-operational-icons .ro-eye-btn,
+#roListView .assigned-operational-icons [data-ro-resend-email]{
+  flex:0 0 auto!important;
+  margin:0!important;
+}
+
+#roListView .assigned-status-cell .badge,
+#roListView .assigned-status-cell .status-badge{
+  max-width:135px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+</style>
+
+
+<style id="nucleoAssignedTestLayoutV6Final">
+#roListView .ro-control-table{min-width:1260px}
+#roListView .ro-control-table th:nth-child(7){width:260px!important}
+#roListView .ro-control-table th:nth-child(8){width:250px!important}
+
+#roListView .assigned-pdca-control{
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:4px!important;
+  padding:3px!important;
+  border:1px solid #d0d5dd!important;
+  border-radius:10px!important;
+  background:#f9fafb!important;
+}
+#roListView .assigned-pdca-option{
+  border:0!important;
+  border-radius:7px!important;
+  background:transparent!important;
+  color:#475467!important;
+  font:600 11px/1.2 inherit!important;
+  padding:7px 9px!important;
+  cursor:pointer!important;
+  white-space:nowrap!important;
+}
+#roListView .assigned-pdca-option:hover{background:#eef2f6!important}
+#roListView .assigned-pdca-option.yes.is-selected{background:#e8f3ff!important;color:#075da8!important;box-shadow:inset 0 0 0 1px #84c5f4!important}
+#roListView .assigned-pdca-option.no.is-selected{background:#fff1f0!important;color:#b42318!important;box-shadow:inset 0 0 0 1px #fda29b!important}
+
+#roListView td.operational-action-col{
+  text-align:center!important;
+  white-space:nowrap!important;
+}
+#roListView td.operational-action-col br{display:none!important}
+#roListView td.operational-action-col > *{vertical-align:middle!important}
+#roListView .assigned-operational-icons{
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:5px!important;
+  flex-wrap:nowrap!important;
+  width:auto!important;
+  vertical-align:middle!important;
+}
+#roListView .assigned-operational-icons .ro-eye-btn,
+#roListView td.operational-action-col > button,
+#roListView td.operational-action-col [data-ro-resend-email]{
+  width:32px!important;
+  height:32px!important;
+  min-width:32px!important;
+  padding:0!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  border:1px solid #d0d5dd!important;
+  border-radius:8px!important;
+  background:#fff!important;
+  color:#344054!important;
+  font-size:15px!important;
+  line-height:1!important;
+  margin:0 2px!important;
+  vertical-align:middle!important;
+}
+#roListView .assigned-operational-icons .ro-eye-btn:hover,
+#roListView td.operational-action-col > button:hover,
+#roListView td.operational-action-col [data-ro-resend-email]:hover{background:#f2f4f7!important;border-color:#98a2b3!important}
+#roListView .assigned-operational-icons .ro-delete-btn{color:#b42318!important}
+
+/* Qualquer ação injetada pelos módulos de e-mail/encaminhamento permanece na mesma linha. */
+#roListView td.operational-action-col > div:not(.assigned-operational-icons){
+  display:inline-flex!important;
+  align-items:center!important;
+  gap:4px!important;
+  flex-wrap:nowrap!important;
+  vertical-align:middle!important;
+}
+</style>
+
+
+
+
+
+
+
+
+<style id="nucleoAssignedStableColumnsV12">
+#roListView #rows td:nth-child(6){text-align:center!important}
+#roListView #rows td:nth-child(7){text-align:center!important;white-space:nowrap!important}
+#roListView #rows td:nth-child(8){text-align:center!important;white-space:nowrap!important}
+#roListView #rows td:nth-child(8) [data-ro-resend-email]{
+  flex:0 0 auto!important;
+}
+</style>
+
+
+<style id="nucleoAssignedMoveActionsOnlyV13Css">
+#roListView #rows td:nth-child(8){
+  text-align:center!important;
+  white-space:nowrap!important;
+}
+#roListView #rows td:nth-child(8) > .assigned-operational-icons{
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:6px!important;
+  flex-wrap:nowrap!important;
+}
+</style>
 
 </head><body>
 
@@ -5622,7 +5836,7 @@ function renderSupplierIndicatorsWorkspace(){
 <script src="assets/modules-v2/nc/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/modules-v2/indicators/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/modules-v2/announcements/module.js?v=20261023-modular-full-test-v4-safe"></script>
-<!-- runtime monolítico removido: funções exclusivas incorporadas em assets/nucleo-app.js -->
+<script src="assets/core/runtime.js?v=20261103-status-review-source-v26"></script>
 <script src="assets/team-load-local-v47.js?v=20261027-team-local-central"></script>
 <script src="assets/nucleo-app.js?v=20261103-status-review-source-v26"></script>
 <script src="assets/api-source-lock-v20.js?v=20261105-api-editavel-v59"></script>
@@ -5737,10 +5951,9 @@ function renderSupplierIndicatorsWorkspace(){
 </script>
 
 
-<!-- R.O.s atribuídas liberadas: manutenção desativada -->
 <script id="nucleoAssignedMaintenanceGuardV1">
 (function(){
-  const ASSIGNED_MAINTENANCE_MODE = false;
+  const ASSIGNED_MAINTENANCE_MODE = true;
   const ASSIGNED_TEST_USERS = [
     'gabrielly.silva@setaembalagens.com.br'
   ];
@@ -6025,79 +6238,3 @@ function renderSupplierIndicatorsWorkspace(){
 
 <script src="assets/assigned-ro-move-actions-v13.js?v=20261103-move-actions-only-v13"></script>
 </body></html>
-<style id="nucleoPdcaQuestionEyeV9">
-#roListView .assigned-pdca-state{
-  display:inline-flex!important;
-  align-items:center!important;
-  justify-content:center!important;
-  gap:7px!important;
-  white-space:nowrap!important;
-}
-#roListView .assigned-pdca-eye{
-  width:30px!important;
-  height:30px!important;
-  display:inline-flex!important;
-  align-items:center!important;
-  justify-content:center!important;
-  border:1px solid #d7e0ea!important;
-  border-radius:9px!important;
-  background:#fff!important;
-  color:#123b63!important;
-  cursor:pointer!important;
-  padding:0!important;
-  font-size:15px!important;
-  line-height:1!important;
-  box-shadow:none!important;
-}
-#roListView .assigned-pdca-eye:hover{
-  background:#f4f8fb!important;
-  border-color:#b9cad9!important;
-}
-#roListView .assigned-pdca-state-label{
-  display:inline!important;
-  padding:0!important;
-  border:0!important;
-  background:transparent!important;
-  box-shadow:none!important;
-  font-size:12px!important;
-  font-weight:600!important;
-  color:#344054!important;
-}
-#roListView .assigned-pdca-state-label.has-pdca,
-#roListView .assigned-pdca-state-label.no-pdca{
-  color:#344054!important;
-}
-.assigned-pdca-question-popover{
-  position:fixed;
-  z-index:100000;
-  min-width:190px;
-  padding:10px;
-  border:1px solid #d9e2ec;
-  border-radius:12px;
-  background:#fff;
-  box-shadow:0 12px 30px rgba(15,23,42,.16);
-}
-.assigned-pdca-question-title{
-  margin:0 0 8px;
-  font-size:12px;
-  font-weight:700;
-  color:#24364b;
-  text-align:center;
-}
-.assigned-pdca-question-actions{
-  display:flex;
-  gap:6px;
-}
-.assigned-pdca-answer{
-  flex:1 1 0;
-  border:1px solid #d7e0ea;
-  border-radius:9px;
-  background:#fff;
-  color:#344054;
-  padding:7px 9px;
-  font-size:11px;
-  font-weight:600;
-  cursor:pointer;
-}
-.assigned-pdca-answer:hover{background:#f4f8fb}
-</style>
