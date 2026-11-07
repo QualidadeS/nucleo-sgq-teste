@@ -312,3 +312,138 @@
 
   console.info('[NÚCLEO] API editável pela Administração ativa.');
 })();
+
+/* NÚCLEO | ACCESS UNITS TRIAGEM V29 | cadastro bruto antes dos filtros da Filial */
+(function(){
+  if(window.__nucleoAccessUnitsTriageV29)return;
+  window.__nucleoAccessUnitsTriageV29=true;
+
+  function norm(v){
+    try{return typeof normalizeAnswer==='function'?normalizeAnswer(v):String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();}
+    catch(_){return String(v||'').toLowerCase().trim();}
+  }
+  function normUnit(v){
+    try{return typeof normalizePortalUnit==='function'?normalizePortalUnit(v):(/filial|linhares|seta es/i.test(String(v||''))?'filial':/todas/i.test(String(v||''))?'todas':'matriz');}
+    catch(_){return /filial|linhares|seta es/i.test(String(v||''))?'filial':/todas/i.test(String(v||''))?'todas':'matriz';}
+  }
+  function userUnits(u){
+    const raw=Array.isArray(u?.accessUnits)?u.accessUnits:[];
+    if(raw.length){
+      const out=[];
+      raw.forEach(x=>{const n=normUnit(x);if(n==='todas'){out.push('matriz','filial')}else if(n)out.push(n)});
+      return [...new Set(out)];
+    }
+    const primary=normUnit(u?.unit||u?.unidade||'');
+    return primary==='todas'?['matriz','filial']:[primary||'matriz'];
+  }
+  function rawUsers(){
+    const out=[];
+    const add=list=>{if(Array.isArray(list))list.forEach(u=>{if(u&&typeof u==='object')out.push(u)})};
+    try{
+      if(typeof USERS_KEY!=='undefined')add(JSON.parse(localStorage.getItem(USERS_KEY)||'[]'));
+    }catch(_){}
+    ['ro-pdca-users-v4','nucleo-users','nucleo-portal-users'].forEach(k=>{
+      try{add(JSON.parse(localStorage.getItem(k)||'[]'))}catch(_){}
+    });
+    try{add(JSON.parse(localStorage.getItem('nucleo-unit-contacts')||'[]'))}catch(_){}
+    try{
+      if(typeof getOperationalUsers==='function')add(getOperationalUsers()||[]);
+    }catch(_){}
+    const map=new Map();
+    out.forEach(u=>{
+      const key=String(u?.personId||u?.email||u?.name||'').trim().toLowerCase();
+      if(!key)return;
+      const prev=map.get(key)||{};
+      map.set(key,{...prev,...u});
+    });
+    return [...map.values()];
+  }
+  function active(u){
+    const approval=norm(u?.approvalStatus||'approved');
+    const status=norm(u?.status||'');
+    const enabled=u?.active!==false && !['nao','false','inativo'].includes(norm(u?.active||'sim'));
+    return enabled && !['pending','rejected','inactive','disabled','recusado','inativo'].includes(approval) && !['inactive','inativo'].includes(status) && String(u?.email||'').trim();
+  }
+  function userSectorMatch(u,sector){
+    const key=norm(sector);
+    if(!key)return false;
+    if(norm(u?.sector||u?.setor||'')===key)return true;
+    return (u?.sectorMemberships||[]).some(m=>norm(m?.sector||'')===key);
+  }
+  function userHasUnitSectorV29(u,unit,sector){
+    const target=normUnit(unit);
+    const key=norm(sector);
+    if(!key)return false;
+    const exactMembership=(u?.sectorMemberships||[]).some(m=>{
+      const mu=normUnit(m?.unit||'');
+      return (mu===target||mu==='todas')&&norm(m?.sector||'')===key;
+    });
+    if(exactMembership)return true;
+    return userUnits(u).includes(target) && userSectorMatch(u,sector);
+  }
+  function currentTriageUnit(){
+    const select=document.getElementById('triageRoUnit');
+    const fromSelect=normUnit(select?.value||'');
+    if(fromSelect)return fromSelect;
+    try{
+      const session=typeof getSession==='function'?(getSession()||{}):{};
+      if(String(session.role||'').toLowerCase()==='quality')return 'filial';
+      const scoped=typeof adminScopeUnit==='function'?adminScopeUnit():'';
+      const n=normUnit(scoped);
+      if(n&&n!=='todas')return n;
+    }catch(_){}
+    return 'matriz';
+  }
+  function usersBySectorV29(sector){
+    const unit=currentTriageUnit();
+    return rawUsers()
+      .filter(active)
+      .filter(u=>userHasUnitSectorV29(u,unit,sector))
+      .sort((a,b)=>String(a?.name||a?.email||'').localeCompare(String(b?.name||b?.email||''),'pt-BR'));
+  }
+
+  const originalConfigured=window.getConfiguredSectors;
+  function getConfiguredSectorsV29(unit){
+    const target=normUnit(unit || (typeof adminScopeUnit==='function'?adminScopeUnit():'matriz'));
+    let base=[];
+    try{base=typeof originalConfigured==='function'?(originalConfigured(unit)||[]):[]}catch(_){base=[]}
+    if(!Array.isArray(base))base=[];
+    const out=base.slice();
+    const seen=new Set(out.map(norm));
+    rawUsers().filter(active).forEach(u=>{
+      if(!userUnits(u).includes(target))return;
+      const candidates=[u?.sector||u?.setor||''];
+      (u?.sectorMemberships||[]).forEach(m=>{
+        const mu=normUnit(m?.unit||'');
+        if(mu===target||mu==='todas')candidates.push(m?.sector||'');
+      });
+      candidates.forEach(sec=>{
+        sec=String(sec||'').trim();const k=norm(sec);
+        if(sec&&k&&!seen.has(k)){seen.add(k);out.push(sec)}
+      });
+    });
+    return out.sort((a,b)=>String(a).localeCompare(String(b),'pt-BR'));
+  }
+
+  function apply(){
+    window.userHasUnitSector=userHasUnitSectorV29;
+    window.usersBySector=usersBySectorV29;
+    window.getConfiguredSectors=getConfiguredSectorsV29;
+    try{
+      if(typeof refreshTriageResponsibleUsers==='function')refreshTriageResponsibleUsers();
+      const picker=document.getElementById('triageSectorPicker');
+      if(picker && !picker.closest('.hidden')){
+        const current=picker.value;
+        const sectors=getConfiguredSectorsV29(currentTriageUnit());
+        picker.innerHTML='<option value="">Selecione um setor...</option>'+sectors.map(sec=>'<option value="'+(typeof escapeHtml==='function'?escapeHtml(sec):sec)+'">'+(typeof escapeHtml==='function'?escapeHtml(sec):sec)+'</option>').join('');
+        if(sectors.includes(current))picker.value=current;
+      }
+    }catch(e){console.warn('[NÚCLEO V29] atualização visual da triagem:',e)}
+  }
+
+  apply();
+  window.addEventListener('load',()=>setTimeout(apply,0),{once:true});
+  document.addEventListener('click',()=>setTimeout(apply,0),true);
+  let tries=0;const timer=setInterval(()=>{apply();if(++tries>120)clearInterval(timer)},250);
+  console.info('[NÚCLEO] AccessUnits Triagem V29 ativo.');
+})();
