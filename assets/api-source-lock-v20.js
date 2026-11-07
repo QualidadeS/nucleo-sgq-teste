@@ -662,3 +662,147 @@
 
   console.info('[NÚCLEO] Preservação de réplica da Filial V35 ativa.');
 })();
+
+/* NÚCLEO | SETORES COMPARTILHADOS CENTRAIS V41
+   Os nomes de setores válidos para Matriz/Filial vêm do portal_public_config.
+   Não usa localStorage como fonte de autoridade e não altera escopo de R.O.
+*/
+(function(){
+  'use strict';
+  if(window.__nucleoSharedSectorNamesV41)return;
+  window.__nucleoSharedSectorNamesV41=true;
+
+  let central={matriz:[],filial:[]};
+
+  function norm(v){
+    try{
+      return typeof normalizeAnswer==='function'
+        ? normalizeAnswer(v)
+        : String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+    }catch(_){return String(v||'').toLowerCase().trim();}
+  }
+  function unitKey(v){
+    try{
+      if(typeof normalizePortalUnit==='function'){
+        const n=normalizePortalUnit(v);
+        if(n==='filial'||n==='matriz')return n;
+      }
+    }catch(_){}
+    return /filial|linhares|seta es/i.test(String(v||''))?'filial':'matriz';
+  }
+  function list(v){
+    const raw=Array.isArray(v)?v:String(v||'').split(/[\n,;]+/);
+    const out=[];
+    raw.forEach(x=>{
+      x=String(x||'').trim();
+      if(x&&!out.some(y=>norm(y)===norm(x)))out.push(x);
+    });
+    return out;
+  }
+  function merge(){
+    const out=[];
+    Array.from(arguments).flat().forEach(x=>{
+      x=String(x||'').trim();
+      if(x&&!out.some(y=>norm(y)===norm(x)))out.push(x);
+    });
+    return out.sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  }
+
+  function consumeConfig(data){
+    const cfg=data?.config||data||{};
+    const byName=cfg.sectorNamesByUnit||{};
+    const byList=cfg.sectorListsByUnit||{};
+    central={
+      matriz:merge(list(byName.matriz),list(byList.matriz)),
+      filial:merge(list(byName.filial),list(byList.filial))
+    };
+    window.__nucleoCentralSectorNamesV41=central;
+    refreshAll();
+    return central;
+  }
+
+  async function load(){
+    try{
+      if(window.nucleoGlobalApiReady&&typeof window.nucleoGlobalApiReady.then==='function'){
+        try{await window.nucleoGlobalApiReady}catch(_){}
+      }
+      if(typeof portalJsonp!=='function')return central;
+      const res=await portalJsonp({acao:'portal_public_config'},30000);
+      if(res?.sucesso)consumeConfig(res);
+    }catch(e){
+      console.warn('[NÚCLEO V41] Não foi possível carregar os setores compartilhados centrais.',e);
+    }
+    return central;
+  }
+
+  const originalConfigured=window.getConfiguredSectors;
+  if(typeof originalConfigured==='function'){
+    window.getConfiguredSectors=function(unit){
+      const key=unitKey(unit||(
+        typeof adminScopeUnit==='function'?adminScopeUnit():'matriz'
+      ));
+      let own=[];
+      try{own=originalConfigured.apply(this,arguments)||[]}catch(_){}
+      return merge(own,central[key]||[]);
+    };
+  }
+
+  const originalPublic=window.nucleoPublicLoginSectors;
+  if(typeof originalPublic==='function'){
+    window.nucleoPublicLoginSectors=function(unit){
+      const key=unitKey(unit);
+      let own=[];
+      try{own=originalPublic.apply(this,arguments)||[]}catch(_){}
+      return merge(own,central[key]||[]);
+    };
+  }else{
+    // Compatibilidade para builds em que a função pública só é criada depois.
+    let tries=0;
+    const timer=setInterval(()=>{
+      if(typeof window.nucleoPublicLoginSectors==='function'&&!window.nucleoPublicLoginSectors.__v41){
+        const fn=window.nucleoPublicLoginSectors;
+        const wrapped=function(unit){
+          const key=unitKey(unit);
+          let own=[];
+          try{own=fn.apply(this,arguments)||[]}catch(_){}
+          return merge(own,central[key]||[]);
+        };
+        wrapped.__v41=true;
+        window.nucleoPublicLoginSectors=wrapped;
+        clearInterval(timer);
+      }
+      if(++tries>80)clearInterval(timer);
+    },100);
+  }
+
+  function safeFill(id){
+    try{
+      if(typeof fillSectorSelect==='function'&&document.getElementById(id))fillSectorSelect(id);
+    }catch(_){}
+  }
+  function refreshAll(){
+    try{safeFill('loginSector')}catch(_){}
+    try{safeFill('registerSector')}catch(_){}
+    try{safeFill('newUserSector')}catch(_){}
+    try{
+      if(typeof refreshSectorSelectors==='function')refreshSectorSelectors();
+    }catch(_){}
+    try{
+      if(typeof populateTriageSectors==='function')populateTriageSectors();
+    }catch(_){}
+  }
+
+  document.addEventListener('change',function(ev){
+    const id=ev?.target?.id;
+    if(id==='loginUnit')setTimeout(()=>safeFill('loginSector'),0);
+    if(id==='registerUnit')setTimeout(()=>safeFill('registerSector'),0);
+    if(id==='newUserUnit')setTimeout(()=>safeFill('newUserSector'),0);
+    if(id==='triageRoUnit')setTimeout(refreshAll,0);
+  },true);
+
+  window.nucleoReloadSharedSectorNamesV41=load;
+
+  setTimeout(load,200);
+  window.addEventListener('load',()=>setTimeout(load,0),{once:true});
+  console.info('[NÚCLEO] Setores compartilhados centrais V41 ativos.');
+})();
