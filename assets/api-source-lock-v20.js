@@ -1,14 +1,21 @@
-/* NÚCLEO | API EDITÁVEL v21
-   A URL do Web App pode ser alterada pela Administração na tela de Integração.
-   O valor salvo passa a ser a fonte ativa. nucleo-runtime-config.js permanece
-   apenas como fallback inicial/recuperação.
+/* NÚCLEO | API GLOBAL CANÔNICA V39
+   REGRA FIXA:
+   - A URL da API é global para todo o Núcleo.
+   - localStorage NUNCA escolhe a URL da API.
+   - O navegador começa pela URL bootstrap publicada no código.
+   - A configuração central (portal_public_config) pode apontar para outra URL.
+   - Se houver uma cadeia A -> B -> C, o cliente segue a cadeia até a URL final.
+   - A tela SGQ salva a nova URL na configuração CENTRAL do backend atual.
+   - localStorage pode guardar preferências locais, mas nunca a URL global.
 */
 (function(){
   'use strict';
 
-  const INTEGRATION_KEY='nucleo-integration-settings-v1';
-  const ADMIN_KEY='ro-pdca-admin-config-v1';
-  const RO_SYNC_KEY='ro-sync-settings';
+  const LOCAL_INTEGRATION_KEYS=[
+    'nucleo-integration-settings-v1',
+    'ro-pdca-admin-config-v1',
+    'ro-sync-settings'
+  ];
 
   function normalizeUrl(url){
     return String(url||'').trim().replace(/\/+$/,'');
@@ -19,62 +26,46 @@
     return /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(value)?value:'';
   }
 
-  function fallbackApiUrl(){
-    return validApiUrl(window.NUCLEO_RUNTIME_CONFIG?.apiUrl||'');
-  }
-
-  function readObj(key){
-    try{return JSON.parse(localStorage.getItem(key)||'{}')||{};}catch(_){return {};}
-  }
-
-  function writeObj(key,obj){
-    try{localStorage.setItem(key,JSON.stringify(obj||{}));}catch(_){}
-  }
-
-  function storedApiUrl(){
-    const sources=[
-      readObj(INTEGRATION_KEY)?.apiUrl,
-      readObj(ADMIN_KEY)?.apiUrl,
-      readObj(RO_SYNC_KEY)?.apiUrl
-    ];
-    for(const value of sources){
-      const valid=validApiUrl(value);
-      if(valid)return valid;
-    }
+  function bootstrapApiUrl(){
+    const runtime=validApiUrl(window.NUCLEO_RUNTIME_CONFIG?.apiUrl||'');
+    if(runtime)return runtime;
+    try{
+      if(typeof NUCLEO_DEFAULT_API_URL!=='undefined'){
+        const legacy=validApiUrl(NUCLEO_DEFAULT_API_URL||'');
+        if(legacy)return legacy;
+      }
+    }catch(_){}
     return '';
   }
 
-  window.nucleoPersistedApiUrl=function(){
-    return storedApiUrl();
-  };
+  // Remove somente apiUrl de caches legados. Os demais campos locais podem
+  // continuar existindo quando forem realmente preferências do dispositivo.
+  function purgeLocalApiUrl(){
+    LOCAL_INTEGRATION_KEYS.forEach(key=>{
+      try{
+        const raw=localStorage.getItem(key);
+        if(!raw)return;
+        const obj=JSON.parse(raw);
+        if(!obj||typeof obj!=='object'||Array.isArray(obj))return;
+        if(Object.prototype.hasOwnProperty.call(obj,'apiUrl')){
+          delete obj.apiUrl;
+          localStorage.setItem(key,JSON.stringify(obj));
+        }
+      }catch(_){}
+    });
+  }
 
-  window.portalApiBase=function(){
-    return storedApiUrl() || fallbackApiUrl();
-  };
+  purgeLocalApiUrl();
 
-  window.portalBackendEnabled=function(){
-    return !!window.portalApiBase();
-  };
+  let globalApiUrl=bootstrapApiUrl();
+  let resolvingPromise=null;
 
-  const originalGetSaved=window.getSavedIntegrationSettings;
-  window.getSavedIntegrationSettings=function(){
-    let previous={};
-    try{
-      previous=typeof originalGetSaved==='function'?(originalGetSaved()||{}):{};
-    }catch(_){}
-    return {
-      ...previous,
-      apiUrl:storedApiUrl() || fallbackApiUrl()
-    };
-  };
-
-
-  function directJsonp(url, params={}, timeoutMs=25000){
+  function directJsonp(url,params={},timeoutMs=25000){
     return new Promise((resolve,reject)=>{
       const base=validApiUrl(url);
       if(!base){reject(new Error('URL inválida.'));return;}
 
-      const cb='nucleoApiTestV59_'+Date.now()+'_'+Math.floor(Math.random()*100000);
+      const cb='nucleoGlobalApiV39_'+Date.now()+'_'+Math.floor(Math.random()*100000);
       const script=document.createElement('script');
       let done=false;
       let timer=null;
@@ -91,8 +82,7 @@
         err?reject(err):resolve(data);
       }
 
-      window[cb]=(data)=>finish(null,data);
-
+      window[cb]=data=>finish(null,data);
       const parts=[];
       Object.entries(params||{}).forEach(([k,v])=>{
         if(v!==undefined&&v!==null&&String(v)!==''){
@@ -101,103 +91,135 @@
       });
       parts.push('callback='+encodeURIComponent(cb));
       parts.push('_='+Date.now());
-
       script.async=true;
       script.src=base+'?'+parts.join('&');
-      script.onerror=()=>finish(new Error('A URL /exec abriu, mas não devolveu JSONP utilizável ao Núcleo.'));
-      timer=setTimeout(()=>finish(new Error('A API não respondeu dentro do tempo limite.')),timeoutMs);
+      script.onerror=()=>finish(new Error('A API global não respondeu ao Núcleo.'));
+      timer=setTimeout(()=>finish(new Error('A API global excedeu o tempo limite.')),timeoutMs);
       document.head.appendChild(script);
     });
   }
 
-  async function probeApi(candidate){
-    const url=validApiUrl(candidate);
-    if(!url)throw new Error('Informe uma URL válida do Web App / API terminando em /exec.');
+  async function probeApi(url){
+    const candidate=validApiUrl(url);
+    if(!candidate)throw new Error('Informe uma URL válida do Web App terminando em /exec.');
+    const data=await directJsonp(candidate,{acao:'portal_public_config',nucleoAction:'portal_public_config'},25000);
+    if(!data?.sucesso)throw new Error(data?.erro||'A URL não respondeu como backend do Núcleo.');
+    return data;
+  }
 
-    // 1) Tenta a rota curta moderna.
-    try{
-      const data=await directJsonp(url,{acao:'portal_public_config',nucleoAction:'portal_public_config'},20000);
-      if(data?.sucesso){
-        return {url,result:data,probe:'portal_public_config'};
+  async function resolveGlobalApiUrl(force=false){
+    if(resolvingPromise&&!force)return resolvingPromise;
+
+    resolvingPromise=(async()=>{
+      let current=bootstrapApiUrl();
+      if(!current)throw new Error('A URL bootstrap global do Núcleo não está configurada.');
+
+      const seen=new Set();
+      for(let hop=0;hop<6;hop++){
+        if(seen.has(current))break;
+        seen.add(current);
+
+        let data;
+        try{
+          data=await probeApi(current);
+        }catch(e){
+          // Se ao menos o bootstrap existe, mantém essa URL como fallback global.
+          if(hop===0){globalApiUrl=current;return current;}
+          break;
+        }
+
+        const next=validApiUrl(data?.config?.apiUrl||'');
+        if(!next||next===current){
+          globalApiUrl=current;
+          return current;
+        }
+        current=next;
       }
-    }catch(_){}
 
-    // 2) Fallback compatível: testa o próprio /exec sem ação.
-    // Backends antigos do Núcleo respondem com portal_load nesse caso.
-    const root=await directJsonp(url,{},30000);
-    if(root?.sucesso && (
-      root?.config ||
-      Array.isArray(root?.dados) ||
-      Number.isFinite(Number(root?.quantidade))
-    )){
-      return {url,result:root,probe:'root'};
-    }
+      globalApiUrl=current;
+      return current;
+    })().finally(()=>{resolvingPromise=null;});
 
-    throw new Error('O Apps Script respondeu, mas a resposta não foi reconhecida como uma API do Núcleo.');
+    return resolvingPromise;
+  }
+
+  window.nucleoResolveGlobalApiUrl=resolveGlobalApiUrl;
+  window.nucleoGlobalApiBootstrap=bootstrapApiUrl;
+
+  // Compatibilidade: o nome antigo continua existindo, mas NÃO lê localStorage.
+  window.nucleoPersistedApiUrl=function(){
+    return globalApiUrl||bootstrapApiUrl();
+  };
+
+  window.portalApiBase=function(){
+    return validApiUrl(globalApiUrl)||bootstrapApiUrl();
+  };
+
+  window.portalBackendEnabled=function(){
+    return !!window.portalApiBase();
+  };
+
+  const originalPortalJsonp=window.portalJsonp;
+  if(typeof originalPortalJsonp==='function'){
+    window.portalJsonp=function(params,timeoutMs=60000,baseOverride=''){
+      if(baseOverride)return originalPortalJsonp.call(this,params,timeoutMs,baseOverride);
+      return resolveGlobalApiUrl(false).then(base=>originalPortalJsonp.call(this,params,timeoutMs,base));
+    };
+  }
+
+  const originalGetSaved=window.getSavedIntegrationSettings;
+  window.getSavedIntegrationSettings=function(){
+    let previous={};
+    try{previous=typeof originalGetSaved==='function'?(originalGetSaved()||{}):{};}catch(_){}
+    return {...previous,apiUrl:window.portalApiBase()};
+  };
+
+  function readLocalDeviceSettings(){
+    let previous={};
+    try{previous=typeof originalGetSaved==='function'?(originalGetSaved()||{}):{};}catch(_){}
+    if(previous&&typeof previous==='object')delete previous.apiUrl;
+    return previous||{};
+  }
+
+  function saveLocalDeviceSettings(settings){
+    const copy={...(settings||{})};
+    delete copy.apiUrl;
+    try{localStorage.setItem('nucleo-integration-settings-v1',JSON.stringify(copy));}catch(_){}
+    try{localStorage.setItem('ro-sync-settings',JSON.stringify(copy));}catch(_){}
   }
 
   window.nucleoEnsureApiConfigured=async function(candidateUrl){
-    const current=validApiUrl(candidateUrl || document.getElementById('apiUrl')?.value || window.portalApiBase());
-    const checked=await probeApi(current);
-    try{window.nucleoConfirmedApiUrl=current;}catch(_){}
-    return checked;
+    if(candidateUrl){
+      const candidate=validApiUrl(candidateUrl);
+      const result=await probeApi(candidate);
+      return {url:candidate,result};
+    }
+    const url=await resolveGlobalApiUrl(true);
+    const result=await probeApi(url);
+    try{window.nucleoConfirmedApiUrl=url;}catch(_){}
+    return {url,result};
   };
 
-  window.saveIntegrationSettings=function(silent=false,forcedApiUrl){
+  // Mantém preferências realmente locais, mas a URL nunca é persistida localmente.
+  window.saveIntegrationSettings=function(silent=false){
     if(typeof window.requireIntegrationUnlock==='function'&&!window.requireIntegrationUnlock())return false;
-
-    let current={};
-    try{current=window.getSavedIntegrationSettings?.()||{};}catch(_){}
-
-    const typed=forcedApiUrl!==undefined
-      ? forcedApiUrl
-      : document.getElementById('apiUrl')?.value;
-
-    const apiUrl=validApiUrl(typed || current.apiUrl || fallbackApiUrl());
-    if(!apiUrl){
-      if(!silent)alert('Informe uma URL válida do Web App / API terminando em /exec.');
-      return false;
-    }
-
-    const apiKey=String(document.getElementById('apiKey')?.value||current.apiKey||'').trim();
-    const autoSync=document.getElementById('autoSync')?.value||current.autoSync||'0';
-    const roSyncPeriod=document.getElementById('roSyncPeriod')?.value||current.roSyncPeriod||'all';
-    const roSyncDateFrom=document.getElementById('roSyncDateFrom')?.value||current.roSyncDateFrom||'';
-    const roSyncDateTo='';
-
-    if(roSyncPeriod==='custom'&&!roSyncDateFrom){
+    const current=readLocalDeviceSettings();
+    const next={
+      ...current,
+      apiKey:String(document.getElementById('apiKey')?.value||current.apiKey||'').trim(),
+      autoSync:document.getElementById('autoSync')?.value||current.autoSync||'0',
+      roSyncPeriod:document.getElementById('roSyncPeriod')?.value||current.roSyncPeriod||'all',
+      roSyncDateFrom:document.getElementById('roSyncDateFrom')?.value||current.roSyncDateFrom||'',
+      roSyncDateTo:'',
+      savedAt:new Date().toISOString()
+    };
+    if(next.roSyncPeriod==='custom'&&!next.roSyncDateFrom){
       if(!silent)alert('Informe a data inicial da busca.');
       return false;
     }
-
-    const sync={
-      apiUrl,
-      apiKey,
-      autoSync,
-      roSyncPeriod,
-      roSyncDateFrom,
-      roSyncDateTo,
-      savedAt:new Date().toISOString()
-    };
-
-    writeObj(INTEGRATION_KEY,sync);
-    writeObj(RO_SYNC_KEY,sync);
-
-    const cfg=readObj(ADMIN_KEY);
-    cfg.apiUrl=apiUrl;
-    cfg.apiKey=apiKey;
-    cfg.autoSync=autoSync;
-    cfg.roSyncPeriod=roSyncPeriod;
-    cfg.roSyncDateFrom=roSyncDateFrom;
-    cfg.roSyncDateTo=roSyncDateTo;
-    cfg.__savedAt=new Date().toLocaleString('pt-BR');
-    writeObj(ADMIN_KEY,cfg);
-
-    const input=document.getElementById('apiUrl');
-    if(input)input.value=apiUrl;
-
-    if(!silent)alert('Integração salva. A nova API já está ativa neste navegador.');
-    return sync;
+    saveLocalDeviceSettings(next);
+    if(!silent)alert('Preferências deste dispositivo salvas. A URL da API continua sendo global.');
+    return {...next,apiUrl:window.portalApiBase()};
   };
 
   window.saveIntegrationSettingsConfirmed=async function(){
@@ -210,34 +232,66 @@
     const input=document.getElementById('apiUrl');
     const candidate=validApiUrl(input?.value||'');
     const st=document.getElementById('configSavedState');
-
     if(!candidate){
       alert('Informe uma URL válida do Web App / API terminando em /exec.');
       return false;
     }
 
     try{
-      await window.nucleoEnsureApiConfigured(candidate);
-      const saved=window.saveIntegrationSettings(true,candidate);
-      if(!saved)return false;
+      await probeApi(candidate);
+      const currentBase=await resolveGlobalApiUrl(true);
+      if(typeof originalPortalJsonp!=='function')throw new Error('Conexão central indisponível.');
 
+      // Busca a configuração CENTRAL atual. localStorage não participa da decisão.
+      const loaded=await originalPortalJsonp({acao:'portal_load'},60000,currentBase);
+      if(!loaded?.sucesso)throw new Error(loaded?.erro||'Não foi possível ler a configuração central atual.');
+      const centralConfig={...(loaded?.dados?.config||{})};
+
+      const device=window.saveIntegrationSettings(true)||{};
+      const nextConfig={
+        ...centralConfig,
+        apiUrl:candidate,
+        apiKey:device.apiKey||centralConfig.apiKey||'',
+        autoSync:device.autoSync??centralConfig.autoSync??'0',
+        roSyncPeriod:device.roSyncPeriod||centralConfig.roSyncPeriod||'all',
+        roSyncDateFrom:device.roSyncDateFrom||centralConfig.roSyncDateFrom||'',
+        roSyncDateTo:'',
+        __savedAt:new Date().toISOString()
+      };
+
+      // Salva no backend global ATUAL. Assim a cadeia bootstrap -> atual -> nova
+      // é comum a todos os dispositivos e não depende de estado local.
+      const saved=await originalPortalJsonp({
+        acao:'portal_save_config',
+        dados:JSON.stringify(nextConfig),
+        ator:(typeof getSession==='function'?getSession()?.name:'')||'SGQ'
+      },60000,currentBase);
+      if(!saved?.sucesso)throw new Error(saved?.erro||'A base central não confirmou a URL global.');
+
+      globalApiUrl=candidate;
+      try{window.nucleoConfirmedApiUrl=candidate;}catch(_){}
+      purgeLocalApiUrl();
+      if(input)input.value=candidate;
       if(st){
         st.classList.remove('hidden');
-        st.textContent='API confirmada e integração salva.';
+        st.textContent='URL global salva na base central. Todos os dispositivos usarão a mesma API.';
       }
 
-      alert('API confirmada e salva. A nova URL já está ativa.');
+      alert(
+        currentBase===candidate
+          ? 'URL global confirmada na base central.'
+          : 'URL global alterada na base central. Todos os Núcleos passarão a resolver esta mesma URL ao carregar.'
+      );
       return true;
     }catch(e){
       if(st){
         st.classList.remove('hidden');
-        st.textContent='Não foi possível confirmar a API informada.';
+        st.textContent='Não foi possível salvar a URL global.';
       }
-      alert('Não foi possível confirmar a API: '+(e?.message||e));
+      alert('Não foi possível salvar a URL global: '+(e?.message||e));
       return false;
     }
   };
-
 
   window.testConnection=async function(){
     if(typeof window.requireIntegrationUnlock==='function'&&!window.requireIntegrationUnlock())return;
@@ -245,40 +299,21 @@
       alert('Configuração indisponível.');
       return;
     }
-
     const input=document.getElementById('apiUrl');
     const result=document.getElementById('testResult');
     const candidate=validApiUrl(input?.value||'');
-
-    if(result){
-      result.className='statusline';
-      result.classList.remove('hidden');
-    }
-
-    if(!candidate){
-      if(result)result.textContent='Informe uma URL /exec válida do Apps Script.';
-      return;
-    }
-
-    if(result)result.textContent='Testando exatamente a URL digitada...';
-
+    if(result){result.className='statusline';result.classList.remove('hidden');}
+    if(!candidate){if(result)result.textContent='Informe uma URL /exec válida do Apps Script.';return;}
+    if(result)result.textContent='Testando a URL global informada...';
     try{
-      const checked=await probeApi(candidate);
+      await probeApi(candidate);
       if(result){
         result.className='statusline okline';
-        result.classList.remove('hidden');
-        result.textContent=
-          checked.probe==='portal_public_config'
-            ? 'API conectada e confirmada pelo teste curto.'
-            : 'API conectada. O /exec respondeu corretamente ao Núcleo.';
+        result.textContent='API confirmada. Ao salvar, esta URL será gravada na configuração central para todos os Núcleos.';
       }
       return true;
-    }catch(err){
-      if(result){
-        result.className='statusline';
-        result.classList.remove('hidden');
-        result.textContent='Falha ao testar esta URL: '+(err?.message||err);
-      }
+    }catch(e){
+      if(result){result.className='statusline';result.textContent='Falha ao testar a URL: '+(e?.message||e);}
       return false;
     }
   };
@@ -286,31 +321,30 @@
   function enableApiField(){
     const input=document.getElementById('apiUrl');
     if(!input)return;
-
     input.readOnly=false;
     input.removeAttribute('readonly');
     input.removeAttribute('aria-readonly');
-    input.title='URL do Web App / API usada pelo Núcleo.';
+    input.title='URL GLOBAL do Núcleo. Não depende deste navegador.';
     input.style.background='';
-
-    // Só preenche automaticamente se o usuário não estiver editando.
     if(document.activeElement!==input){
-      const current=storedApiUrl()||fallbackApiUrl();
-      if(current && input.value!==current)input.value=current;
+      const current=window.portalApiBase();
+      if(current&&input.value!==current)input.value=current;
     }
-
     const parent=input.parentElement;
     const oldNote=parent?.querySelector('[data-nucleo-api-lock-note]');
     if(oldNote)oldNote.remove();
   }
 
-  enableApiField();
-
-  // A tela pode ser recriada dinamicamente; apenas garante que o campo continue editável.
   const observer=new MutationObserver(enableApiField);
   observer.observe(document.documentElement,{childList:true,subtree:true});
+  enableApiField();
 
-  console.info('[NÚCLEO] API editável pela Administração ativa.');
+  window.nucleoGlobalApiReady=resolveGlobalApiUrl(true)
+    .then(url=>{enableApiField();return url;})
+    .catch(e=>{console.error('[NÚCLEO] Falha ao resolver API global.',e);return bootstrapApiUrl();});
+
+  window.addEventListener('load',()=>{resolveGlobalApiUrl(true).then(enableApiField).catch(()=>{});},{once:true});
+  console.info('[NÚCLEO] API GLOBAL CANÔNICA V39 ativa — localStorage não escolhe API.');
 })();
 
 /* NÚCLEO | Diretório compartilhado Matriz/Filial V31
@@ -606,149 +640,4 @@
   }
 
   console.info('[NÚCLEO] Preservação de réplica da Filial V35 ativa.');
-})();
-/* NÚCLEO | Diagnóstico visível usuários Filial V37
-   Não altera dados. Mede:
-   1) portal_load real do /exec publicado
-   2) USERS_KEY/localStorage
-   3) getOperationalUsers()
-   4) linhas renderizadas na tela
-*/
-(function(){
-  'use strict';
-  if(window.__nucleoFilialUsersDiagV37)return;
-  window.__nucleoFilialUsersDiagV37=true;
-
-  const AMANDA_EMAIL='amanda.marafigo@setaembalagens.com.br';
-
-  function norm(v){ return String(v||'').trim().toLowerCase(); }
-  function findAmanda(list){
-    return (Array.isArray(list)?list:[]).find(u=>norm(u?.email)===AMANDA_EMAIL)||null;
-  }
-  function unit(u){ return String(u?.unit||u?.unidade||''); }
-  function compact(u){
-    if(!u)return null;
-    return {
-      name:u.name||'',
-      email:u.email||'',
-      unit:unit(u),
-      sector:u.sector||u.setor||'',
-      role:u.role||'',
-      sgq:(()=>{try{return typeof nucleoPersonPermissions==='function'?!!nucleoPersonPermissions(u).sgq:null}catch(_){return null}})(),
-      replica:!!u.__unitReplica,
-      replicaUnit:u.__replicaUnit||'',
-      replicaKey:u.__replicaKey||''
-    };
-  }
-  function usersKey(){
-    try{ if(typeof USERS_KEY!=='undefined' && USERS_KEY)return USERS_KEY; }catch(_){}
-    return 'ro-pdca-users-v4';
-  }
-  function readLocal(){
-    try{
-      const x=JSON.parse(localStorage.getItem(usersKey())||'[]');
-      return Array.isArray(x)?x:[];
-    }catch(_){ return []; }
-  }
-  function visibleRows(){
-    const box=document.getElementById('operationalUsersList');
-    return box ? box.querySelectorAll('.admin-user-row').length : 0;
-  }
-  function ensureBox(){
-    const list=document.getElementById('operationalUsersList');
-    if(!list)return null;
-    let box=document.getElementById('nucleoFilialUsersDiagV37');
-    if(box)return box;
-    box=document.createElement('div');
-    box.id='nucleoFilialUsersDiagV37';
-    box.style.cssText='margin:10px 0 14px;padding:12px;border:2px solid #c7d6e8;border-radius:10px;background:#f8fbff;font:12px/1.45 system-ui,sans-serif;white-space:normal';
-    box.innerHTML='<div style="display:flex;align-items:center;justify-content:space-between;gap:10px"><b>Diagnóstico usuários Filial V37</b><button type="button" id="nucleoFilialUsersDiagRun" style="padding:6px 10px">Executar diagnóstico</button></div><pre id="nucleoFilialUsersDiagOut" style="white-space:pre-wrap;margin:8px 0 0;max-height:420px;overflow:auto"></pre>';
-    list.before(box);
-    box.querySelector('#nucleoFilialUsersDiagRun').onclick=()=>run();
-    return box;
-  }
-  function line(label,value){
-    return label+': '+(typeof value==='string'?value:JSON.stringify(value,null,2));
-  }
-  async function run(){
-    const box=ensureBox(); if(!box)return;
-    const out=box.querySelector('#nucleoFilialUsersDiagOut');
-    const btn=box.querySelector('#nucleoFilialUsersDiagRun');
-    btn.disabled=true;
-    out.textContent='Executando no navegador real...';
-
-    const session=(()=>{try{return typeof getSession==='function'?(getSession()||{}):{}}catch(_){return {}}})();
-    const localBefore=readLocal();
-    let operationalBefore=[];
-    try{ operationalBefore=typeof getOperationalUsers==='function'?(getOperationalUsers()||[]):[]; }catch(e){ operationalBefore=[]; }
-
-    let portal=null, portalError='';
-    try{
-      if(typeof portalJsonp!=='function')throw new Error('portalJsonp não disponível');
-      portal=await portalJsonp({acao:'portal_load'},180000);
-    }catch(e){
-      portalError=e?.message||String(e);
-    }
-
-    const portalUsers=Array.isArray(portal?.dados?.users)?portal.dados.users:[];
-    const portalContacts=Array.isArray(portal?.dados?.unitContacts)?portal.dados.unitContacts:[];
-
-    const localAfter=readLocal();
-    let operationalAfter=[];
-    try{ operationalAfter=typeof getOperationalUsers==='function'?(getOperationalUsers()||[]):[]; }catch(e){ operationalAfter=[]; }
-
-    const report=[
-      line('Sessão', {name:session.name,email:session.email,role:session.role,unit:session.unit,sector:session.sector}),
-      line('API usada', (()=>{try{return typeof portalApiBase==='function'?portalApiBase():'?'}catch(_){return '?'}})()),
-      '',
-      '=== /exec PUBLICADO ===',
-      line('portal_load sucesso', portal?.sucesso ?? null),
-      line('portal_load erro', portalError || portal?.erro || ''),
-      line('dados.users', portalUsers.length),
-      line('Amanda em dados.users', compact(findAmanda(portalUsers))),
-      line('dados.unitContacts', portalContacts.length),
-      line('Amanda em unitContacts', compact(findAmanda(portalContacts))),
-      '',
-      '=== LOCALSTORAGE ===',
-      line('USERS_KEY', usersKey()),
-      line('antes do diagnóstico', localBefore.length),
-      line('Amanda antes', compact(findAmanda(localBefore))),
-      line('depois do portal_load de leitura', localAfter.length),
-      line('Amanda depois', compact(findAmanda(localAfter))),
-      '',
-      '=== FILTRO DO FRONT ===',
-      line('getOperationalUsers antes', operationalBefore.length),
-      line('Amanda getOperationalUsers antes', compact(findAmanda(operationalBefore))),
-      line('getOperationalUsers depois', operationalAfter.length),
-      line('Amanda getOperationalUsers depois', compact(findAmanda(operationalAfter))),
-      line('linhas renderizadas agora', visibleRows()),
-      '',
-      'INTERPRETAÇÃO:',
-      portalUsers.length===0
-        ? 'O /exec publicado não devolveu usuários ou falhou.'
-        : (!findAmanda(portalUsers)
-            ? 'Amanda NÃO veio do /exec publicado. Problema na implantação/backend publicado.'
-            : (!findAmanda(localBefore)
-                ? 'Amanda veio do /exec, mas NÃO estava no USERS_KEY. Problema ao aplicar snapshot.'
-                : (!findAmanda(operationalBefore)
-                    ? 'Amanda está no USERS_KEY, mas getOperationalUsers() está descartando.'
-                    : 'Amanda passa pelo getOperationalUsers(); o problema está na renderização/filtros visuais.')))
-    ].join('\n');
-
-    out.textContent=report;
-    console.log('[NÚCLEO V37 DIAG]\n'+report);
-    btn.disabled=false;
-  }
-
-  function mount(){
-    const box=ensureBox();
-    if(!box)return false;
-    setTimeout(run,300);
-    return true;
-  }
-
-  if(!mount()){
-    let tries=0;
-    const t=setInterval(()=>{ if(mount()||++tries>80)clearInterval(t); },250);
-  }
 })();
