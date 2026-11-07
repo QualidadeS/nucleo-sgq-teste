@@ -3939,9 +3939,19 @@ function clearOperationalUsersFilters(){
   ['operationalUserSearch','operationalUserSector','operationalUserUnit','operationalUserStatus'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   filterOperationalUsers();
 }
+function operationalUserAccessUnits(user){
+  const units=typeof nucleoPersonUnits==='function'?nucleoPersonUnits(user):[];
+  return [...new Set((Array.isArray(units)?units:[]).map(normalizePortalUnit).filter(u=>u==='matriz'||u==='filial'))];
+}
+function operationalUserUnitsLabel(user){
+  const units=operationalUserAccessUnits(user);
+  if(units.includes('matriz')&&units.includes('filial'))return 'Matriz e Filial';
+  if(units.includes('filial'))return portalUnitDisplay('filial');
+  return portalUnitDisplay('matriz');
+}
 function renderOperationalUsers(){
   const box=document.getElementById('operationalUsersList'); if(!box)return;
-  const allUsers=getOperationalUsers().filter(u=>getSession()?.role!=='quality'||explicitPortalUnit(u.unit)==='filial');
+  const allUsers=getOperationalUsers().filter(u=>getSession()?.role!=='quality'||operationalUserAccessUnits(u).includes('filial'));
   let controls=document.getElementById('operationalUsersFilters');
   if(!controls){
     controls=document.createElement('div');controls.id='operationalUsersFilters';
@@ -3956,7 +3966,7 @@ function renderOperationalUsers(){
     el.value=selected;
   }
   options('operationalUserSector',allUsers.flatMap(u=>[u.sector,...(u.managedSectors||[])]),'Todos os setores');
-  options('operationalUserUnit',allUsers.map(u=>portalUnitDisplay(u.unit)),'Todas as unidades');
+  options('operationalUserUnit',allUsers.flatMap(u=>operationalUserAccessUnits(u).map(portalUnitDisplay)),'Todas as unidades');
   const query=normalizePersonName(document.getElementById('operationalUserSearch').value);
   const sector=document.getElementById('operationalUserSector').value;
   const unit=getSession()?.role==='quality'?'SETA ES - Filial':document.getElementById('operationalUserUnit').value;
@@ -3965,7 +3975,7 @@ function renderOperationalUsers(){
     const state=u.approvalStatus||'approved';
     return (!query||normalizePersonName([u.name,u.description,u.email,...(u.aliases||[])].join(' ')).includes(query))&&
       (!sector||u.sector===sector||(u.managedSectors||[]).includes(sector))&&
-      (!unit||explicitPortalUnit(u.unit)===explicitPortalUnit(unit))&&
+      (!unit||operationalUserAccessUnits(u).includes(explicitPortalUnit(unit)))&&
       (!status||(status==='inactive'?['inactive','disabled'].includes(state):state===status));
   }).sort((a,b)=>Number(b.approvalStatus==='pending')-Number(a.approvalStatus==='pending')||String(a.name||'').localeCompare(String(b.name||''),'pt-BR'));
   const users=filtered.slice(0,operationalUsersLimit);
@@ -3986,7 +3996,7 @@ function renderOperationalUsers(){
             <div class="admin-avatar">${escapeHtml((u.name||'?').charAt(0).toUpperCase())}</div>
             <div>
               <div class="admin-email">${escapeHtml(personDisplayName(u)||u.email||'Usuário')}</div>
-              <div class="small">${escapeHtml(u.email||'')} · ${escapeHtml(portalUnitDisplay(u.unit))} · ${escapeHtml(u.sector||'—')}</div>
+              <div class="small">${escapeHtml(u.email||'')} · ${escapeHtml(operationalUserUnitsLabel(u))} · ${escapeHtml(u.sector||'—')}</div>
               <div class="small" style="margin-top:3px">Senha: ${String(u.password||'').trim()?'cadastrada':'não definida'}</div>
               <span class="role-tag">Aguardando aprovação</span>
             </div>
@@ -4006,7 +4016,7 @@ function renderOperationalUsers(){
         <div class="admin-avatar">${escapeHtml((u.name||u.email||'?').charAt(0).toUpperCase())}</div>
         <div>
           <div class="admin-email">${escapeHtml(personDisplayName(u)||u.email||'Usuário')}</div>
-          <div class="small">${escapeHtml(u.email||'')} · ${escapeHtml(portalUnitDisplay(u.unit))} · ${escapeHtml(u.sector||'Todos os setores')}</div>
+          <div class="small">${escapeHtml(u.email||'')} · ${escapeHtml(operationalUserUnitsLabel(u))} · ${escapeHtml(u.sector||'Todos os setores')}</div>
           <div class="small" style="margin-top:3px">Senha: ${String(u.password||'').trim()?'cadastrada':'não definida'}</div>
           <span class="role-tag">${u.permissions?'Acesso personalizado':u.role==='admin'?'SGQ':u.role==='quality'?'Qualidade — Filial':u.role==='manager'?'Gestor':'Usuário operacional'}</span>
           ${u.role==='manager'||(u.managedSectors||[]).length?`<div class="small" style="margin-top:4px"><b>Gerencia:</b> ${escapeHtml((u.managedSectors||[]).join(', ')||'Nenhum setor')}</div>`:''}
