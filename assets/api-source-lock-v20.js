@@ -377,7 +377,7 @@
   if(window.__nucleoAccessUnitsTriageV31)return;
   window.__nucleoAccessUnitsTriageV31=true;
 
-  const CACHE_KEY='nucleo-shared-directory-v31';
+  const CACHE_KEY='nucleo-shared-directory-v43-disabled';
   const originalUsersBySector=window.usersBySector;
   const originalGetConfiguredSectors=window.getConfiguredSectors;
   const originalOpenTriageRecord=window.openTriageRecord;
@@ -438,16 +438,14 @@
     return email==='leonardo@setaembalagens.com.br' ||
       personId==='69d13e9d-bc82-476c-8e33-10404aa21582';
   }
-  function readCache(){
-    try{return JSON.parse(localStorage.getItem(CACHE_KEY)||'null')||null}catch(_){return null}
-  }
-  function writeCache(x){try{localStorage.setItem(CACHE_KEY,JSON.stringify(x||{}))}catch(_){} }
+  // V43: diretório compartilhado é informação global. Nunca usa localStorage
+  // como fonte para setores/pessoas compartilhados. Apenas memória da sessão.
+  function readCache(){ return null; }
+  function writeCache(x){ /* sem persistência local por regra global do Núcleo */ }
   function directory(unit){
     unit=normUnit(unit)||currentUnit();
     const live=window.__nucleoSharedDirectoryV31;
     if(live&&live.unit===unit)return live;
-    const cached=readCache();
-    if(cached&&cached.unit===unit)return cached;
     return {unit,users:[],sectors:[]};
   }
   function buildDirectory(allUsers,unit){
@@ -520,6 +518,11 @@
   window.getConfiguredSectors=getConfiguredSectorsV31;
   window.nucleoLoadSharedDirectoryV31=loadDirectory;
 
+  try{
+    localStorage.removeItem('nucleo-shared-directory-v31');
+    localStorage.removeItem('nucleo-shared-directory-v42');
+  }catch(_){}
+
   if(typeof originalOpenTriageRecord==='function'){
     window.openTriageRecord=function(){
       const result=originalOpenTriageRecord.apply(this,arguments);
@@ -535,9 +538,9 @@
     };
   }
   document.addEventListener('change',ev=>{if(ev.target&&ev.target.id==='triageRoUnit')loadDirectory(true)},true);
-  setTimeout(()=>loadDirectory(false),300);
-  window.addEventListener('load',()=>setTimeout(()=>loadDirectory(false),0),{once:true});
-  console.info('[NÚCLEO] Matriz/Filial V31 via portal_pending_users ativo.');
+  setTimeout(()=>loadDirectory(true),300);
+  window.addEventListener('load',()=>setTimeout(()=>loadDirectory(true),0),{once:true});
+  console.info('[NÚCLEO] Matriz/Filial V43 central, sem cache local de setores compartilhados.');
 })();
 
 /* NÚCLEO | PRESERVA RÉPLICA FILIAL NO MERGE DE USUÁRIOS V35
