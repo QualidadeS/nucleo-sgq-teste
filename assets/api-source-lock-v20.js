@@ -431,6 +431,13 @@
     });
     return out;
   }
+
+  function ignoreSectorReplicationUserV42(u){
+    const email=String(u?.email||'').trim().toLowerCase();
+    const personId=String(u?.personId||'').trim().toLowerCase();
+    return email==='leonardo@setaembalagens.com.br' ||
+      personId==='69d13e9d-bc82-476c-8e33-10404aa21582';
+  }
   function readCache(){
     try{return JSON.parse(localStorage.getItem(CACHE_KEY)||'null')||null}catch(_){return null}
   }
@@ -447,7 +454,12 @@
     const users=(Array.isArray(allUsers)?allUsers:[]).filter(approved).filter(u=>userUnits(u).includes(unit)||sectorsForUser(u,unit).length);
     const sectors=[];
     const add=v=>{v=String(v||'').trim();if(v&&!sectors.some(x=>norm(x)===norm(v)))sectors.push(v)};
-    users.forEach(u=>sectorsForUser(u,unit).forEach(add));
+    users.forEach(u=>{
+      // V42: Leonardo continua no diretório e mantém todos os acessos,
+      // mas seu cadastro global de gestão não pode publicar setores da Matriz na Filial.
+      if(ignoreSectorReplicationUserV42(u))return;
+      sectorsForUser(u,unit).forEach(add);
+    });
     return {unit,users,sectors:sectors.sort((a,b)=>a.localeCompare(b,'pt-BR')),loadedAt:new Date().toISOString()};
   }
   function usersBySectorV31(sector){
