@@ -472,3 +472,138 @@
   window.addEventListener('load',()=>setTimeout(()=>loadDirectory(false),0),{once:true});
   console.info('[NÚCLEO] Matriz/Filial V31 via portal_pending_users ativo.');
 })();
+
+/* NÚCLEO | PRESERVA RÉPLICA FILIAL NO MERGE DE USUÁRIOS V35
+   Evita que portal_pending_users sobrescreva uma réplica operacional da Filial
+   com o cadastro físico principal da Matriz pelo mesmo e-mail/personId.
+*/
+(function(){
+  'use strict';
+  if(window.__nucleoPreserveFilialReplicaV35)return;
+  window.__nucleoPreserveFilialReplicaV35=true;
+
+  function normUnit(v){
+    try{
+      if(typeof explicitPortalUnit==='function'){
+        const n=explicitPortalUnit(v);
+        if(n)return n;
+      }
+      if(typeof normalizePortalUnit==='function'){
+        const n=normalizePortalUnit(v);
+        if(n)return n;
+      }
+    }catch(_){}
+    const x=String(v||'').toLowerCase();
+    if(/filial|linhares|seta es/.test(x))return 'filial';
+    if(/matriz|sao bento|são bento|seta sc/.test(x))return 'matriz';
+    return '';
+  }
+
+  function keyOf(u){
+    return String(u?.personId||u?.email||u?.name||'').trim().toLowerCase();
+  }
+
+  function isFilialReplica(u){
+    return !!u && (
+      u.__unitReplica===true ||
+      String(u.__replicaUnit||'').toLowerCase()==='filial' ||
+      (String(u.__replicaKey||'').toLowerCase().endsWith('@filial') && normUnit(u.unit||u.unidade)==='filial')
+    );
+  }
+
+  function mergeKeepingReplica(existing,remote){
+    if(!existing)return {...remote};
+    if(!remote)return {...existing};
+
+    const qualityFilial=(function(){
+      try{
+        const s=typeof getSession==='function'?(getSession()||{}):{};
+        return String(s.role||'').toLowerCase()==='quality' && normUnit(s.unit||'filial')==='filial';
+      }catch(_){return false}
+    })();
+
+    if(qualityFilial && isFilialReplica(existing) && normUnit(existing.unit||existing.unidade)==='filial'){
+      return {
+        ...existing,
+        ...remote,
+        personId: existing.personId || remote.personId || '',
+        name: existing.name || remote.name || '',
+        email: existing.email || remote.email || '',
+        unit: existing.unit,
+        unidade: existing.unidade || existing.unit,
+        sector: existing.sector,
+        role: existing.role,
+        managedSectors: Array.isArray(existing.managedSectors)?existing.managedSectors:(remote.managedSectors||[]),
+        accessUnits: Array.isArray(existing.accessUnits)?existing.accessUnits:(remote.accessUnits||[]),
+        sectorMemberships: Array.isArray(existing.sectorMemberships)?existing.sectorMemberships:(remote.sectorMemberships||[]),
+        __unitReplica: true,
+        __sourceUnit: existing.__sourceUnit || remote.unit || remote.unidade || '',
+        __replicaUnit: 'filial',
+        __replicaKey: existing.__replicaKey || ((existing.personId||existing.email||existing.name||'')+'@filial')
+      };
+    }
+
+    return {...existing,...remote};
+  }
+
+  window.nucleoMergeUserKeepingFilialReplicaV35=mergeKeepingReplica;
+
+  if(typeof window.refreshPendingRegistrations==='function'){
+    window.refreshPendingRegistrations=async function(showMessage=false){
+      if(typeof isAdmin==='function' && !isAdmin())return false;
+      const status=document.getElementById('pendingRegistrationStatus');
+      if(status)status.textContent='Buscando cadastros...';
+
+      if(typeof portalBackendEnabled==='function' && !portalBackendEnabled()){
+        if(typeof renderOperationalUsers==='function')renderOperationalUsers();
+        if(status)status.textContent='Base central não configurada.';
+        if(showMessage)alert('Configure a URL do Apps Script para receber cadastros feitos em outros navegadores.');
+        return false;
+      }
+
+      try{
+        const res=await portalJsonp({acao:'portal_pending_users'});
+        if(res?.sucesso===false)throw new Error(res.erro||'Falha ao carregar cadastros.');
+
+        const remoteRaw=Array.isArray(res.users)?res.users:[];
+        const remote=typeof nucleoApplyUserLoginStatusGuards==='function'
+          ? nucleoApplyUserLoginStatusGuards(remoteRaw)
+          : remoteRaw;
+
+        let local=[];
+        try{
+          const parsed=JSON.parse(localStorage.getItem(typeof USERS_KEY!=='undefined'?USERS_KEY:'ro-pdca-users-v4')||'[]');
+          if(Array.isArray(parsed))local=parsed;
+        }catch(_){}
+
+        const map=new Map();
+        local.forEach(u=>{const k=keyOf(u);if(k)map.set(k,u)});
+        remote.forEach(u=>{
+          const k=keyOf(u);if(!k)return;
+          map.set(k,mergeKeepingReplica(map.get(k),u));
+        });
+
+        const merged=[...map.values()];
+        localStorage.setItem(typeof USERS_KEY!=='undefined'?USERS_KEY:'ro-pdca-users-v4',JSON.stringify(merged));
+        if(typeof renderOperationalUsers==='function')renderOperationalUsers();
+
+        const pending=merged.filter(u=>{
+          try{return !(typeof nucleoPersonPermissions==='function'&&nucleoPersonPermissions(u).sgq)&&u.approvalStatus==='pending'}catch(_){return u.approvalStatus==='pending'}
+        }).length;
+        if(status)status.textContent=pending?pending+' cadastro(s) aguardando aprovação.':'Nenhum cadastro pendente.';
+        try{refreshNotificationBell()}catch(_){}
+        try{refreshMenuNotificationBadges()}catch(_){}
+        try{renderPendingHubNotifications()}catch(_){}
+        if(showMessage&&!pending)alert('Nenhum cadastro pendente foi encontrado na base central.');
+        return true;
+      }catch(e){
+        try{renderOperationalUsers()}catch(_){}
+        if(status)status.textContent='Erro ao buscar pendências.';
+        if(showMessage)alert('Não foi possível buscar cadastros pendentes: '+(e.message||e));
+        return false;
+      }
+    };
+  }
+
+  console.info('[NÚCLEO] Preservação de réplica da Filial V35 ativa.');
+})();
