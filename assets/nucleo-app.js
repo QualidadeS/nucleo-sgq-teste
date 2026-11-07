@@ -2808,7 +2808,24 @@ function getConfiguredSectors(unit){
   let sectors=normalizeSectorList(own?.sectorList??(unit==='filial'?'':cfg.sectorList));
   if(unit==='todas'){const configs=JSON.parse(localStorage.getItem('nucleo-unit-configs')||'[]');sectors=[...new Set(sectors.concat(configs.flatMap(c=>normalizeSectorList(c.sectorList))))];}
 
-  // Setores unificados são um único cadastro compartilhado entre Matriz e Filial.
+  // Fonte real dos setores compartilhados: usuários cujo cadastro possui acesso
+  // simultâneo à Matriz e Filial. O mesmo setor passa a aparecer nas duas unidades.
+  try{
+    const shared=[];
+    const users=typeof activeOperationalUsers==='function'?activeOperationalUsers():getOperationalUsers();
+    (users||[]).forEach(u=>{
+      const units=nucleoPersonUnits(u).map(normalizePortalUnit);
+      if(!units.includes('matriz')||!units.includes('filial'))return;
+      [u?.sector,...(u?.managedSectors||[]),...(u?.sectorMemberships||[]).map(m=>m?.sector)]
+        .filter(Boolean).forEach(sec=>shared.push(String(sec).trim()));
+    });
+    if(['matriz','filial','todas'].includes(unit)){
+      const seen=new Set(sectors.map(sec=>normalizeAnswer(sec)));
+      shared.forEach(sec=>{const k=normalizeAnswer(sec);if(k&&!seen.has(k)){seen.add(k);sectors.push(sec);}});
+    }
+  }catch(e){}
+
+  // Compatibilidade com a lista global antiga de setores unificados.
   // Eles devem aparecer nos seletores das duas unidades sem duplicar o cadastro.
   const unified=normalizeSectorList(Array.isArray(cfg.unifiedSectors)?cfg.unifiedSectors:[]);
   if(['matriz','filial','todas'].includes(unit)){
@@ -16845,20 +16862,27 @@ function userHasUnitSector(user,unit,sector){
   const key=normalizeAnswer(sector||'');
   if(!key)return false;
   const sectorMatch=[user?.sector,...(user?.managedSectors||[]),(user?.sectorMemberships||[]).map(m=>m?.sector)].flat().some(s=>normalizeAnswer(s||'')===key);
-  if(unit==='todas')return sectorMatch;
+  if(!sectorMatch)return false;
+  if(unit==='todas')return true;
+
+  const target=normalizePortalUnit(unit);
 
   // Vínculo explícito da pessoa continua tendo prioridade.
   if((user?.sectorMemberships||[]).some(m=>{
     const memberUnit=normalizePortalUnit(m?.unit);
-    return (memberUnit===unit||memberUnit==='todas')&&normalizeAnswer(m?.sector)===key;
+    return (memberUnit===target||memberUnit==='todas')&&normalizeAnswer(m?.sector)===key;
   }))return true;
 
-  // Setor unificado: o mesmo cadastro de pessoa/setor vale para Matriz e Filial.
-  if(isUnifiedSector(sector)&&sectorMatch)return true;
+  // Regra principal: se o cadastro da pessoa foi autorizado para a unidade,
+  // o mesmo setor dela pode ser usado nessa unidade sem duplicar a pessoa.
+  const access=nucleoPersonUnits(user).map(normalizePortalUnit);
+  if(access.includes(target))return true;
+
+  // Compatibilidade com a lista global antiga.
+  if(isUnifiedSector(sector))return true;
 
   const userUnit=normalizePortalUnit(user?.unit);
-  if(userUnit==='todas'&&sectorMatch)return true;
-  return userUnit===unit&&sectorMatch;
+  return userUnit==='todas'||userUnit===target;
 }
 
 function explicitPortalUnit(value){
