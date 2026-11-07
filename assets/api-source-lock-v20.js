@@ -1,4 +1,4 @@
-/* NÚCLEO | API GLOBAL CANÔNICA V39
+/* NÚCLEO | API GLOBAL CANÔNICA V40
    REGRA FIXA:
    - A URL da API é global para todo o Núcleo.
    - localStorage NUNCA escolhe a URL da API.
@@ -65,7 +65,7 @@
       const base=validApiUrl(url);
       if(!base){reject(new Error('URL inválida.'));return;}
 
-      const cb='nucleoGlobalApiV39_'+Date.now()+'_'+Math.floor(Math.random()*100000);
+      const cb='nucleoGlobalApiV40_'+Date.now()+'_'+Math.floor(Math.random()*100000);
       const script=document.createElement('script');
       let done=false;
       let timer=null;
@@ -277,11 +277,23 @@
         st.textContent='URL global salva na base central. Todos os dispositivos usarão a mesma API.';
       }
 
-      alert(
-        currentBase===candidate
-          ? 'URL global confirmada na base central.'
-          : 'URL global alterada na base central. Todos os Núcleos passarão a resolver esta mesma URL ao carregar.'
-      );
+      if(currentBase!==candidate){
+        alert('URL global alterada na base central. O Núcleo será recarregado para entrar usando a nova API.');
+
+        // A sessão/token atual pertence à API anterior. Não reutiliza esse token na API nova.
+        try{
+          if(typeof SESSION_KEY!=='undefined'){
+            localStorage.removeItem(SESSION_KEY);
+            sessionStorage.removeItem(SESSION_KEY);
+          }
+        }catch(_){}
+        try{if(typeof nucleoSessionMemory!=='undefined')nucleoSessionMemory=null;}catch(_){}
+        try{if(typeof nucleoSessionLastRaw!=='undefined')nucleoSessionLastRaw=undefined;}catch(_){}
+        setTimeout(()=>location.reload(),50);
+        return true;
+      }
+
+      alert('URL global confirmada na base central.');
       return true;
     }catch(e){
       if(st){
@@ -318,6 +330,10 @@
     }
   };
 
+  // Cada instância do campo recebe a URL global somente UMA vez e apenas se estiver vazia.
+  // Depois disso, o que o SGQ digitar é preservado até testar/salvar/cancelar a própria edição.
+  // Nenhum observer, refresh ou resolução assíncrona pode reescrever o valor digitado.
+  const initializedApiInputs=new WeakSet();
   function enableApiField(){
     const input=document.getElementById('apiUrl');
     if(!input)return;
@@ -326,10 +342,15 @@
     input.removeAttribute('aria-readonly');
     input.title='URL GLOBAL do Núcleo. Não depende deste navegador.';
     input.style.background='';
-    if(document.activeElement!==input){
-      const current=window.portalApiBase();
-      if(current&&input.value!==current)input.value=current;
+
+    if(!initializedApiInputs.has(input)){
+      initializedApiInputs.add(input);
+      if(!String(input.value||'').trim()){
+        const current=window.portalApiBase();
+        if(current)input.value=current;
+      }
     }
+
     const parent=input.parentElement;
     const oldNote=parent?.querySelector('[data-nucleo-api-lock-note]');
     if(oldNote)oldNote.remove();
@@ -344,7 +365,7 @@
     .catch(e=>{console.error('[NÚCLEO] Falha ao resolver API global.',e);return bootstrapApiUrl();});
 
   window.addEventListener('load',()=>{resolveGlobalApiUrl(true).then(enableApiField).catch(()=>{});},{once:true});
-  console.info('[NÚCLEO] API GLOBAL CANÔNICA V39 ativa — localStorage não escolhe API.');
+  console.info('[NÚCLEO] API GLOBAL CANÔNICA V40 ativa — localStorage não escolhe API e o campo SGQ não é sobrescrito.');
 })();
 
 /* NÚCLEO | Diretório compartilhado Matriz/Filial V31
