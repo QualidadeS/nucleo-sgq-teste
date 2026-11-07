@@ -313,13 +313,16 @@
   console.info('[NÚCLEO] API editável pela Administração ativa.');
 })();
 
-/* NÚCLEO | DIRETÓRIO COMPARTILHADO MATRIZ/FILIAL V30 */
+/* NÚCLEO | Diretório compartilhado Matriz/Filial V31
+   Usa portal_pending_users, rota já consolidada, para evitar depender de uma
+   ação nova do Apps Script. A triagem monta setor + pessoa por accessUnits.
+*/
 (function(){
   'use strict';
-  if(window.__nucleoSharedDirectoryV30Installed)return;
-  window.__nucleoSharedDirectoryV30Installed=true;
+  if(window.__nucleoAccessUnitsTriageV31)return;
+  window.__nucleoAccessUnitsTriageV31=true;
 
-  const CACHE_KEY='nucleo-shared-directory-v30';
+  const CACHE_KEY='nucleo-shared-directory-v31';
   const originalUsersBySector=window.usersBySector;
   const originalGetConfiguredSectors=window.getConfiguredSectors;
   const originalOpenTriageRecord=window.openTriageRecord;
@@ -330,21 +333,24 @@
     catch(_){return String(v||'').toLowerCase().trim();}
   }
   function normUnit(v){
-    try{
-      if(typeof normalizePortalUnit==='function'){
-        const n=normalizePortalUnit(v);
-        if(n)return n;
-      }
-    }catch(_){}
+    try{if(typeof normalizePortalUnit==='function'){const n=normalizePortalUnit(v);if(n)return n;}}catch(_){}
     const x=norm(v);
     if(/filial|linhares|seta es/.test(x))return 'filial';
     if(/todas|ambas/.test(x))return 'todas';
     if(/matriz|sao bento|seta sc/.test(x))return 'matriz';
     return '';
   }
+  function userUnits(u){
+    const raw=Array.isArray(u?.accessUnits)?u.accessUnits:[];
+    const out=[];
+    const add=v=>{const n=normUnit(v);if(n==='todas'){if(!out.includes('matriz'))out.push('matriz');if(!out.includes('filial'))out.push('filial');}else if(n&&!out.includes(n))out.push(n)};
+    raw.forEach(add);
+    if(!out.length)add(u?.unit||u?.unidade||'');
+    return out;
+  }
   function currentUnit(){
-    const fromModal=normUnit(document.getElementById('triageRoUnit')?.value||'');
-    if(fromModal&&fromModal!=='todas')return fromModal;
+    const modal=normUnit(document.getElementById('triageRoUnit')?.value||'');
+    if(modal&&modal!=='todas')return modal;
     try{
       const s=typeof getSession==='function'?(getSession()||{}):{};
       if(String(s.role||'').toLowerCase()==='quality')return 'filial';
@@ -353,135 +359,116 @@
     }catch(_){}
     return 'matriz';
   }
+  function approved(u){
+    const st=norm(u?.approvalStatus||'approved');
+    const state=norm(u?.status||'');
+    return !!String(u?.email||'').trim() && u?.active!==false &&
+      !['pending','rejected','inactive','disabled','recusado','inativo'].includes(st) &&
+      !['inactive','inativo'].includes(state);
+  }
+  function sectorsForUser(u,unit){
+    const out=[];
+    const add=v=>{v=String(v||'').trim();if(v&&!out.some(x=>norm(x)===norm(v)))out.push(v)};
+    if(userUnits(u).includes(unit))add(u?.sector||u?.setor||'');
+    (Array.isArray(u?.sectorMemberships)?u.sectorMemberships:[]).forEach(m=>{
+      const mu=normUnit(m?.unit||'');
+      if(mu===unit||mu==='todas')add(m?.sector||'');
+    });
+    return out;
+  }
   function readCache(){
-    try{
-      const x=JSON.parse(localStorage.getItem(CACHE_KEY)||'null');
-      return x&&typeof x==='object'?x:null;
-    }catch(_){return null;}
+    try{return JSON.parse(localStorage.getItem(CACHE_KEY)||'null')||null}catch(_){return null}
   }
-  function writeCache(data){
-    try{localStorage.setItem(CACHE_KEY,JSON.stringify(data||{}));}catch(_){}
-  }
-  function directoryFor(unit){
+  function writeCache(x){try{localStorage.setItem(CACHE_KEY,JSON.stringify(x||{}))}catch(_){} }
+  function directory(unit){
     unit=normUnit(unit)||currentUnit();
-    const live=window.__nucleoSharedDirectoryV30;
+    const live=window.__nucleoSharedDirectoryV31;
     if(live&&live.unit===unit)return live;
     const cached=readCache();
     if(cached&&cached.unit===unit)return cached;
     return {unit,users:[],sectors:[]};
   }
-  function approved(u){
-    const st=norm(u?.approvalStatus||'approved');
-    return !!String(u?.email||'').trim() && !['pending','rejected','inactive','disabled','recusado','inativo'].includes(st) && u?.active!==false;
+  function buildDirectory(allUsers,unit){
+    const users=(Array.isArray(allUsers)?allUsers:[]).filter(approved).filter(u=>userUnits(u).includes(unit)||sectorsForUser(u,unit).length);
+    const sectors=[];
+    const add=v=>{v=String(v||'').trim();if(v&&!sectors.some(x=>norm(x)===norm(v)))sectors.push(v)};
+    users.forEach(u=>sectorsForUser(u,unit).forEach(add));
+    return {unit,users,sectors:sectors.sort((a,b)=>a.localeCompare(b,'pt-BR')),loadedAt:new Date().toISOString()};
   }
-  function userSectors(u,unit){
-    const out=[];
-    const add=v=>{v=String(v||'').trim();if(v&&!out.some(x=>norm(x)===norm(v)))out.push(v)};
-    (Array.isArray(u?.sectors)?u.sectors:[]).forEach(add);
-    if(!out.length)add(u?.sector||u?.setor||'');
-    (Array.isArray(u?.sectorMemberships)?u.sectorMemberships:[]).forEach(m=>{
-      const mu=normUnit(m?.unit||'');
-      if(!mu||mu===unit||mu==='todas')add(m?.sector||'');
-    });
-    return out;
-  }
-  function usersBySectorV30(sector){
-    const unit=currentUnit();
-    const key=norm(sector);
-    const dir=directoryFor(unit);
-    let users=(dir.users||[]).filter(approved).filter(u=>userSectors(u,unit).some(s=>norm(s)===key));
+  function usersBySectorV31(sector){
+    const unit=currentUnit(),key=norm(sector),dir=directory(unit);
+    let users=(dir.users||[]).filter(u=>sectorsForUser(u,unit).some(s=>norm(s)===key));
     if(!users.length&&typeof originalUsersBySector==='function'){
       try{users=originalUsersBySector(sector)||[]}catch(_){}
     }
     const map=new Map();
-    users.forEach(u=>{
-      const k=String(u?.personId||u?.email||u?.name||'').trim().toLowerCase();
-      if(k)map.set(k,u);
-    });
+    users.forEach(u=>{const k=String(u?.personId||u?.email||u?.name||'').trim().toLowerCase();if(k)map.set(k,u)});
     return [...map.values()].sort((a,b)=>String(a?.name||a?.email||'').localeCompare(String(b?.name||b?.email||''),'pt-BR'));
   }
-  function getConfiguredSectorsV30(unit){
+  function getConfiguredSectorsV31(unit){
     const target=normUnit(unit)||currentUnit();
-    let base=[];
-    if(typeof originalGetConfiguredSectors==='function'){
-      try{base=originalGetConfiguredSectors(unit)||[]}catch(_){}
-    }
-    if(!Array.isArray(base))base=[];
-    const dir=directoryFor(target);
     const out=[];
     const add=v=>{v=String(v||'').trim();if(v&&!out.some(x=>norm(x)===norm(v)))out.push(v)};
-    base.forEach(add);
-    (dir.sectors||[]).forEach(add);
+    try{(typeof originalGetConfiguredSectors==='function'?(originalGetConfiguredSectors(unit)||[]):[]).forEach(add)}catch(_){}
+    (directory(target).sectors||[]).forEach(add);
     return out.sort((a,b)=>a.localeCompare(b,'pt-BR'));
   }
-  function refreshTriageUi(unit){
+  function refreshUi(unit){
     try{
       const picker=document.getElementById('triageSectorPicker');
       if(picker){
         const current=picker.value||'';
-        const sectors=getConfiguredSectorsV30(unit);
+        const sectors=getConfiguredSectorsV31(unit);
         picker.innerHTML='<option value="">Selecione um setor...</option>'+sectors.map(sec=>'<option value="'+(typeof escapeHtml==='function'?escapeHtml(sec):sec)+'">'+(typeof escapeHtml==='function'?escapeHtml(sec):sec)+'</option>').join('');
-        if(sectors.some(s=>norm(s)===norm(current)))picker.value=sectors.find(s=>norm(s)===norm(current));
+        const match=sectors.find(s=>norm(s)===norm(current));if(match)picker.value=match;
       }
       if(typeof refreshTriageResponsibleUsers==='function')refreshTriageResponsibleUsers();
       if(typeof populateTriageSectors==='function')populateTriageSectors();
-      if(typeof refreshSectorSelectors==='function')refreshSectorSelectors();
-    }catch(e){console.warn('[NÚCLEO V30] atualização do diretório compartilhado:',e)}
+    }catch(e){console.warn('[NÚCLEO V31] atualizar triagem',e)}
   }
-  let inflight={};
-  async function loadDirectory(unit,force=false){
-    unit=normUnit(unit)||currentUnit();
-    if(!force){
-      const cached=directoryFor(unit);
-      if((cached.users||[]).length){refreshTriageUi(unit);return cached;}
-    }
-    if(inflight[unit])return inflight[unit];
-    inflight[unit]=(async()=>{
+  let inflight=null;
+  async function loadDirectory(force=false){
+    const unit=currentUnit();
+    if(!force){const cached=directory(unit);if((cached.users||[]).length){refreshUi(unit);return cached;}}
+    if(inflight)return inflight;
+    inflight=(async()=>{
       try{
         if(typeof portalJsonp!=='function')throw new Error('Conexão com a base central indisponível.');
-        const res=await portalJsonp({acao:'portal_shared_directory',unit},30000);
-        if(!res?.sucesso)throw new Error(res?.erro||'Diretório compartilhado não retornado.');
-        const data={
-          unit,
-          users:Array.isArray(res.users)?res.users:[],
-          sectors:Array.isArray(res.sectors)?res.sectors:[],
-          loadedAt:new Date().toISOString()
-        };
-        window.__nucleoSharedDirectoryV30=data;
+        const res=await portalJsonp({acao:'portal_pending_users'},30000);
+        if(!res?.sucesso)throw new Error(res?.erro||'Base de usuários não retornada.');
+        const data=buildDirectory(res.users||[],unit);
+        window.__nucleoSharedDirectoryV31=data;
         writeCache(data);
-        refreshTriageUi(unit);
+        refreshUi(unit);
         return data;
       }catch(e){
-        console.warn('[NÚCLEO V30] falha ao carregar diretório compartilhado:',e);
-        return directoryFor(unit);
-      }finally{delete inflight[unit]}
+        console.error('[NÚCLEO V31] falha ao carregar usuários compartilhados',e);
+        return directory(unit);
+      }finally{inflight=null}
     })();
-    return inflight[unit];
+    return inflight;
   }
 
-  window.usersBySector=usersBySectorV30;
-  window.getConfiguredSectors=getConfiguredSectorsV30;
-  window.nucleoLoadSharedDirectoryV30=loadDirectory;
+  window.usersBySector=usersBySectorV31;
+  window.getConfiguredSectors=getConfiguredSectorsV31;
+  window.nucleoLoadSharedDirectoryV31=loadDirectory;
 
   if(typeof originalOpenTriageRecord==='function'){
     window.openTriageRecord=function(){
       const result=originalOpenTriageRecord.apply(this,arguments);
-      setTimeout(()=>loadDirectory(currentUnit(),true),0);
+      setTimeout(()=>loadDirectory(true),0);
       return result;
     };
   }
   if(typeof originalShowTriage==='function'){
     window.showTriage=function(){
       const result=originalShowTriage.apply(this,arguments);
-      setTimeout(()=>loadDirectory(currentUnit(),false),0);
+      setTimeout(()=>loadDirectory(false),0);
       return result;
     };
   }
-  document.addEventListener('change',function(ev){
-    if(ev.target&&ev.target.id==='triageRoUnit')loadDirectory(currentUnit(),true);
-  },true);
-
-  setTimeout(()=>loadDirectory(currentUnit(),false),400);
-  window.addEventListener('load',()=>setTimeout(()=>loadDirectory(currentUnit(),false),0),{once:true});
-  console.info('[NÚCLEO] Diretório compartilhado Matriz/Filial V30 ativo.');
+  document.addEventListener('change',ev=>{if(ev.target&&ev.target.id==='triageRoUnit')loadDirectory(true)},true);
+  setTimeout(()=>loadDirectory(false),300);
+  window.addEventListener('load',()=>setTimeout(()=>loadDirectory(false),0),{once:true});
+  console.info('[NÚCLEO] Matriz/Filial V31 via portal_pending_users ativo.');
 })();
