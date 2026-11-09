@@ -7200,4 +7200,125 @@ img,svg,canvas,video,iframe{max-width:100%}
 })();
 </script>
 
+
+<style id="nucleo-mobile-sidebar-team-fix">
+/* Ajustes solicitados: equipe sem filtros, cards proporcionais e sidebar mobile completa */
+#overviewTeamFilters{
+  display:none!important;
+}
+
+/* Desktop: cartões da equipe não esticam para preencher toda a largura */
+@media (min-width:761px){
+  #overviewTeam .inline-team-grid{
+    display:grid!important;
+    grid-template-columns:repeat(auto-fit,minmax(220px,280px))!important;
+    justify-content:start!important;
+    align-items:stretch!important;
+    gap:12px!important;
+  }
+  #overviewTeam .inline-team-person{
+    width:100%!important;
+    max-width:280px!important;
+    min-height:142px!important;
+    box-sizing:border-box!important;
+  }
+}
+
+@media (max-width:760px){
+  /* Menu aberto: textos e submódulos ficam disponíveis */
+  .sidebar.mobile-open .brand-text-wrap,
+  .sidebar.mobile-open .sidebar-intro,
+  .sidebar.mobile-open .side-item > span:nth-child(2),
+  .sidebar.mobile-open .side-module-head > span:nth-child(2),
+  .sidebar.mobile-open .side-independent-module > span:nth-child(2),
+  .sidebar.mobile-open .side-chevron,
+  .sidebar.mobile-open .side-module-arrow{
+    display:block!important;
+  }
+  .sidebar.mobile-open .side-item,
+  .sidebar.mobile-open .side-module-head,
+  .sidebar.mobile-open .side-independent-module{
+    justify-content:flex-start!important;
+  }
+  .sidebar.mobile-open .side-module-body{
+    display:block!important;
+    padding:2px 0 4px 12px!important;
+  }
+  .sidebar.mobile-open .side-module-arrow{
+    transform:rotate(90deg)!important;
+  }
+
+  /* Botão fechar exclusivo do menu mobile */
+  #nucleoMobileSidebarClose{
+    display:grid!important;
+    place-items:center!important;
+    width:34px!important;
+    height:34px!important;
+    min-width:34px!important;
+    padding:0!important;
+    margin-left:auto!important;
+    border:1px solid #c7e4f1!important;
+    border-radius:9px!important;
+    background:#e5f4fb!important;
+    color:#0b4f8a!important;
+    font-size:20px!important;
+    line-height:1!important;
+    cursor:pointer!important;
+  }
+
+  #overviewTeam .inline-team-grid{
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    justify-content:stretch!important;
+  }
+  #overviewTeam .inline-team-person{
+    max-width:none!important;
+  }
+}
+
+@media (min-width:761px){
+  #nucleoMobileSidebarClose{display:none!important}
+}
+</style>
+<script id="nucleo-mobile-sidebar-team-fix-js">
+(function(){
+  'use strict';
+  if(window.__nucleoMobileSidebarTeamFix)return;
+  window.__nucleoMobileSidebarTeamFix=true;
+
+  function closeMobileSidebar(){
+    document.querySelector('.sidebar')?.classList.remove('mobile-open');
+    document.getElementById('nucleoMobileBackdrop')?.classList.remove('open');
+    document.body.style.overflow='';
+  }
+
+  function ensureCloseButton(){
+    const brand=document.querySelector('.sidebar .brand');
+    if(!brand || document.getElementById('nucleoMobileSidebarClose'))return;
+    const btn=document.createElement('button');
+    btn.id='nucleoMobileSidebarClose';
+    btn.type='button';
+    btn.setAttribute('aria-label','Fechar menu');
+    btn.setAttribute('title','Fechar menu');
+    btn.textContent='×';
+    btn.addEventListener('click',closeMobileSidebar);
+    brand.appendChild(btn);
+  }
+
+  function openAllMobileModules(){
+    if(innerWidth>760)return;
+    document.querySelectorAll('.sidebar .side-module').forEach(m=>m.classList.add('open'));
+  }
+
+  function normalize(){
+    ensureCloseButton();
+    openAllMobileModules();
+  }
+
+  window.nucleoCloseMobileSidebar=closeMobileSidebar;
+  window.addEventListener('resize',normalize);
+  window.addEventListener('load',normalize,{once:true});
+  setTimeout(normalize,0);
+})();
+</script>
+
 </body></html>
