@@ -1359,9 +1359,7 @@
         actionCell='<span class="small">Ainda sem ação informada</span>';
       }else if(!internal){
         actionCell=
-          '<span class="status-badge answered">PDF anexado</span>'+
-          '<div class="small" style="margin-top:4px">Consulta documental · sem controle interno de ação</div>'+
-          '<button class="btn secondary" style="margin-top:6px" type="button" onclick="nucleoOpenSubmittedReturnV47(\''+esc(ro.numero||'')+'\')">Abrir PDF</button>';
+          '<div class="small">Sem controle interno da ação</div>';
       }else{
         const action=state.returnState.action;
         const a=p.answers||{};
@@ -1390,5 +1388,34 @@
   };
 
   console.info('[NÚCLEO] V47 — PDF anexado abre arquivo real; ações só para PDCA interno; motivo de decisão consultável.');
+})();
+
+
+/* NÚCLEO | AJUSTE VISUAL RESPOSTAS V48 */
+(function(){
+  'use strict';
+  if(window.__nucleoSubmittedVisualV48)return;
+  window.__nucleoSubmittedVisualV48=true;
+
+  function renameConsultationHeader(){
+    const body=document.getElementById('mySubmittedRows');
+    const table=body?.closest('table');
+    const cells=table?.querySelectorAll('thead th');
+    if(cells&&cells.length){
+      cells[cells.length-1].textContent='Consulta';
+    }
+  }
+
+  const original=window.renderMySubmittedRos;
+  if(typeof original==='function'){
+    window.renderMySubmittedRos=function(){
+      const result=original.apply(this,arguments);
+      renameConsultationHeader();
+      return result;
+    };
+  }
+
+  document.addEventListener('DOMContentLoaded',()=>setTimeout(renameConsultationHeader,0));
+  console.info('[NÚCLEO] V48 — ação de PDF sem selo/botão e última coluna renomeada para Consulta.');
 })();
 
