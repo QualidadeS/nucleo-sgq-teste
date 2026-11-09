@@ -161,14 +161,49 @@
 
   const originalPortalJsonp=window.portalJsonp;
   let portalLoadInFlight=null;
+  let authenticatedApiBase='';
+
+  function currentSessionToken(){
+    try{return String(typeof getSession==='function'?(getSession()?.authToken||''):'').trim()}catch(_){return ''}
+  }
 
   if(typeof originalPortalJsonp==='function'){
     window.portalJsonp=function(params,timeoutMs=60000,baseOverride=''){
-      const action=String(params&&params.acao||'').trim();
+      const action=String(params&&params.acao||'').trim().toLowerCase();
 
-      const run=()=>{
+      const run=async()=>{
         if(baseOverride)return originalPortalJsonp.call(this,params,timeoutMs,baseOverride);
-        return resolveGlobalApiUrl(false).then(base=>originalPortalJsonp.call(this,params,timeoutMs,base));
+
+        // Depois que existe sessão, todas as chamadas autenticadas permanecem
+        // na MESMA implantação que validou o token. A URL global só volta a
+        // decidir a origem quando não há sessão.
+        let base=authenticatedApiBase;
+        if(!base){
+          base=await resolveGlobalApiUrl(false);
+        }
+
+        const result=await originalPortalJsonp.call(this,params,timeoutMs,base);
+
+        // Login bem-sucedido fixa a implantação usada por esta sessão.
+        if(
+          ['portal_login','portal_login_jsonp'].includes(action) &&
+          result?.sucesso!==false &&
+          (result?.authToken||result?.token)
+        ){
+          authenticatedApiBase=base;
+        }
+
+        // Se já existe token restaurado de sessão, fixa a API na primeira
+        // chamada autenticada bem-sucedida.
+        if(
+          currentSessionToken() &&
+          action!=='portal_public_config' &&
+          result?.sucesso!==false
+        ){
+          authenticatedApiBase=base;
+        }
+
+        return result;
       };
 
       // portal_load é a maior resposta do Núcleo. Se duas rotinas pedirem a
@@ -434,7 +469,7 @@
     },50);
   })();
 
-  console.info('[NÚCLEO] API GLOBAL CANÔNICA V57 ativa — URL global + proteção contra portal_load concorrente.');
+  console.info('[NÚCLEO] API GLOBAL CANÔNICA V58 ativa — sessão fixada na mesma API + portal_load protegido.');
 })();
 
 /* NÚCLEO | Diretório compartilhado Matriz/Filial V31
