@@ -3006,10 +3006,12 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
     </div>
   </div>
 </div>
-<aside class="sidebar">
+<div id="nucleoMobileMenuBackdrop" class="nucleo-mobile-menu-backdrop" aria-hidden="true"></div>
+<aside class="sidebar" id="nucleoSidebar">
   <div class="brand">
     <div class="brand-logo-wrap"><img class="brand-logo-img" src="assets/nucleo-logo.png" alt="Núcleo"></div>
     <div class="brand-text-wrap"><div class="brand-name">NÚCLEO</div><div class="brand-sub">SISTEMA DE GESTÃO DA QUALIDADE</div></div>
+    <button id="nucleoMobileMenuClose" class="btn secondary nucleo-mobile-menu-close" type="button" aria-label="Fechar menu">&#215;</button>
     <button id="sidebarCollapseBtn" class="sidebar-collapse-btn" type="button" onclick="toggleSidebarCollapsed()" title="Recolher menu" aria-label="Recolher menu">❮</button>
   </div>
     
@@ -3077,6 +3079,7 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
 </aside>
 <div class="workspace">
   <header class="topbar">
+    <button id="nucleoMobileMenuToggle" class="btn secondary nucleo-mobile-menu-toggle" type="button" aria-controls="nucleoSidebar" aria-expanded="false">Menu</button>
     <div class="crumbs">Núcleo <span>/</span> <b id="crumbCurrent">Minhas R.O.s</b></div>
     <div class="top-actions">
       <div class="global-search-wrap">
@@ -5837,7 +5840,7 @@ function renderSupplierIndicatorsWorkspace(){
 <script src="assets/modules-v2/indicators/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/modules-v2/announcements/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/team-load-local-v47.js?v=20261027-team-local-central"></script>
-<script src="assets/nucleo-app.js?v=20261106-single-core-layout-preserved-v1"></script>
+<script src="assets/nucleo-app.js?v=20261109-legacy-pdca-sync-v2"></script>
 <script src="assets/api-source-lock-v20.js?v=20261109-v50-real"></script>
 
 <script id="nucleoModuleMaintenanceGuardV1">
@@ -6153,4 +6156,175 @@ function renderSupplierIndicatorsWorkspace(){
 </script>
 
 <script src="assets/assigned-ro-move-actions-v13.js?v=20261103-move-actions-only-v13"></script>
+<style id="nucleo-mobile-layout">
+.nucleo-mobile-menu-toggle,.nucleo-mobile-menu-close,.nucleo-mobile-menu-backdrop{display:none}
+
+@media screen and (max-width:900px){
+  .workspace,.sidebar.collapsed + .workspace{
+    width:100%!important;
+    margin-left:0!important;
+  }
+  .workspace > main,body.triage-wide .workspace > main{
+    padding:16px 12px 24px!important;
+  }
+  .workspace > main > .card{
+    min-width:0;
+    padding:14px;
+  }
+
+  #nucleoSidebar{
+    display:none;
+    width:min(300px,calc(100% - 48px))!important;
+    z-index:21;
+    overflow-y:auto;
+    overscroll-behavior:contain;
+    padding-bottom:max(12px,env(safe-area-inset-bottom))!important;
+  }
+  body.nucleo-mobile-menu-open{overflow:hidden}
+  body.nucleo-mobile-menu-open #nucleoSidebar{display:flex}
+  body.nucleo-mobile-menu-open .nucleo-mobile-menu-backdrop{
+    display:block;
+    position:fixed;
+    inset:0;
+    z-index:20;
+    background:#17203366;
+    touch-action:none;
+  }
+  #nucleoSidebar .brand{justify-content:flex-start}
+  #nucleoSidebar .brand-text-wrap,
+  #nucleoSidebar .side-item > span:nth-child(2),
+  #nucleoSidebar .side-module-head > span:nth-child(2),
+  #nucleoSidebar .side-independent-module > span:nth-child(2),
+  #nucleoSidebar .side-module-arrow,
+  #nucleoSidebar .side-chevron{display:block!important}
+  #nucleoSidebar .side-module.open > .side-module-body{display:block!important}
+  #nucleoSidebar .side-item,
+  #nucleoSidebar .side-module-head,
+  #nucleoSidebar .side-independent-module{
+    justify-content:flex-start!important;
+    padding:8px!important;
+    min-height:44px;
+  }
+  #nucleoSidebar .sidebar-bottom-icons{flex-direction:row}
+  #nucleoSidebar .sidebar-icon-btn{min-width:44px;min-height:44px}
+  #sidebarCollapseBtn{display:none!important}
+  .nucleo-mobile-menu-toggle,.nucleo-mobile-menu-close{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    min-height:44px;
+    min-width:44px;
+    flex:none;
+  }
+
+  .workspace > .topbar{
+    height:auto!important;
+    min-height:0!important;
+    display:grid;
+    grid-template-columns:auto minmax(0,1fr);
+    align-items:center!important;
+    gap:6px 10px!important;
+    padding:8px 12px!important;
+  }
+  .topbar .crumbs{
+    min-width:0;
+    overflow-wrap:anywhere;
+  }
+  .topbar .crumbs span{padding:0 5px}
+  .topbar .top-actions{
+    grid-column:1/-1;
+    min-width:0;
+    width:100%;
+    gap:6px;
+    justify-content:flex-start;
+    flex-wrap:wrap!important;
+  }
+  .topbar .global-search-wrap{
+    flex:1 1 12rem;
+    min-width:0;
+    max-width:none;
+  }
+  .topbar .global-search-input{
+    width:100%;
+    min-width:0;
+    min-height:44px;
+    font-size:16px;
+  }
+  .topbar .global-search-panel{width:100%;min-width:0;max-width:100%}
+  .topbar .notification-bell,.topbar .top-btn{min-height:44px}
+  .topbar #syncMsg{min-width:0;max-width:100%!important}
+  .notification-panel-head{flex-wrap:wrap}
+
+  #listView .overview-grid{grid-template-columns:minmax(0,1fr)}
+  #listView .overview-panel,#listView .overview-kpi{min-width:0;overflow-wrap:anywhere}
+  #listView .overview-kpis{grid-template-columns:repeat(auto-fit,minmax(min(145px,100%),1fr))}
+  #overviewIndicatorToolbar{
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr) auto;
+  }
+  #overviewIndicatorToolbar .btn{min-width:0;min-height:44px;white-space:normal}
+  #overviewTeamFilters > label{flex:1 1 130px;min-width:0}
+  #overviewTeamPeople .inline-team-grid{
+    grid-template-columns:repeat(auto-fit,minmax(min(132px,100%),1fr))!important;
+  }
+  #overviewTeamPeople .inline-team-person{
+    flex-direction:column;
+    align-items:center;
+    text-align:center;
+    overflow-wrap:anywhere;
+  }
+
+  .workspace .toolbar > input,.workspace .toolbar > select{min-width:0;max-width:100%}
+  .workspace .assigned-filter-row{grid-template-columns:repeat(2,minmax(0,1fr))}
+  #roListView .ro-control-table-wrap{overflow-x:auto!important}
+  #roListView .ro-control-table{
+    display:table;
+    min-width:900px!important;
+    table-layout:auto!important;
+  }
+  #triageView > div[style*="overflow:auto"]{overflow-x:auto!important}
+  #triageView .action-table{display:table}
+  .workspace table{max-width:100%}
+  .workspace .table-scroll{max-width:100%;overflow-x:auto}
+
+  .triage-modal,.modal-box{max-width:100%;max-height:calc(100dvh - 24px);overflow:auto}
+}
+
+@media screen and (max-width:370px){
+  .workspace .assigned-filter-row{grid-template-columns:minmax(0,1fr)}
+  #overviewIndicatorToolbar .btn{padding-inline:8px}
+}
+</style>
+
+<script id="nucleo-mobile-menu">
+(function(){
+  const mobile=window.matchMedia('screen and (max-width:900px)');
+  const sidebar=document.getElementById('nucleoSidebar');
+  const toggle=document.getElementById('nucleoMobileMenuToggle');
+  const close=document.getElementById('nucleoMobileMenuClose');
+  const backdrop=document.getElementById('nucleoMobileMenuBackdrop');
+
+  function setOpen(open, restoreFocus=false){
+    const expanded=mobile.matches&&open;
+    document.body.classList.toggle('nucleo-mobile-menu-open',expanded);
+    sidebar.inert=mobile.matches&&!expanded;
+    toggle.setAttribute('aria-expanded',String(expanded));
+    if(expanded)close.focus();
+    else if(restoreFocus&&mobile.matches)toggle.focus();
+  }
+
+  toggle.addEventListener('click',()=>setOpen(toggle.getAttribute('aria-expanded')!=='true',true));
+  close.addEventListener('click',()=>setOpen(false,true));
+  backdrop.addEventListener('click',()=>setOpen(false,true));
+  sidebar.addEventListener('click',event=>{
+    const item=event.target.closest('.side-item,.side-independent-module,.sidebar-icon-btn');
+    if(item&&mobile.matches)setOpen(false,sidebar.contains(document.activeElement));
+  });
+  document.addEventListener('keydown',event=>{
+    if(event.key==='Escape'&&toggle.getAttribute('aria-expanded')==='true')setOpen(false,true);
+  });
+  mobile.addEventListener('change',()=>setOpen(false));
+  setOpen(false);
+})();
+</script>
 </body></html>
