@@ -6757,4 +6757,447 @@ function renderSupplierIndicatorsWorkspace(){
 })();
 </script>
 
+
+<style id="nucleo-v54-final-fixes">
+/* NÚCLEO V54 — correções finais de layout, equipe e barra superior */
+
+/* EQUIPE: foto em cima, nome e cargo abaixo em qualquer tela */
+#overviewTeam .inline-team-grid{
+  display:grid!important;
+  grid-template-columns:repeat(auto-fit,minmax(150px,1fr))!important;
+  gap:12px!important;
+}
+#overviewTeam .inline-team-person{
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:center!important;
+  justify-content:flex-start!important;
+  text-align:center!important;
+  gap:5px!important;
+  min-width:0!important;
+  padding:14px 10px!important;
+}
+#overviewTeam .inline-team-person>img,
+#overviewTeam .inline-team-person>span:first-child{
+  width:68px!important;
+  height:68px!important;
+  min-width:68px!important;
+  max-width:68px!important;
+  min-height:68px!important;
+  max-height:68px!important;
+  object-fit:cover!important;
+  border-radius:50%!important;
+  margin:0 auto 5px!important;
+}
+#overviewTeam .inline-team-person>div{
+  width:100%!important;
+  min-width:0!important;
+}
+#overviewTeam .inline-team-person strong{
+  display:block!important;
+  width:100%!important;
+  margin:0 0 3px!important;
+  line-height:1.2!important;
+  overflow-wrap:anywhere!important;
+}
+#overviewTeam .inline-team-person .small{
+  display:block!important;
+  width:100%!important;
+  margin:0!important;
+  line-height:1.25!important;
+  overflow-wrap:anywhere!important;
+}
+
+/* Barra Personalizar indicadores + Atualizar */
+#overviewIndicatorToolbar{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;
+  gap:8px!important;
+  width:100%!important;
+  align-items:stretch!important;
+}
+#overviewIndicatorToolbar>.btn,
+#overviewIndicatorToolbar>button{
+  width:100%!important;
+  min-width:0!important;
+  margin:0!important;
+  min-height:42px!important;
+}
+
+/* Segurança geral contra estouro de largura */
+.workspace, main, main>section, .card, .overview-panel,
+.modal-box, .ro-report-sheet, .pdf-preview-card{
+  min-width:0;
+}
+img,svg,canvas,video,iframe{max-width:100%}
+
+@media (max-width:760px){
+  html,body,.app-shell,.workspace,main{
+    width:100%!important;
+    max-width:100%!important;
+    overflow-x:hidden!important;
+  }
+
+  main{
+    margin:0!important;
+    padding:10px 9px 24px!important;
+  }
+
+  /* NAVBAR MOBILE: menu/título, depois controles, depois busca */
+  .topbar{
+    position:sticky!important;
+    top:0!important;
+    z-index:2147481800!important;
+    display:grid!important;
+    grid-template-columns:44px minmax(0,1fr)!important;
+    grid-template-areas:
+      "menu crumbs"
+      "actions actions"!important;
+    gap:8px!important;
+    width:100%!important;
+    min-height:0!important;
+    height:auto!important;
+    padding:8px 9px!important;
+    box-sizing:border-box!important;
+  }
+  #nucleoMobileMenuBtn{
+    grid-area:menu!important;
+    display:grid!important;
+    width:42px!important;
+    height:42px!important;
+    min-width:42px!important;
+  }
+  .topbar>.crumbs{
+    grid-area:crumbs!important;
+    min-width:0!important;
+    overflow:hidden!important;
+    white-space:nowrap!important;
+    text-overflow:ellipsis!important;
+    align-self:center!important;
+  }
+  .top-actions{
+    grid-area:actions!important;
+    display:grid!important;
+    grid-template-columns:44px minmax(0,1fr) auto!important;
+    grid-template-areas:
+      "bell state sync"
+      "search search search"!important;
+    gap:7px!important;
+    width:100%!important;
+    min-width:0!important;
+    align-items:center!important;
+  }
+  .top-actions .global-search-wrap{
+    grid-area:search!important;
+    width:100%!important;
+    min-width:0!important;
+  }
+  #notificationBellBtn{
+    grid-area:bell!important;
+    width:44px!important;
+    min-width:44px!important;
+    height:42px!important;
+    padding:0!important;
+  }
+  #networkStatePill{
+    grid-area:state!important;
+    display:block!important;
+    min-width:0!important;
+    max-width:100%!important;
+    overflow:hidden!important;
+    text-overflow:ellipsis!important;
+    white-space:nowrap!important;
+  }
+  .top-actions>.top-btn:not(.primary-top){
+    grid-area:sync!important;
+    display:block!important;
+    min-width:0!important;
+    max-width:132px!important;
+    white-space:nowrap!important;
+    overflow:hidden!important;
+    text-overflow:ellipsis!important;
+  }
+  .top-actions>.primary-top,
+  .top-actions>.save-state,
+  #syncMsg{
+    display:none!important;
+  }
+  .global-search-input{
+    width:100%!important;
+    min-width:0!important;
+    height:43px!important;
+    font-size:16px!important;
+  }
+
+  .sidebar,
+  .sidebar.collapsed{
+    width:min(86vw,320px)!important;
+    max-width:320px!important;
+  }
+
+  /* Sistema inteiro responsivo */
+  .grid,.settings-grid,.overview-grid,.profile-grid,.permission-grid,
+  .config-row,.config-row.two,.config-row.three,
+  .report-meta-grid,.pdca-top-fields,.pdca-quadrants{
+    grid-template-columns:1fr!important;
+  }
+  .toolbar,.assigned-filter-row,.action-controls,.admin-config-nav,
+  .actions,.report-toolbar-actions,.unified-action-buttons{
+    width:100%!important;
+    max-width:100%!important;
+  }
+  input,select,textarea{
+    max-width:100%!important;
+    min-width:0!important;
+  }
+  .table-wrap,.table-scroll,.admin-table-wrap,
+  .ro-control-table-wrap,[style*="overflow:auto"],[style*="overflow: auto"]{
+    max-width:100%!important;
+  }
+
+  #overviewTeam .inline-team-grid{
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  }
+  #overviewTeam .inline-team-person{
+    padding:12px 7px!important;
+  }
+  #overviewIndicatorToolbar{
+    grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;
+  }
+}
+
+@media (max-width:360px){
+  .top-actions{
+    grid-template-columns:42px minmax(0,1fr) 104px!important;
+  }
+  #overviewIndicatorToolbar{
+    gap:6px!important;
+  }
+  #overviewIndicatorToolbar>.btn,
+  #overviewIndicatorToolbar>button{
+    padding-left:6px!important;
+    padding-right:6px!important;
+    font-size:12px!important;
+  }
+}
+</style>
+
+<script id="nucleo-v54-final-fixes-js">
+(function(){
+  'use strict';
+  if(window.__nucleoV54FinalFixes)return;
+  window.__nucleoV54FinalFixes=true;
+
+  function isVisible(el){
+    if(!el)return false;
+    const s=getComputedStyle(el);
+    return s.display!=='none' && s.visibility!=='hidden';
+  }
+
+  function textOf(el){
+    return String(el?.textContent||'').replace(/\s+/g,' ').trim();
+  }
+
+  function ensureIndicatorToolbar(){
+    const refresh=document.getElementById('overviewRefreshButton');
+    if(!refresh)return;
+
+    let customize=document.querySelector(
+      '#listView [id*="indicator" i][id*="custom" i],'+
+      '#listView [class*="indicator" i][class*="custom" i]'
+    );
+
+    if(!customize){
+      customize=[...document.querySelectorAll('#listView button,#listView .btn')]
+        .find(el=>/personalizar\s+indicadores/i.test(textOf(el)))||null;
+    }
+    if(!customize)return;
+
+    let bar=document.getElementById('overviewIndicatorToolbar');
+    if(!bar){
+      bar=document.createElement('div');
+      bar.id='overviewIndicatorToolbar';
+    }
+
+    const head=document.querySelector('#listView .overview-head');
+    const kpis=document.getElementById('overviewKpis');
+
+    if(!bar.isConnected){
+      if(kpis?.parentElement) kpis.parentElement.insertBefore(bar,kpis);
+      else if(head?.parentElement) head.parentElement.insertBefore(bar,head.nextSibling);
+    }
+
+    if(customize.parentElement!==bar)bar.appendChild(customize);
+    if(refresh.parentElement!==bar)bar.appendChild(refresh);
+  }
+
+  function normalizeTeam(){
+    const host=document.getElementById('overviewTeam');
+    if(!host)return;
+    host.querySelectorAll('.inline-team-person').forEach(card=>{
+      const info=[...card.children].find(el=>el.tagName==='DIV');
+      if(info){
+        const name=info.querySelector('strong,b');
+        const role=info.querySelector('.small,small');
+        if(name)name.style.display='block';
+        if(role)role.style.display='block';
+      }
+    });
+  }
+
+  function normalizeMobileNav(){
+    if(innerWidth>760)return;
+    const top=document.querySelector('.topbar');
+    const side=document.querySelector('.sidebar');
+    if(!top||!side)return;
+
+    if(!document.getElementById('nucleoMobileMenuBtn')){
+      const btn=document.createElement('button');
+      btn.id='nucleoMobileMenuBtn';
+      btn.type='button';
+      btn.className='mobile-nav-btn';
+      btn.setAttribute('aria-label','Abrir menu');
+      btn.textContent='☰';
+      btn.addEventListener('click',()=>{
+        side.classList.add('mobile-open');
+        document.getElementById('nucleoMobileBackdrop')?.classList.add('open');
+        document.body.style.overflow='hidden';
+      });
+      top.insertBefore(btn,top.firstChild);
+    }
+  }
+
+  function refreshVisibleScreens(){
+    const calls=[
+      'refreshSectorSelectors',
+      'populateTriageSectors',
+      'populateTriageUnits',
+      'refreshExternalRoSidebarBadge',
+      'refreshNotificationBell',
+      'refreshMenuNotificationBadges',
+      'refreshContestPendingBadge',
+      'refreshPdcaSidebarBadge',
+      'refreshRoSummary'
+    ];
+    calls.forEach(name=>{try{window[name]?.()}catch(_){}});
+
+    try{
+      if(isVisible(document.getElementById('listView')))window.renderCurrentOverview?.();
+    }catch(_){}
+    try{
+      if(isVisible(document.getElementById('roListView')))window.render?.();
+    }catch(_){}
+    try{
+      if(isVisible(document.getElementById('triageView')))window.renderTriage?.();
+    }catch(_){}
+    try{window.nucleoEnsureInlineTeam?.()}catch(_){}
+
+    setTimeout(()=>{
+      ensureIndicatorToolbar();
+      normalizeTeam();
+    },0);
+  }
+
+  /* Sincronização convergente para celular e computador */
+  let autoSyncPromise=null;
+  async function v54SyncAll({officialRos=false,foreground=false}={}){
+    if(autoSyncPromise)return autoSyncPromise;
+
+    autoSyncPromise=(async()=>{
+      try{
+        if(!navigator.onLine)return false;
+        if(typeof window.getSession==='function' && !window.getSession()?.authToken)return false;
+
+        if(typeof window.nucleoGlobalApiReady?.then==='function'){
+          try{await window.nucleoGlobalApiReady}catch(_){}
+        }else if(typeof window.nucleoResolveGlobalApiUrl==='function'){
+          try{await window.nucleoResolveGlobalApiUrl(true)}catch(_){}
+        }
+
+        if(officialRos && typeof window.loadOfficialRosPaged==='function' &&
+           typeof window.applyImportedRos==='function'){
+          const settings=typeof window.getSavedIntegrationSettings==='function'
+            ? window.getSavedIntegrationSettings()
+            : {};
+          if(settings?.apiUrl){
+            const data=await window.loadOfficialRosPaged(settings);
+            if(data?.sucesso!==false && Array.isArray(data?.dados)){
+              window.applyImportedRos(data.dados,data);
+              data.dados=null;
+            }
+          }
+        }
+
+        let ok=true;
+        if(typeof window.syncPortalBackend==='function'){
+          ok=await window.syncPortalBackend(false,{foreground});
+        }else if(typeof window.portalJsonp==='function'){
+          const res=await window.portalJsonp({acao:'portal_load'},180000);
+          if(!res || res.sucesso===false)throw new Error(res?.erro||'Falha ao carregar a base central.');
+          if(typeof window.applyPortalBackendSnapshot==='function'){
+            window.applyPortalBackendSnapshot(res);
+          }
+        }
+
+        refreshVisibleScreens();
+        return ok!==false;
+      }catch(e){
+        console.warn('[NÚCLEO V54] sincronização automática não concluída:',e);
+        return false;
+      }finally{
+        autoSyncPromise=null;
+      }
+    })();
+
+    return autoSyncPromise;
+  }
+
+  window.nucleoSyncAllDevices=v54SyncAll;
+
+  function normalize(){
+    ensureIndicatorToolbar();
+    normalizeTeam();
+    normalizeMobileNav();
+  }
+
+  let normalizeTimer=null;
+  const observer=new MutationObserver(()=>{
+    clearTimeout(normalizeTimer);
+    normalizeTimer=setTimeout(normalize,40);
+  });
+  observer.observe(document.documentElement,{childList:true,subtree:true});
+
+  window.addEventListener('load',()=>{
+    normalize();
+    setTimeout(()=>v54SyncAll({officialRos:false,foreground:false}),900);
+  },{once:true});
+
+  window.addEventListener('pageshow',()=>{
+    setTimeout(()=>v54SyncAll({officialRos:false,foreground:false}),350);
+  });
+
+  document.addEventListener('visibilitychange',()=>{
+    if(document.visibilityState==='visible'){
+      setTimeout(()=>v54SyncAll({officialRos:false,foreground:false}),250);
+    }
+  });
+
+  window.addEventListener('online',()=>{
+    setTimeout(()=>v54SyncAll({officialRos:true,foreground:false}),250);
+  });
+
+  window.addEventListener('resize',normalize);
+
+  /* Fallback periódico: mantém computador e celular convergindo sem depender de cache local. */
+  setInterval(()=>{
+    if(document.visibilityState==='visible' && navigator.onLine){
+      v54SyncAll({officialRos:false,foreground:false});
+    }
+  },30000);
+
+  normalize();
+  console.info('[NÚCLEO] V54 — equipe, navbar, responsividade e sincronização entre dispositivos ativas.');
+})();
+</script>
+
 </body></html>
