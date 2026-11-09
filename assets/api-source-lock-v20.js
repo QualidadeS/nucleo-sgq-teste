@@ -1419,3 +1419,437 @@
   console.info('[NÚCLEO] V48 — ação de PDF sem selo/botão e última coluna renomeada para Consulta.');
 })();
 
+
+/* NÚCLEO | KPI PDCA = MESMA REGRA DE R.O.s ATRIBUÍDAS V49 */
+(function(){
+  'use strict';
+  if(window.__nucleoAssignedKpiV49)return;
+  window.__nucleoAssignedKpiV49=true;
+
+  const originalSummary=window.roSummaryData;
+
+  function assignedPendingRowsV49(){
+    let all=[];
+    try{all=typeof getAllRoRecords==='function'?(getAllRoRecords()||[]):[]}catch(_){}
+
+    let triageMap=null;
+    try{triageMap=typeof getSavedTriageMap==='function'?getSavedTriageMap():null}catch(_){}
+
+    let allSent=[];
+    try{allSent=typeof getAllSentPdcas==='function'?(getAllSentPdcas()||[]):[]}catch(_){}
+
+    const seen=new Set(), out=[];
+
+    for(const ro of all){
+      try{
+        if(typeof canViewRO==='function'&&!canViewRO(ro,triageMap))continue;
+
+        const tri=typeof getRoTriageRecord==='function'
+          ? (getRoTriageRecord(ro,triageMap)||{})
+          : {};
+
+        if(String(tri.decision||'')!=='directed')continue;
+        if(tri.pdcaRequired===false)continue;
+
+        const roKey=String(ro?.numero||ro?.id||ro?.codigo||'').trim();
+        if(!roKey)continue;
+
+        const sector=String(
+          ro?.__assignedSector||
+          ro?.__triageRecord?.responsibleSector||
+          tri?.responsibleSector||
+          ''
+        ).trim();
+
+        const unit=String(
+          typeof explicitRecordUnit==='function'
+            ? explicitRecordUnit(ro)
+            : (ro?.unidade||ro?.unit||'')
+        ).trim();
+
+        const sent=allSent.find(p=>
+          String(p?.ro||p?.roId||p?.numeroRo||'').trim()===roKey &&
+          (!sector || (typeof sameCanonicalSector==='function'
+            ? sameCanonicalSector(p?.setor||'',sector)
+            : String(p?.setor||'').trim().toLowerCase()===sector.toLowerCase()))
+        )||null;
+
+        let status='Pendente';
+        try{
+          if(typeof assignedRoStatus==='function'){
+            const externalPdca=tri?.pdcaExternal===true||
+              String(tri?.pdcaSource||'').toLowerCase()==='external';
+            status=assignedRoStatus(ro,externalPdca,sent);
+          }
+        }catch(_){}
+
+        if(String(status)!=='Pendente')continue;
+
+        const key=[
+          roKey.toUpperCase(),
+          String(sector).toLowerCase(),
+          String(unit).toLowerCase()
+        ].join('@@');
+
+        if(seen.has(key))continue;
+        seen.add(key);
+        out.push({ro,tri,roKey,sector,unit});
+      }catch(_){}
+    }
+    return out;
+  }
+
+  window.roSummaryData=function(){
+    let base={pending:0,noPresentation:0,openActions:0,overdue:0};
+    try{
+      if(typeof originalSummary==='function'){
+        const r=originalSummary.apply(this,arguments);
+        if(r&&typeof r==='object')base={...base,...r};
+      }
+    }catch(_){}
+
+    const rows=assignedPendingRowsV49();
+    base.pending=rows.length;
+
+    try{
+      const now=new Date();
+      base.overdue=rows.filter(({ro,tri})=>{
+        const raw=tri?.pdcaDeadline||tri?.deadline||ro?.prazo||ro?.dataLimite||'';
+        if(!raw)return false;
+        const d=typeof parseBrDate==='function'?parseBrDate(raw):new Date(raw);
+        return d instanceof Date&&!Number.isNaN(d.getTime())&&d<now;
+      }).length;
+    }catch(_){}
+
+    return base;
+  };
+
+  console.info('[NÚCLEO] V49 — card de PDCAs usa a mesma base/triagem das R.O.s atribuídas.');
+})();
+
+
+/* NÚCLEO | PDF EXTERNO SEM FALLBACK + KPI IDÊNTICO À FILA V50 */
+(function(){
+  'use strict';
+  if(window.__nucleoPdfAndAssignedCountV50)return;
+  window.__nucleoPdfAndAssignedCountV50=true;
+
+  function norm(v){
+    try{return typeof normalizeAnswer==='function'?normalizeAnswer(v):String(v||'').toLowerCase().trim()}
+    catch(_){return String(v||'').toLowerCase().trim()}
+  }
+  function meaningful(v){
+    const s=String(v??'').trim();
+    return !!s && !['-','—','nao informado','não informado','n/a'].includes(s.toLowerCase());
+  }
+  function hasInternalPdcaContent(p){
+    if(!p)return false;
+    const a=p.answers||p.respostas||{};
+    return Object.values(a).some(meaningful);
+  }
+  function sameSectorSafe(a,b){
+    try{
+      if(typeof sameCanonicalSector==='function')return sameCanonicalSector(a,b);
+    }catch(_){}
+    return norm(a)===norm(b);
+  }
+
+  async function resolveAttachedPdfV50(p){
+    if(!p)return null;
+
+    if(p.fileId){
+      return {...p,externalPdf:true};
+    }
+
+    const ro=String(p.ro||p.roId||p.numeroRo||'').trim();
+    const sector=String(p.setor||p.sector||'').trim();
+    let unit='';
+    try{unit=typeof explicitRecordUnit==='function'?explicitRecordUnit(p):''}catch(_){}
+    if(!unit){
+      try{unit=typeof currentUserUnit==='function'?currentUserUnit():''}catch(_){}
+    }
+    if(!['matriz','filial'].includes(String(unit)))return null;
+
+    try{
+      const result=await portalJsonp({acao:'nucleo_drive_overview',unit},60000);
+      const files=Array.isArray(result?.pdcaFiles)?result.pdcaFiles:[];
+      let file=null;
+
+      const wantedIds=[
+        String(p.pdcaFileId||''),
+        String(p.id||'')
+      ].filter(Boolean);
+
+      file=files.find(x=>wantedIds.includes(String(x.id||'')))||null;
+
+      if(!file && ro){
+        file=files.find(x=>(Array.isArray(x.links)?x.links:[]).some(l=>
+          String(l?.ro||'').trim()===ro &&
+          (!sector||sameSectorSafe(l?.sector||'',sector))
+        ))||null;
+      }
+
+      if(file?.fileId){
+        const linked=(Array.isArray(file.links)?file.links:[]).find(l=>
+          String(l?.ro||'').trim()===ro &&
+          (!sector||sameSectorSafe(l?.sector||'',sector))
+        );
+        return {
+          ...p,
+          ...file,
+          ro:ro||p.ro||'',
+          setor:linked?.sector||sector||p.setor||'',
+          externalPdf:true
+        };
+      }
+    }catch(e){
+      console.warn('[NÚCLEO V50] Não foi possível localizar PDF anexado:',e);
+    }
+    return null;
+  }
+
+  async function openRealPdcaPdfV50(p){
+    if(!p){
+      alert('PDCA não encontrado.');
+      return;
+    }
+
+    if(hasInternalPdcaContent(p) && !p.externalPdf && !p.fileId && !p.pdcaFileId){
+      // Somente PDCA realmente preenchido dentro do Núcleo usa o gerador interno.
+      try{
+        window.currentReportPdca=p;
+        window.currentPrintPdca=p;
+        if(typeof nucleoSystemFormat==='function' &&
+           nucleoSystemFormat('pdca',typeof explicitRecordUnit==='function'?explicitRecordUnit(p):'')?.design &&
+           typeof nucleoPdcaDownloadModelPdf==='function'){
+          return await nucleoPdcaDownloadModelPdf(p,true);
+        }
+        if(typeof downloadCurrentPdcaPdf==='function')return await downloadCurrentPdcaPdf();
+      }catch(e){
+        alert(e?.message||String(e));
+        return;
+      }
+    }
+
+    const attached=await resolveAttachedPdfV50(p);
+    if(attached?.fileId && typeof nucleoDriveOpenExternalPdf==='function'){
+      return nucleoDriveOpenExternalPdf(attached);
+    }
+
+    // Regra fixa: nunca gerar PLAN/DO/CHECK/ACT vazio para um arquivo externo.
+    alert('O PDF anexado não foi localizado na base central. Sincronize e tente novamente.');
+  }
+
+  window.nucleoLeaderOpenPdcaPdfV46=async function(id){
+    let p=null;
+    try{p=typeof findSentPdcaById==='function'?findSentPdcaById(id):null}catch(_){}
+    if(!p){alert('PDCA não encontrado.');return}
+    try{
+      if(typeof canViewPdca==='function'&&!canViewPdca(p)){
+        alert('PDCA não encontrado ou indisponível.');
+        return;
+      }
+    }catch(_){}
+    return openRealPdcaPdfV50(p);
+  };
+
+  const previousOpenPdcaReportV50=window.openPdcaReport;
+  window.openPdcaReport=async function(id){
+    let p=null;
+    try{p=typeof findSentPdcaById==='function'?findSentPdcaById(id):null}catch(_){}
+    if(p && !hasInternalPdcaContent(p)){
+      const attached=await resolveAttachedPdfV50(p);
+      if(attached?.fileId && typeof nucleoDriveOpenExternalPdf==='function'){
+        return nucleoDriveOpenExternalPdf(attached);
+      }
+      if(p.externalPdf||p.fileId||p.pdcaFileId){
+        alert('O PDF anexado não foi localizado na base central. Sincronize e tente novamente.');
+        return;
+      }
+    }
+    return typeof previousOpenPdcaReportV50==='function'
+      ? previousOpenPdcaReportV50.apply(this,arguments)
+      : undefined;
+  };
+
+  const previousDownloadPdcaV50=window.downloadCurrentPdcaPdf;
+  window.downloadCurrentPdcaPdf=async function(){
+    const p=window.currentReportPdca||window.currentPrintPdca;
+    if(p && !hasInternalPdcaContent(p)){
+      return openRealPdcaPdfV50(p);
+    }
+    return typeof previousDownloadPdcaV50==='function'
+      ? previousDownloadPdcaV50.apply(this,arguments)
+      : undefined;
+  };
+
+  function assignedActiveRowsV50(){
+    let source=[];
+    try{
+      source=(typeof ros!=='undefined' && Array.isArray(ros))
+        ? ros
+        : (typeof getAllRoRecords==='function'?(getAllRoRecords()||[]):[]);
+    }catch(_){}
+
+    let triageMap=null;
+    try{triageMap=typeof getSavedTriageMap==='function'?getSavedTriageMap():null}catch(_){}
+
+    let sent=[];
+    try{sent=typeof getAllSentPdcas==='function'?(getAllSentPdcas()||[]):[]}catch(_){}
+
+    const byRo=new Map(),byRoSector=new Map(),evidence=new Set();
+    sent.forEach(p=>{
+      const roKey=String(p?.ro||p?.roId||p?.numeroRo||'').trim();
+      if(!roKey)return;
+      if(!byRo.has(roKey))byRo.set(roKey,p);
+      const sec=norm(p?.setor||'');
+      if(sec)byRoSector.set(roKey+'@@'+sec,p);
+      try{
+        const canonical=typeof nucleoPdcaReviewCanonical2026==='function'
+          ? nucleoPdcaReviewCanonical2026(
+              typeof nucleoPdcaReviewRoKey2026==='function'?nucleoPdcaReviewRoKey2026(p):roKey,
+              String(p?.origin||p?.origemBase||'')
+            )
+          : '';
+        if(canonical)evidence.add(canonical);
+      }catch(_){}
+    });
+
+    let presentationMap=new Map(),reviewMap={};
+    try{
+      if(typeof getPdcaPresentationMap==='function')presentationMap=getPdcaPresentationMap();
+    }catch(_){}
+    try{
+      if(typeof nucleoPdcaReviewMap2026==='function')reviewMap=nucleoPdcaReviewMap2026()||{};
+    }catch(_){}
+
+    const seen=new Set(),rows=[];
+
+    source.forEach(baseRo=>{
+      try{
+        if(typeof canViewRO==='function'&&!canViewRO(baseRo,triageMap))return;
+
+        const tri=typeof getRoTriageRecord==='function'
+          ? (getRoTriageRecord(baseRo,triageMap)||{})
+          : {};
+
+        const triSector=String(tri?.responsibleSector||tri?.setorDirecionado||'').trim();
+        const triSectorNorm=norm(triSector);
+        const assignedByTriage=
+          String(tri?.decision||'')==='directed' &&
+          !!triSector &&
+          !['nao direcionado','nao informado','sem setor','-'].includes(triSectorNorm);
+
+        if(!assignedByTriage)return;
+
+        const r=typeof getOperationalRoView==='function'
+          ? getOperationalRoView(baseRo,triageMap)
+          : baseRo;
+
+        const roKey=String(r?.numero||r?.id||r?.codigo||'').trim();
+        if(!roKey)return;
+
+        const sector=String(
+          triSector||
+          r?.__assignedSector||
+          r?.setor||
+          ''
+        ).trim();
+
+        const sentPdca=(sector?byRoSector.get(roKey+'@@'+norm(sector)):null)||byRo.get(roKey)||null;
+        const externalPdca=tri?.pdcaExternal===true||String(tri?.pdcaSource||'').toLowerCase()==='external';
+
+        let displayStatus='Pendente';
+        try{
+          if(typeof assignedRoStatus==='function'){
+            displayStatus=assignedRoStatus(
+              r,
+              externalPdca,
+              sentPdca,
+              presentationMap,
+              reviewMap,
+              evidence
+            );
+          }
+        }catch(_){}
+
+        let terminal=false;
+        try{
+          terminal=typeof assignedTerminalStatus==='function'
+            ? assignedTerminalStatus(displayStatus)
+            : ['Cancelada','Registro','Obsoleto'].includes(displayStatus);
+        }catch(_){
+          terminal=['Cancelada','Registro','Obsoleto'].includes(displayStatus);
+        }
+        if(terminal)return;
+
+        let reviewDecision='';
+        try{
+          const canonical=typeof nucleoPdcaReviewCanonical2026==='function'
+            ? nucleoPdcaReviewCanonical2026(
+                typeof nucleoPdcaReviewRoKey2026==='function'?nucleoPdcaReviewRoKey2026(r):roKey,
+                String(r?.origemBase||r?.raw?.__origemBase||'')
+              )
+            : '';
+          reviewDecision=canonical?(reviewMap?.[canonical]?.decision||''):'';
+        }catch(_){}
+
+        const alreadyReceived=
+          !!sentPdca ||
+          externalPdca===true ||
+          reviewDecision==='yes' ||
+          ['Respondida','Apresentada'].includes(displayStatus);
+
+        if(alreadyReceived)return;
+
+        try{
+          if(typeof nucleoManagerScopeAllows==='function'&&!nucleoManagerScopeAllows(r))return;
+        }catch(_){}
+
+        const unit=String(
+          typeof explicitRecordUnit==='function'
+            ? explicitRecordUnit(r)
+            : (r?.unidade||r?.unit||'')
+        ).trim();
+
+        const key=[roKey.toUpperCase(),norm(sector),norm(unit)].join('@@');
+        if(seen.has(key))return;
+        seen.add(key);
+
+        rows.push({ro:r,tri,displayStatus});
+      }catch(_){}
+    });
+
+    return rows;
+  }
+
+  const previousSummaryV50=window.roSummaryData;
+  window.roSummaryData=function(){
+    let base={pending:0,noPresentation:0,openActions:0,overdue:0};
+    try{
+      if(typeof previousSummaryV50==='function'){
+        const old=previousSummaryV50.apply(this,arguments);
+        if(old&&typeof old==='object')base={...base,...old};
+      }
+    }catch(_){}
+
+    const rows=assignedActiveRowsV50();
+    base.pending=rows.length;
+
+    try{
+      const now=new Date();
+      base.overdue=rows.filter(({ro,tri})=>{
+        const raw=tri?.pdcaDeadline||tri?.deadline||ro?.prazo||ro?.dataLimite||'';
+        if(!raw)return false;
+        const d=typeof parseBrDate==='function'?parseBrDate(raw):new Date(raw);
+        return d instanceof Date&&!Number.isNaN(d.getTime())&&d<now;
+      }).length;
+    }catch(_){}
+
+    return base;
+  };
+
+  window.nucleoAssignedActiveRowsV50=assignedActiveRowsV50;
+  console.info('[NÚCLEO] V50 — PDF externo nunca gera PDCA vazio; KPI usa a fila ativa real.');
+})();
+
