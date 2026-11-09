@@ -161,6 +161,7 @@
 
   const originalPortalJsonp=window.portalJsonp;
   let portalLoadInFlight=null;
+  const portalPartInFlight=new Map();
   let authenticatedApiBase='';
 
   function currentSessionToken(){
@@ -206,9 +207,15 @@
         return result;
       };
 
-      // portal_load é a maior resposta do Núcleo. Se duas rotinas pedirem a
-      // mesma carga ao mesmo tempo, ambas usam a MESMA Promise em vez de
-      // manter duas respostas grandes na memória do navegador.
+      if(action==='portal_load_part'){
+        const key=String(params&&params.parte||'core');
+        if(portalPartInFlight.has(key))return portalPartInFlight.get(key);
+        const p=Promise.resolve().then(run).finally(()=>portalPartInFlight.delete(key));
+        portalPartInFlight.set(key,p);
+        return p;
+      }
+
+      // portal_load legado continua protegido, mas a sincronização normal usa partes.
       if(action==='portal_load'){
         if(portalLoadInFlight)return portalLoadInFlight;
         portalLoadInFlight=Promise.resolve()
@@ -469,7 +476,7 @@
     },50);
   })();
 
-  console.info('[NÚCLEO] API GLOBAL CANÔNICA V58 ativa — sessão fixada na mesma API + portal_load protegido.');
+  console.info('[NÚCLEO] API GLOBAL CANÔNICA V59 ativa — sessão fixa + sincronização central em partes.');
 })();
 
 /* NÚCLEO | Diretório compartilhado Matriz/Filial V31

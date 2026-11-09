@@ -1233,28 +1233,59 @@ async function syncPortalBackend(showMessage=false,options={}){
     updateBackendStatus(false,'Apps Script não configurado.');
     return false;
   }
+
   const foreground=!!(showMessage||options.foreground);
+  const parts=[
+    ['core','Cadastros e configurações'],
+    ['ros','R.O.s e contestações'],
+    ['sac','SACs'],
+    ['pdca','PDCAs e ações'],
+    ['documents','Documentos e módulos'],
+    ['communication','Comunicados e históricos'],
+    ['shared','Estado compartilhado']
+  ];
+
   portalBackendSyncInProgress=true;
-  nucleoSetCentralSyncState('syncing','Atualizando com a base central. Os dados exibidos até a confirmação são apenas cache local.');
+  nucleoSetCentralSyncState('syncing','Atualizando a base central em partes.');
   updateBackendStatus(null,'Sincronizando...');
-  if(foreground)await showNucleoLoading(options.loadingMessage||'Carregando dados da base central...','Carregando NÚCLEO');
+  if(foreground)await showNucleoLoading('Preparando sincronização em partes...','Carregando NÚCLEO');
+
   try{
-    const res=await portalJsonp({acao:'portal_load'});
-    if(res?.sucesso===false)throw new Error(res.erro||'Falha ao carregar base central.');
-    applyPortalBackendSnapshot(res);
-    nucleoSetCentralSyncState('synced','Base central confirmada. Os dados em tela estão atualizados.',res?.atualizadoEm||'');
+    let lastUpdated='';
+
+    for(let i=0;i<parts.length;i++){
+      const [part,label]=parts[i];
+
+      if(foreground){
+        try{updateNucleoLoading('Etapa '+(i+1)+' de '+parts.length+': '+label+'...')}catch(e){}
+      }
+      updateBackendStatus(null,'Sincronizando '+label+'...');
+
+      const res=await portalJsonp({acao:'portal_load_part',parte:part},90000);
+      if(!res || res.sucesso===false)throw new Error((res&&res.erro)||('Falha ao carregar '+label+'.'));
+
+      applyPortalBackendSnapshot(res);
+      lastUpdated=res.atualizadoEm||lastUpdated;
+
+      // Solta a referência da resposta antes da próxima parte.
+      if(res.dados){
+        Object.keys(res.dados).forEach(k=>{ try{res.dados[k]=null}catch(e){} });
+      }
+      await new Promise(resolve=>setTimeout(resolve,0));
+    }
+
+    nucleoSetCentralSyncState('synced','Base central confirmada. Os dados em tela estão atualizados.',lastUpdated);
     updateBackendStatus(true,'Base central conectada.');
 
-    // Atualizações leves acontecem imediatamente. Renderizações grandes ficam fora
-    // do caminho crítico para o navegador não congelar a cada sincronização automática.
     try{
       refreshSectorSelectors();
       refreshExternalRoSidebarBadge();
-      try{nucleoRefreshMetrologyAlertsForCurrentUser()}catch(e){console.warn('Falha ao atualizar alertas metrológicos.',e)}
       refreshNotificationBell();
       refreshContestPendingBadge();
       refreshPdcaSidebarBadge();
+      refreshRoSummary();
     }catch(e){}
+
     const heavyRefresh=()=>{
       try{
         loadAdminConfig();
@@ -1263,10 +1294,8 @@ async function syncPortalBackend(showMessage=false,options={}){
         populateTriageUnits();
         if(!document.getElementById('triageView')?.classList.contains('hidden'))renderTriage();
         if(!document.getElementById('externalRoControlView')?.classList.contains('hidden'))renderExternalRoControl();
-        refreshRoSummary();
         if(!document.getElementById('roListView')?.classList.contains('hidden'))try{render()}catch(e){}
         if(!document.getElementById('settingsView')?.classList.contains('hidden'))renderOperationalUsers();
-        if(!document.getElementById('settingsView')?.classList.contains('hidden'))try{populateAdminCleanupRos();}catch(e){}
         setTimeout(()=>{try{showPendingAnnouncement()}catch(e){}},100);
       }catch(e){}
     };
@@ -1286,6 +1315,9 @@ async function syncPortalBackend(showMessage=false,options={}){
     portalBackendSyncInProgress=false;
   }
 }
+
+window.__nucleoAppChunkedSync=syncPortalBackend;
+
 function updateBackendStatus(ok,text){
   const box=document.getElementById('backendConnectionState');
   if(box){
