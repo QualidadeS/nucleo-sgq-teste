@@ -6134,8 +6134,8 @@ function renderSupplierIndicatorsWorkspace(){
 <script src="assets/modules-v2/indicators/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/modules-v2/announcements/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/team-load-local-v47.js?v=20261027-team-local-central"></script>
-<script src="assets/nucleo-app.js?v=20261109-session-sync-v58"></script>
-<script src="assets/api-source-lock-v20.js?v=20261109-session-sync-v58"></script>
+<script src="assets/nucleo-app.js?v=20261109-chunked-sync-v59"></script>
+<script src="assets/api-source-lock-v20.js?v=20261109-chunked-sync-v59"></script>
 
 <script id="nucleoModuleMaintenanceGuardV1">
 (function(){
@@ -6552,73 +6552,9 @@ function renderSupplierIndicatorsWorkspace(){
     Não usa portalBackendSyncInProgress, que podia ficar travado depois do login.
   */
   window.syncPortalBackend=async function(showMessage=false,options={}){
-    if(centralPromise)return centralPromise;
-
-    centralPromise=(async()=>{
-      const foreground=!!(showMessage||options?.foreground);
-      try{
-        await ensureApi();
-
-        try{
-          window.nucleoSetCentralSyncState?.(
-            'syncing',
-            'Atualizando com a base central do Núcleo.'
-          );
-        }catch(_){}
-
-        try{window.updateBackendStatus?.(null,'Sincronizando...')}catch(_){}
-
-        if(foreground){
-          try{
-            await window.showNucleoLoading?.(
-              options?.loadingMessage||'Carregando dados da base central...',
-              'Sincronizando NÚCLEO'
-            );
-          }catch(_){}
-        }
-
-        const res=await window.portalJsonp({acao:'portal_load'},180000);
-        if(!res||res.sucesso===false){
-          throw new Error(res?.erro||'A base central não retornou os dados.');
-        }
-
-        if(typeof window.applyPortalBackendSnapshot!=='function'){
-          throw new Error('O carregador da base central não está disponível.');
-        }
-
-        window.applyPortalBackendSnapshot(res);
-
-        try{
-          window.nucleoSetCentralSyncState?.(
-            'synced',
-            'Base central confirmada. Os dados em tela estão atualizados.',
-            res?.atualizadoEm||''
-          );
-        }catch(_){}
-        try{window.updateBackendStatus?.(true,'Base central conectada.')}catch(_){}
-
-        refreshUi();
-
-        if(showMessage)alert('Base central sincronizada.');
-        return true;
-      }catch(e){
-        console.error('[NÚCLEO V53] Falha na sincronização central:',e);
-        try{
-          window.nucleoSetCentralSyncState?.(
-            'error',
-            'Falha ao confirmar a base central: '+(e?.message||e)
-          );
-        }catch(_){}
-        try{window.updateBackendStatus?.(false,e?.message||String(e))}catch(_){}
-        if(showMessage)alert('Não foi possível sincronizar: '+(e?.message||e));
-        return false;
-      }finally{
-        try{window.hideNucleoLoading?.(true)}catch(_){}
-      }
-    })();
-
-    try{return await centralPromise}
-    finally{centralPromise=null}
+    const appSync=window.__nucleoAppChunkedSync || window.syncPortalBackend.__appOriginal;
+    if(typeof appSync==='function')return appSync(showMessage,options);
+    throw new Error('Sincronizador em partes não foi carregado.');
   };
 
   /*
@@ -6644,97 +6580,17 @@ function renderSupplierIndicatorsWorkspace(){
   window.syncNow=async function(){
     if(window.syncNow.inProgress)return;
     window.syncNow.inProgress=true;
-
-    const msg=document.getElementById('syncMsg');
-    const syncBtn=[...document.querySelectorAll('.top-actions .top-btn')]
-      .find(b=>/Sincronizar/i.test(b.textContent||''));
-    const originalText=syncBtn?.textContent||'↻ Sincronizar';
-
+    const btn=[...document.querySelectorAll('.top-actions .top-btn')].find(b=>/Sincronizar/i.test(b.textContent||''));
+    const originalText=btn?.textContent||'↻ Sincronizar';
     try{
-      await ensureApi();
-
-      if(syncBtn){
-        syncBtn.disabled=true;
-        syncBtn.textContent='↻ Sincronizando';
-      }
-
-      try{
-        window.nucleoSetCentralSyncState?.(
-          'syncing',
-          'Sincronização manual em andamento.'
-        );
-      }catch(_){}
-
-      const s=window.getSavedIntegrationSettings();
-      if(!s.apiUrl)throw new Error('A URL global da API não foi confirmada.');
-
-      try{
-        await window.showNucleoLoading?.(
-          'Buscando R.O.s e SACs na base central...',
-          'Sincronizando NÚCLEO'
-        );
-      }catch(_){}
-
-      if(msg){
-        msg.textContent='Lendo R.O.s e SACs...';
-        msg.className='statusline';
-      }
-
-      if(typeof window.loadOfficialRosPaged==='function'){
-        const data=await window.loadOfficialRosPaged(
-          s,
-          (loaded,total,message)=>{
-            try{window.updateNucleoLoading?.(message)}catch(_){}
-            if(msg)msg.textContent=message;
-          }
-        );
-
-        if(data?.sucesso===false)throw new Error(data.erro||'Falha ao carregar R.O.s.');
-        if(!Array.isArray(data?.dados))throw new Error('A base não devolveu a lista de R.O.s.');
-
-        try{
-          window.updateNucleoLoading?.('Organizando '+data.dados.length+' R.O.s recebidas...');
-        }catch(_){}
-
-        if(typeof window.applyImportedRos!=='function'){
-          throw new Error('A rotina de atualização das R.O.s não está disponível.');
-        }
-
-        const qty=window.applyImportedRos(data.dados,data);
-        data.dados=null;
-
-        const centralOk=await window.syncPortalBackend(false,{foreground:false});
-        if(!centralOk)throw new Error('As R.O.s foram lidas, mas a base central não foi confirmada.');
-
-        if(msg){
-          msg.textContent='Sincronização concluída: '+qty+' R.O.(s) carregada(s).';
-          msg.className='statusline okline';
-        }
-      }else{
-        const centralOk=await window.syncPortalBackend(false,{foreground:false});
-        if(!centralOk)throw new Error('A base central não foi confirmada.');
-      }
-
+      if(btn){btn.disabled=true;btn.textContent='↻ Sincronizando';}
+      const ok=await window.syncPortalBackend(false,{foreground:true});
+      if(!ok)throw new Error('A sincronização não foi concluída.');
       refreshUi();
     }catch(e){
-      console.error('[NÚCLEO V53] Falha ao sincronizar:',e);
-      try{
-        window.nucleoSetCentralSyncState?.(
-          'error',
-          'Sincronização não confirmada: '+(e?.message||e)
-        );
-      }catch(_){}
-      if(msg){
-        msg.textContent='Não foi possível sincronizar: '+(e?.message||e);
-        msg.className='statusline';
-      }
       alert('Não foi possível sincronizar: '+(e?.message||e));
     }finally{
-      try{window.hideNucleoLoading?.(true)}catch(_){}
-      if(syncBtn){
-        syncBtn.disabled=false;
-        syncBtn.textContent=originalText;
-      }
+      if(btn){btn.disabled=false;btn.textContent=originalText;}
       window.syncNow.inProgress=false;
     }
   };
