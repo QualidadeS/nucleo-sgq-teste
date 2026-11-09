@@ -159,6 +159,7 @@ const SAVED_FILTERS_KEY='portal-sgq-saved-filters-v1';
 const DEADLINE_ALERTS_KEY='portal-sgq-deadline-alerts-v1';
 let pdcaExtraActions=[];
 let pdcaDraftSaveTimer=null;
+const pdcaDraftsBeingDiscarded=new Set();
 
 function getPdcaDrafts(){try{return JSON.parse(localStorage.getItem(PDCA_DRAFTS_KEY)||'{}')||{}}catch(e){return {}}}
 function getPdcaDraftForRo(ro){
@@ -167,6 +168,7 @@ function getPdcaDraftForRo(ro){
   const drafts=getPdcaDrafts();
   const userKey=pdcaDraftUserKey();
   const exact=drafts[key+'@@'+userKey];
+  if(exact?.discardedAt)return null;
   if(exact)return exact;
 
   const target=normalizeAnswer(key).replace(/[^a-z0-9]/g,'');
@@ -174,7 +176,7 @@ function getPdcaDraftForRo(ro){
   const candidates=Object.values(drafts).filter(d=>{
     const dk=String(d?.ro||'').trim();
     const sameRo=normalizeAnswer(dk).replace(/[^a-z0-9]/g,'')===target;
-    if(!sameRo)return false;
+    if(!sameRo||d.discardedAt)return false;
     if(d?.userKey)return d.userKey===userKey;
     // Compatibilidade com rascunhos das versões anteriores.
     return !d?.updatedBy || normalizeAnswer(d.updatedBy)===sessionName;
@@ -228,9 +230,12 @@ function buildCurrentPdcaDraft(){
   if(!selected)return null;
   const ro=selected.numero||selected.id||selected.codigo;
   const userKey=pdcaDraftUserKey();
+  const previous=getPdcaDrafts()[pdcaDraftStorageKey(ro)];
   return {
     id:'DRAFT-'+ro+'-'+userKey,
     ro,userKey,
+    draftGeneration:previous?.discardedAt||previous?.draftGeneration||'',
+
     answers:{...answers},
     actions:pdcaExtraActions.map(x=>({...x})),
     updatedAt:new Date().toISOString(),
@@ -239,7 +244,7 @@ function buildCurrentPdcaDraft(){
 }
 function savePdcaDraftLocal(){
   const draft=buildCurrentPdcaDraft();
-  if(!draft)return false;
+  if(!draft||pdcaDraftsBeingDiscarded.has(pdcaDraftStorageKey(draft.ro)))return false;
   markPdcaStarted(draft.ro);
   const drafts=getPdcaDrafts();
   drafts[pdcaDraftStorageKey(draft.ro)]=draft;
@@ -258,9 +263,16 @@ function savePdcaDraftNow(){
   updateNetworkState();
 }
 function schedulePdcaDraftSave(){
-  savePdcaDraftLocal();
+  const draft=savePdcaDraftLocal();
+  if(!draft)return;
+  const token=getSession()?.authToken;
+  const key=pdcaDraftStorageKey(draft.ro);
   clearTimeout(pdcaDraftSaveTimer);
-  pdcaDraftSaveTimer=setTimeout(savePdcaDraftNow,900);
+  pdcaDraftSaveTimer=setTimeout(()=>{
+    if(getSession()?.authToken!==token||pdcaDraftsBeingDiscarded.has(key))return;
+    const latest=getPdcaDrafts()[key];
+    if(latest&&!latest.discardedAt)portalBackendSave('pdca_drafts',latest.id,latest);
+  },900);
 }
 function loadPdcaDraftForRo(ro){
   const draft=getPdcaDraftForRo(ro);
@@ -281,6 +293,39 @@ function clearPdcaDraft(ro){
   clearPdcaStarted(ro);
   if(d?.id)portalBackendDelete('pdca_drafts',d.id);
   portalBackendDelete('pdca_drafts',ro);
+}
+
+async function discardPdcaDraftFromList(numero,button){
+  if(!nucleoFeatureRequire('pdca','respond'))return;
+  const ro=String(numero||'').trim();
+  if(!isPdcaStarted(ro)||!selectRoForOperationalAction(ro))return;
+  const key=pdcaDraftStorageKey(ro);
+  const token=getSession()?.authToken;
+  if(!token||pdcaDraftsBeingDiscarded.has(key))return;
+  if(!confirm('Excluir o rascunho do PDCA da '+ro+'? As respostas e ações não enviadas serão apagadas.'))return;
+
+  const draft=getPdcaDraftForRo(ro);
+  pdcaDraftsBeingDiscarded.add(key);
+  if(button)button.disabled=true;
+  try{
+    const result=await portalJsonp({acao:'portal_discard_pdca_draft',ro,legacyId:draft?.id||''},60000);
+    if(!result?.sucesso||!result.registro?.discardedAt)throw new Error(result?.erro||'A base central não confirmou a exclusão.');
+    if(getSession()?.authToken!==token)return;
+
+    const drafts=getPdcaDrafts();
+    if(draft?.id){
+      Object.keys(drafts).forEach(k=>{if(drafts[k]?.id===draft.id)delete drafts[k]});
+    }
+    drafts[key]=result.registro;
+    safeStorageSet(PDCA_DRAFTS_KEY,JSON.stringify(drafts));
+    clearPdcaStarted(ro);
+    if(roListMode==='assigned'&&document.getElementById('roListView')?.classList.contains('hidden')===false)render();
+  }catch(e){
+    alert('Não foi possível excluir o rascunho. '+(e?.message||e));
+  }finally{
+    pdcaDraftsBeingDiscarded.delete(key);
+    if(button)button.disabled=false;
+  }
 }
 
 function parseResponsibleSectors(value){
@@ -1186,7 +1231,13 @@ function applyPortalBackendSnapshot(snapshot){
       if(!belongs)return;
       const k=x.userKey?(String(x.ro)+'@@'+x.userKey):String(x.ro);
       const local=map[k];
-      if(!local || String(x.updatedAt||'')>=String(local.updatedAt||''))map[k]=x;
+      const centralGeneration=String(x.discardedAt||x.draftGeneration||'');
+      const localGeneration=String(local?.discardedAt||local?.draftGeneration||'');
+      if(centralGeneration>localGeneration||(centralGeneration===localGeneration&&
+        (!local||(!x.discardedAt&&String(x.updatedAt||'')>=String(local.updatedAt||''))))){
+        map[k]=x;
+        if(x.discardedAt)clearPdcaStarted(x.ro);
+      }
     });
     localStorage.setItem(PDCA_DRAFTS_KEY,JSON.stringify(map));
   }
@@ -14996,10 +15047,13 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
     }else{
       const respondDisabled=noPdca||contest||alreadySent;
       const contestDisabled=noPdca||contest;
+      const started=!alreadySent&&isPdcaStarted(r.numero);
+      const canDiscard=roListMode==='assigned'&&started&&nucleoPersonFeatureCan('pdca','respond');
       operationalActions=`<td class="operational-action-col">
         <div style="display:flex;gap:6px;flex-wrap:wrap;min-width:230px">
           <button class="btn primary" type="button" ${respondDisabled?'disabled':''} onclick="startPdcaFromList('${escapeHtml(r.numero)}')">${alreadySent?'PDCA enviado':pdcaActionLabel(r.numero)}</button>
-          ${(!alreadySent&&isPdcaStarted(r.numero))?'<span class="status-badge pending" style="align-self:center">Rascunho iniciado</span>':''}
+          ${started?'<span class="status-badge pending" style="align-self:center">Rascunho iniciado</span>':''}
+          ${canDiscard?`<button class="btn secondary" type="button" onclick="discardPdcaDraftFromList(this.dataset.ro,this)" data-ro="${escapeHtml(r.numero)}">Excluir rascunho</button>`:''}
           <button class="btn secondary" type="button" ${contestDisabled?'disabled':''} onclick="contestRoFromList('${escapeHtml(r.numero)}')">${contest?'Em contestação':'Contestar'}</button>
         </div>
       </td>`;
@@ -15900,6 +15954,7 @@ function showAssignedRos(){
   if(!nucleoFeatureRequire('pdca','respond'))return;
   if(!selected){alert('Não foi possível identificar a R.O. deste PDCA. Abra a R.O. novamente.');return}
   const roKey=selected.numero||selected.id||selected.codigo;
+  if(pdcaDraftsBeingDiscarded.has(pdcaDraftStorageKey(roKey)))return;
   const wasStarted=isPdcaStarted(roKey);
   markPdcaStarted(roKey);
   pRo.textContent=selected.numero+' • '+selected.assunto;
