@@ -6492,6 +6492,8 @@ function renderSupplierIndicatorsWorkspace(){
   if(!install()){
     let n=0,t=setInterval(()=>{if(install()||++n>80)clearInterval(t)},100);
   }
+  window.addEventListener('load',()=>{ normalize(); },{once:true});
+
   window.addEventListener('resize',normalize);
   window.nucleoOpenMobileMenu=openMenu;
   window.nucleoCloseMobileMenu=closeMenu;
@@ -7167,33 +7169,17 @@ img,svg,canvas,video,iframe{max-width:100%}
   });
   observer.observe(document.documentElement,{childList:true,subtree:true});
 
-  window.addEventListener('load',()=>{
-    normalize();
-    setTimeout(()=>v54SyncAll({officialRos:false,foreground:false}),900);
-  },{once:true});
+  
 
-  window.addEventListener('pageshow',()=>{
-    setTimeout(()=>v54SyncAll({officialRos:false,foreground:false}),350);
-  });
+  
 
-  document.addEventListener('visibilitychange',()=>{
-    if(document.visibilityState==='visible'){
-      setTimeout(()=>v54SyncAll({officialRos:false,foreground:false}),250);
-    }
-  });
+  
 
-  window.addEventListener('online',()=>{
-    setTimeout(()=>v54SyncAll({officialRos:true,foreground:false}),250);
-  });
+  
 
   window.addEventListener('resize',normalize);
 
-  /* Fallback periódico: mantém computador e celular convergindo sem depender de cache local. */
-  setInterval(()=>{
-    if(document.visibilityState==='visible' && navigator.onLine){
-      v54SyncAll({officialRos:false,foreground:false});
-    }
-  },30000);
+  
 
   normalize();
   console.info('[NÚCLEO] V54 — equipe, navbar, responsividade e sincronização entre dispositivos ativas.');
@@ -7318,6 +7304,233 @@ img,svg,canvas,video,iframe{max-width:100%}
   window.addEventListener('resize',normalize);
   window.addEventListener('load',normalize,{once:true});
   setTimeout(normalize,0);
+})();
+</script>
+
+
+<style id="nucleo-v55-mobile-assigned-sac-session">
+/* NÚCLEO — ajustes solicitados em 09/11 */
+
+/* Mobile: R.O.s atribuídas = número + ações */
+@media (max-width:760px){
+  #roListView .ro-control-table-wrap{
+    overflow:visible!important;
+    width:100%!important;
+  }
+  #roListView .ro-control-table{
+    width:100%!important;
+    min-width:0!important;
+    table-layout:fixed!important;
+  }
+
+  #roListView .ro-control-table th:nth-child(2),
+  #roListView .ro-control-table th:nth-child(3),
+  #roListView .ro-control-table th:nth-child(4),
+  #roListView .ro-control-table th:nth-child(5),
+  #roListView .ro-control-table th:nth-child(6),
+  #roListView .ro-control-table th:nth-child(7),
+  #roListView .ro-control-table td:nth-child(2),
+  #roListView .ro-control-table td:nth-child(3),
+  #roListView .ro-control-table td:nth-child(4),
+  #roListView .ro-control-table td:nth-child(5),
+  #roListView .ro-control-table td:nth-child(6),
+  #roListView .ro-control-table td:nth-child(7){
+    display:none!important;
+  }
+
+  #roListView .ro-control-table th:nth-child(1),
+  #roListView .ro-control-table td:nth-child(1){
+    display:table-cell!important;
+    width:34%!important;
+    white-space:nowrap!important;
+    font-weight:700!important;
+    padding:14px 8px!important;
+  }
+
+  #roListView .ro-control-table th:nth-child(8),
+  #roListView .ro-control-table td:nth-child(8){
+    display:table-cell!important;
+    width:66%!important;
+    padding:10px 6px!important;
+    text-align:right!important;
+    white-space:normal!important;
+  }
+
+  #roListView .ro-control-table th:nth-child(8){
+    font-size:0!important;
+  }
+  #roListView .ro-control-table th:nth-child(8)::after{
+    content:"Ações";
+    font-size:12px;
+  }
+
+  #roListView .mobile-assigned-actions{
+    display:flex!important;
+    justify-content:flex-end!important;
+    align-items:center!important;
+    gap:5px!important;
+    flex-wrap:wrap!important;
+  }
+  #roListView .mobile-assigned-actions button{
+    min-height:36px!important;
+    padding:7px 9px!important;
+    border-radius:9px!important;
+    font-size:12px!important;
+    line-height:1.1!important;
+    white-space:nowrap!important;
+  }
+  #roListView .mobile-assigned-original-actions{
+    display:none!important;
+  }
+}
+@media (min-width:761px){
+  #roListView .mobile-assigned-actions{display:none!important}
+}
+
+/* Indicadores de SAC sem acesso ao cadastro não aparecem. */
+body.nucleo-hide-sac-indicators [data-nucleo-sac-indicator="1"]{
+  display:none!important;
+}
+</style>
+
+<script id="nucleo-v55-mobile-assigned-sac-session-js">
+(function(){
+  'use strict';
+  if(window.__nucleoV55RequestedFixes)return;
+  window.__nucleoV55RequestedFixes=true;
+
+  function isActuallyVisible(el){
+    if(!el || el.hidden || el.classList.contains('hidden'))return false;
+    const s=getComputedStyle(el);
+    return s.display!=='none' && s.visibility!=='hidden';
+  }
+
+  /* Quem não tem acesso ao cadastro R.O. Externa/SAC não precisa do indicador SAC. */
+  function refreshSacIndicatorAccess(){
+    const register=document.getElementById('navNewExternalRo');
+    const canRegister=!!register && isActuallyVisible(register);
+    document.body.classList.toggle('nucleo-hide-sac-indicators',!canRegister);
+
+    const roots=[
+      document.getElementById('overviewKpis'),
+      document.getElementById('listView')
+    ].filter(Boolean);
+
+    roots.forEach(root=>{
+      root.querySelectorAll(
+        '.overview-kpi,.overview-card,.kpi-card,.indicator-card,.stat-card,.dashboard-card,.card'
+      ).forEach(card=>{
+        const txt=String(card.textContent||'').replace(/\s+/g,' ').trim();
+        if(/\bSAC\b/i.test(txt) && !/Minha equipe/i.test(txt)){
+          card.dataset.nucleoSacIndicator='1';
+          card.style.display=canRegister?'':'none';
+        }
+      });
+    });
+  }
+
+  function findAction(cell,kind){
+    const nodes=[...cell.querySelectorAll('button,a,[role="button"]')];
+    const tests={
+      consult:/consult|visual|ver\b|olho|eye|detalh|abrir/i,
+      respond:/respond|pdca|resposta/i,
+      contest:/contest/i
+    };
+    return nodes.find(el=>{
+      const hay=[
+        el.textContent,
+        el.getAttribute('title'),
+        el.getAttribute('aria-label'),
+        el.getAttribute('onclick'),
+        el.className
+      ].join(' ');
+      return tests[kind].test(hay);
+    })||null;
+  }
+
+  function proxyButton(label,kind,cell){
+    const b=document.createElement('button');
+    b.type='button';
+    b.className='btn '+(kind==='contest'?'danger':kind==='respond'?'primary':'secondary');
+    b.textContent=label;
+    b.addEventListener('click',function(e){
+      e.preventDefault();
+      e.stopPropagation();
+
+      const direct=findAction(cell,kind);
+      if(direct){
+        direct.click();
+        return;
+      }
+
+      const consult=findAction(cell,'consult');
+      if(consult)consult.click();
+
+      if(kind==='respond'){
+        setTimeout(()=>{
+          try{
+            if(typeof window.openPDCA==='function')window.openPDCA();
+          }catch(_){}
+        },80);
+      }else if(kind==='contest'){
+        setTimeout(()=>{
+          try{
+            if(typeof window.openContest==='function')window.openContest();
+          }catch(_){}
+        },80);
+      }
+    });
+    return b;
+  }
+
+  function normalizeAssignedMobileRows(){
+    const body=document.getElementById('rows');
+    if(!body)return;
+
+    [...body.querySelectorAll('tr')].forEach(row=>{
+      const cells=row.children;
+      if(cells.length<8)return;
+      const actionCell=cells[7];
+
+      let mobile=actionCell.querySelector('.mobile-assigned-actions');
+      if(!mobile){
+        const original=document.createElement('div');
+        original.className='mobile-assigned-original-actions';
+
+        while(actionCell.firstChild){
+          original.appendChild(actionCell.firstChild);
+        }
+        actionCell.appendChild(original);
+
+        mobile=document.createElement('div');
+        mobile.className='mobile-assigned-actions';
+        mobile.appendChild(proxyButton('Consultar','consult',original));
+        mobile.appendChild(proxyButton('Responder','respond',original));
+        mobile.appendChild(proxyButton('Contestar','contest',original));
+        actionCell.appendChild(mobile);
+      }
+    });
+  }
+
+  function refresh(){
+    refreshSacIndicatorAccess();
+    normalizeAssignedMobileRows();
+  }
+
+  let timer=null;
+  const observer=new MutationObserver(()=>{
+    clearTimeout(timer);
+    timer=setTimeout(refresh,60);
+  });
+  observer.observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['class','style','hidden']});
+
+  document.addEventListener('DOMContentLoaded',refresh);
+  window.addEventListener('load',refresh,{once:true});
+  window.addEventListener('resize',refresh);
+
+  /* Não fazemos nenhuma chamada de sincronização/login aqui.
+     A sessão permanece sob responsabilidade do fluxo original do Núcleo. */
+  refresh();
 })();
 </script>
 
