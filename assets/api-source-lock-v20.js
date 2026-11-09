@@ -756,6 +756,12 @@
       const key=unitKey(unit||(
         typeof adminScopeUnit==='function'?adminScopeUnit():'matriz'
       ));
+      // V44: para a Filial, a lista central é a autoridade.
+      // Não mistura setores antigos/locais, pois isso reintroduzia managedSectors
+      // globais do Leonardo e outros resíduos de cache/configuração.
+      if(key==='filial' && Array.isArray(central.filial) && central.filial.length){
+        return central.filial.slice();
+      }
       let own=[];
       try{own=originalConfigured.apply(this,arguments)||[]}catch(_){}
       return merge(own,central[key]||[]);
@@ -766,6 +772,9 @@
   if(typeof originalPublic==='function'){
     window.nucleoPublicLoginSectors=function(unit){
       const key=unitKey(unit);
+      if(key==='filial' && Array.isArray(central.filial) && central.filial.length){
+        return central.filial.slice();
+      }
       let own=[];
       try{own=originalPublic.apply(this,arguments)||[]}catch(_){}
       return merge(own,central[key]||[]);
@@ -778,6 +787,9 @@
         const fn=window.nucleoPublicLoginSectors;
         const wrapped=function(unit){
           const key=unitKey(unit);
+          if(key==='filial' && Array.isArray(central.filial) && central.filial.length){
+            return central.filial.slice();
+          }
           let own=[];
           try{own=fn.apply(this,arguments)||[]}catch(_){}
           return merge(own,central[key]||[]);
@@ -817,7 +829,355 @@
 
   window.nucleoReloadSharedSectorNamesV41=load;
 
+  // V44: proteção final contra qualquer função antiga que volte a acrescentar
+  // setores de gestão global na Filial. A lista central é a única fonte válida.
+  function filialSession(){
+    try{
+      const s=typeof getSession==='function'?(getSession()||{}):{};
+      return String(s.role||'').toLowerCase()==='quality' || unitKey(s.unit||'')==='filial';
+    }catch(_){return false}
+  }
+  function installTriageGuard(){
+    if(typeof window.getConfiguredSectorsForTriage!=='function')return false;
+    if(window.getConfiguredSectorsForTriage.__nucleoV44)return true;
+    const old=window.getConfiguredSectorsForTriage;
+    const wrapped=function(){
+      if(filialSession() && central.filial.length)return central.filial.slice();
+      return old.apply(this,arguments);
+    };
+    wrapped.__nucleoV44=true;
+    window.getConfiguredSectorsForTriage=wrapped;
+    return true;
+  }
+  function cleanFilialSectorSelects(){
+    if(!filialSession()||!central.filial.length)return;
+    const allowed=new Set(central.filial.map(norm));
+    ['operationalUserSector','triageSectorPicker','newUserSector','registerSector','loginSector','userRegistrationEditSector'].forEach(id=>{
+      const el=document.getElementById(id);
+      if(!el||el.tagName!=='SELECT')return;
+      [...el.options].forEach(opt=>{
+        const v=String(opt.value||'').trim();
+        if(v && !allowed.has(norm(v)))opt.remove();
+      });
+    });
+  }
+  const guardTimer=setInterval(()=>{
+    installTriageGuard();
+    cleanFilialSectorSelects();
+  },250);
+  setTimeout(()=>clearInterval(guardTimer),15000);
+  const v44Observer=new MutationObserver(()=>cleanFilialSectorSelects());
+  v44Observer.observe(document.documentElement,{childList:true,subtree:true});
+
   setTimeout(load,200);
   window.addEventListener('load',()=>setTimeout(load,0),{once:true});
   console.info('[NÚCLEO] Setores compartilhados centrais V41 ativos.');
 })();
+
+
+/* NÚCLEO | LÍDER PDCAs + SETORES FILIAL SEM LEONARDO V46
+   1) Gestor enxerga os PDCAs das R.O.s que ele realmente pode consultar.
+   2) A lista de setores da Filial não usa managedSectors do Leonardo como fonte.
+*/
+(function(){
+  'use strict';
+  if(window.__nucleoLeaderPdcaAndFilialSectorV46)return;
+  window.__nucleoLeaderPdcaAndFilialSectorV46=true;
+
+  const LEONARDO_EMAIL='leonardo@setaembalagens.com.br';
+  const LEONARDO_PERSON='69d13e9d-bc82-476c-8e33-10404aa21582';
+
+  function norm(v){
+    try{return typeof normalizeAnswer==='function'?normalizeAnswer(v):String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();}
+    catch(_){return String(v||'').toLowerCase().trim();}
+  }
+  function unitKey(v){
+    try{
+      if(typeof normalizePortalUnit==='function'){
+        const n=normalizePortalUnit(v);
+        if(n==='filial'||n==='matriz')return n;
+      }
+    }catch(_){}
+    return /filial|linhares|seta es/i.test(String(v||''))?'filial':'matriz';
+  }
+  function uniq(list){
+    const out=[];
+    (list||[]).forEach(v=>{
+      v=String(v||'').trim();
+      if(v&&!out.some(x=>norm(x)===norm(v)))out.push(v);
+    });
+    return out.sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  }
+  function isLeonardo(u){
+    return String(u?.email||'').trim().toLowerCase()===LEONARDO_EMAIL ||
+      String(u?.personId||'').trim().toLowerCase()===LEONARDO_PERSON;
+  }
+  function userHasFilialEvidence(u,sector){
+    if(!u||isLeonardo(u))return false;
+    const wanted=norm(sector);
+    const own=norm(u.sector||u.setor||'');
+    let units=[];
+    if(Array.isArray(u.accessUnits))units=u.accessUnits.map(unitKey);
+    if(!units.length)units=[unitKey(u.unit||u.unidade||'')];
+    if(own===wanted&&units.includes('filial'))return true;
+    return (Array.isArray(u.sectorMemberships)?u.sectorMemberships:[]).some(m=>
+      unitKey(m?.unit||'')==='filial' && norm(m?.sector||'')===wanted
+    );
+  }
+  function filialSectorList(){
+    let central=[];
+    try{
+      central=Array.isArray(window.__nucleoCentralSectorNamesV41?.filial)
+        ? window.__nucleoCentralSectorNamesV41.filial.slice()
+        : [];
+    }catch(_){}
+
+    let users=[];
+    try{users=typeof getOperationalUsers==='function'?(getOperationalUsers()||[]):[]}catch(_){}
+
+    // Complementa apenas com vínculos REAIS da Filial. managedSectors nunca entra aqui.
+    users.forEach(u=>{
+      if(!u||isLeonardo(u))return;
+      const sector=String(u.sector||u.setor||'').trim();
+      if(sector&&userHasFilialEvidence(u,sector))central.push(sector);
+      (Array.isArray(u.sectorMemberships)?u.sectorMemberships:[]).forEach(m=>{
+        if(unitKey(m?.unit||'')==='filial')central.push(m?.sector||'');
+      });
+    });
+
+    // Se algum setor contaminado ainda vier do cadastro antigo da Filial,
+    // remove-o quando ele só é sustentado pelos managedSectors do Leonardo.
+    const leonardo=users.find(isLeonardo);
+    const leoManaged=uniq([...(leonardo?.managedSectors||[])]);
+    central=uniq(central).filter(sec=>{
+      const fromLeonardo=leoManaged.some(x=>norm(x)===norm(sec));
+      if(!fromLeonardo)return true;
+      return users.some(u=>userHasFilialEvidence(u,sec));
+    });
+
+    return uniq(central);
+  }
+
+  const originalGetConfigured=window.getConfiguredSectors;
+  window.getConfiguredSectors=function(unit){
+    const target=unitKey(unit||(
+      typeof adminScopeUnit==='function'?adminScopeUnit():(getSession?.()?.unit||'')
+    ));
+    if(target==='filial')return filialSectorList();
+    try{return typeof originalGetConfigured==='function'?(originalGetConfigured.apply(this,arguments)||[]):[]}
+    catch(_){return []}
+  };
+
+  const originalTriage=window.getConfiguredSectorsForTriage;
+  window.getConfiguredSectorsForTriage=function(){
+    const session=typeof getSession==='function'?(getSession()||{}):{};
+    if(String(session.role||'').toLowerCase()==='quality' || unitKey(session.unit||'')==='filial'){
+      return filialSectorList();
+    }
+    try{return typeof originalTriage==='function'?(originalTriage.apply(this,arguments)||[]):window.getConfiguredSectors()}
+    catch(_){return window.getConfiguredSectors()}
+  };
+
+  const originalPublic=window.nucleoPublicLoginSectors;
+  if(typeof originalPublic==='function'){
+    window.nucleoPublicLoginSectors=function(unit){
+      if(unitKey(unit)==='filial')return filialSectorList();
+      return originalPublic.apply(this,arguments)||[];
+    };
+  }
+
+  function roForPdca(p){
+    const key=String(p?.ro||p?.roId||p?.numeroRo||'').trim();
+    if(!key)return p?.__sourceRo||null;
+    let all=[];
+    try{all=typeof getAllRoRecords==='function'?(getAllRoRecords()||[]):[]}catch(_){}
+    return p?.__sourceRo || all.find(r=>String(r?.numero||r?.id||r?.codigo||'').trim()===key) || null;
+  }
+
+  // Regra única: quem pode consultar a R.O. pode consultar o PDCA vinculado.
+  window.canViewPdca=function(p){
+    if(!p)return false;
+    try{
+      if(typeof isAdmin==='function'&&isAdmin())return true;
+    }catch(_){}
+
+    const ro=roForPdca(p);
+    if(ro){
+      try{
+        const map=typeof getSavedTriageMap==='function'?getSavedTriageMap():null;
+        if(typeof canViewRO==='function'&&canViewRO(ro,map))return true;
+      }catch(_){}
+    }
+
+    // Compatibilidade: próprio setor ou R.O. aberta pelo usuário.
+    try{if(typeof sameSector==='function'&&sameSector(p.setor))return true}catch(_){}
+    try{if(ro&&typeof wasRoSubmittedByCurrentUser==='function'&&wasRoSubmittedByCurrentUser(ro))return true}catch(_){}
+    return false;
+  };
+
+  function claimantFor(p,ro){
+    try{
+      const u=ro&&typeof resolveRoClaimant==='function'?resolveRoClaimant(ro):null;
+      if(u&&typeof personDisplayName==='function')return personDisplayName(u)||'—';
+      if(u)return String(u.name||u.nome||u.email||'—');
+    }catch(_){}
+    return String(
+      p?.reclamante||p?.claimantName||ro?.reclamante||ro?.solicitante||
+      (typeof roRegistrantName==='function'&&ro?roRegistrantName(ro):'')||'—'
+    ).trim()||'—';
+  }
+  function companyFor(p,ro){
+    return String(
+      p?.cliente||p?.empresa||p?.company||
+      ro?.cliente||ro?.empresa||ro?.razaoSocial||
+      ro?.raw?.Cliente||ro?.raw?.['Razão social']||ro?.raw?.['Razao social']||'—'
+    ).trim()||'—';
+  }
+  function receivedWhen(p){
+    const raw=p?.sentAt||p?.envio||'';
+    if(!raw)return '—';
+    const d=new Date(raw);
+    return Number.isNaN(d.getTime())?String(raw):d.toLocaleString('pt-BR');
+  }
+  function pdcaStatus(p){
+    try{
+      if(typeof nucleoPdcaDelivery==='function'&&nucleoPdcaDelivery(p))return 'Encerrada';
+    }catch(_){}
+    return String(p?.status||p?.__displayStatus||'Respondido').trim()||'Respondido';
+  }
+
+  window.nucleoLeaderOpenPdcaPdfV46=async function(id){
+    let p=null;
+    try{p=typeof findSentPdcaById==='function'?findSentPdcaById(id):null}catch(_){}
+    if(!p){alert('PDCA não encontrado.');return}
+    if(!window.canViewPdca(p)){alert('PDCA não encontrado ou indisponível.');return}
+
+    // PDF/modelo oficial quando disponível.
+    try{
+      if(typeof nucleoSystemFormat==='function' &&
+         nucleoSystemFormat('pdca',typeof explicitRecordUnit==='function'?explicitRecordUnit(p):'')?.design &&
+         typeof nucleoPdcaDownloadModelPdf==='function'){
+        return await nucleoPdcaDownloadModelPdf(p,true);
+      }
+    }catch(_){}
+
+    // PDF anexado/Drive.
+    const direct=String(p.pdfUrl||p.fileUrl||p.driveUrl||p.webViewLink||'').trim();
+    if(/^https?:\/\//i.test(direct)){
+      window.open(direct,'_blank','noopener');
+      return;
+    }
+
+    // Fallback: abre o PDCA e usa o gerador existente.
+    try{
+      window.currentReportPdca=p;
+      window.currentPrintPdca=p;
+      if(typeof downloadCurrentPdcaPdf==='function')return await downloadCurrentPdcaPdf();
+    }catch(e){
+      console.error('[NÚCLEO V46 PDF]',e);
+    }
+    if(typeof openPdcaReport==='function')openPdcaReport(id);
+  };
+
+  window.renderSentPdcas=function(){
+    try{if(typeof refreshPdcaSidebarBadge==='function')refreshPdcaSidebarBadge()}catch(_){}
+
+    const q=String(document.getElementById('sentSearch')?.value||'').toLowerCase().trim();
+    const sf=document.getElementById('sentStatusFilter')?.value||'todos';
+
+    let data=[];
+    try{
+      data=typeof nucleoReceivedPdcaDisplayData==='function'
+        ? (nucleoReceivedPdcaDisplayData()||[])
+        : (typeof getSentPdcas==='function'?(getSentPdcas()||[]):[]);
+    }catch(_){data=[]}
+
+    // SGQ/Qualidade seguem o escopo normal; líder/operacional usa a mesma autorização da R.O.
+    if(!(typeof isAdmin==='function'&&isAdmin())){
+      data=data.filter(p=>window.canViewPdca(p));
+    }
+
+    let rows=data.map(p=>{
+      const ro=roForPdca(p);
+      return {
+        p,ro,
+        claimant:claimantFor(p,ro),
+        company:companyFor(p,ro)
+      };
+    }).filter(x=>{
+      const hay=[
+        x.p?.id,x.p?.ro,x.p?.responsavel,x.p?.setor,
+        x.claimant,x.company
+      ].join(' ').toLowerCase();
+      return (!q||hay.includes(q))&&(sf==='todos'||String(x.p?.status||'')===sf);
+    });
+
+    // Histórico/pêndencias continua valendo para SGQ. Para líder mostra todos os PDCAs permitidos.
+    let lifecycle='all';
+    try{
+      lifecycle=(typeof isAdmin==='function'&&isAdmin())
+        ? (document.getElementById('sentLifecycleFilter')?.value||'active')
+        : 'all';
+      if(typeof nucleoRenderPdcaLifecycle==='function')nucleoRenderPdcaLifecycle(data,lifecycle);
+    }catch(_){}
+    if(lifecycle!=='all'&&typeof nucleoPdcaDelivery==='function'){
+      rows=rows.filter(({p})=>(lifecycle==='history')===!!nucleoPdcaDelivery(p));
+    }
+
+    const body=document.getElementById('sentRows');
+    if(!body)return;
+
+    // Ajusta cabeçalho da tela para a informação que o líder precisa.
+    const table=body.closest('table');
+    const head=table?.querySelector('thead tr');
+    if(head){
+      head.innerHTML='<th>PDCA</th><th>R.O.</th><th>Responsável pela resposta</th><th>Reclamante</th><th>Empresa / cliente</th><th>Unidade</th><th>Recebimento</th><th>Status</th><th></th>';
+    }
+
+    body.innerHTML=rows.length?rows.map(({p,ro,claimant,company})=>{
+      const id=String(p?.id||'');
+      const name=String(
+        p?.externalPdf&&p?.fileName?p.fileName.replace(/\.pdf$/i,''):
+        (p?.__virtualReceived?'PDCA recebido':(p?.id||'PDCA'))
+      );
+      const unit=typeof canonicalUnitName==='function'
+        ? canonicalUnitName(p?.unidade||p?.unit||ro?.unidade||'')
+        : String(p?.unidade||p?.unit||ro?.unidade||'—');
+      const status=pdcaStatus(p);
+      const pdfButton=p?.__virtualReceived
+        ? '<button class="btn secondary" type="button" onclick="event.stopPropagation();openRO(\''+
+          (typeof escapeHtml==='function'?escapeHtml(p?.ro||''):String(p?.ro||''))+'\')">Ver R.O.</button>'
+        : '<button class="btn primary" type="button" onclick="event.stopPropagation();nucleoLeaderOpenPdcaPdfV46(\''+
+          (typeof escapeHtml==='function'?escapeHtml(id):id)+'\')">Abrir PDF</button>';
+      const esc=typeof escapeHtml==='function'?escapeHtml:(v=>String(v??''));
+      return '<tr class="click" onclick="'+(p?.__virtualReceived
+        ? "openRO('"+esc(p?.ro||'')+"')"
+        : "openPdcaReport('"+esc(id)+"')")+'">'+
+        '<td><b>'+esc(name)+'</b><div class="small">'+esc(p?.setor||'')+'</div></td>'+
+        '<td><b>'+esc(p?.ro||'—')+'</b></td>'+
+        '<td>'+esc(p?.responsavel||'—')+'</td>'+
+        '<td>'+esc(claimant)+'</td>'+
+        '<td>'+esc(company)+'</td>'+
+        '<td>'+esc(unit||'—')+'</td>'+
+        '<td>'+esc(receivedWhen(p))+'</td>'+
+        '<td><span class="badge">'+esc(status)+'</span></td>'+
+        '<td class="sent-action">'+pdfButton+'</td>'+
+      '</tr>';
+    }).join(''):'<tr><td colspan="9" class="small">Nenhum PDCA encontrado.</td></tr>';
+  };
+
+  // Reaplica opções de setor após o snapshot da Filial.
+  function refreshFilialSectorUi(){
+    try{
+      const s=typeof getSession==='function'?(getSession()||{}):{};
+      if(String(s.role||'').toLowerCase()!=='quality'&&unitKey(s.unit||'')!=='filial')return;
+      if(typeof populateTriageSectors==='function')populateTriageSectors();
+      if(typeof refreshSectorSelectors==='function')refreshSectorSelectors();
+    }catch(_){}
+  }
+  setTimeout(refreshFilialSectorUi,600);
+  window.addEventListener('load',()=>setTimeout(refreshFilialSectorUi,300),{once:true});
+
+  console.info('[NÚCLEO] V46 — líder vê PDCAs pelas R.O.s autorizadas; Filial sem managedSectors do Leonardo.');
+})();
+
