@@ -1191,7 +1191,7 @@ function applyPortalBackendSnapshot(snapshot){
     localStorage.setItem(PDCA_DRAFTS_KEY,JSON.stringify(map));
   }
   if(Array.isArray(data.savedFilters))localStorage.setItem(SAVED_FILTERS_KEY,JSON.stringify(data.savedFilters));
-  if(Array.isArray(data.pdcaSent)){localStorage.setItem(SENT_PDCA_KEY,JSON.stringify(data.pdcaSent));try{localStorage.setItem(SENT_PDCA_KEY,JSON.stringify(data.pdcaSent))}catch(e){}}
+  if(Array.isArray(data.pdcaSent))localStorage.setItem(SENT_PDCA_KEY,JSON.stringify(data.pdcaSent));
   if(Array.isArray(data.favorites)){
     const mine=data.favorites.find(x=>String(x.userKey||x.id||'')===notificationUserKey());
     if(mine&&Array.isArray(mine.items))localStorage.setItem(FAVORITES_KEY,JSON.stringify(mine.items));
@@ -1240,14 +1240,16 @@ async function syncPortalBackend(showMessage=false,options={}){
       refreshExternalRoSidebarBadge();
       try{nucleoRefreshMetrologyAlertsForCurrentUser()}catch(e){console.warn('Falha ao atualizar alertas metrológicos.',e)}
       refreshNotificationBell();
-      refreshContestPendingBadge();
       refreshPdcaSidebarBadge();
     }catch(e){}
     const heavyRefresh=()=>{
       try{
-        loadAdminConfig();
-        renderAnnouncementsAdmin();
-        renderContestations();
+        if(document.getElementById('settingsView')?.classList.contains('hidden')===false){
+          loadAdminConfig();
+          renderOperationalUsers();
+        }
+        if(document.getElementById('announcementsView')?.classList.contains('hidden')===false)renderAnnouncementsAdmin();
+        if(document.getElementById('contestationsView')?.classList.contains('hidden')===false)renderContestations();
         populateTriageUnits();
         if(!document.getElementById('triageView')?.classList.contains('hidden'))renderTriage();
         if(!document.getElementById('externalRoControlView')?.classList.contains('hidden'))renderExternalRoControl();
@@ -1255,8 +1257,6 @@ async function syncPortalBackend(showMessage=false,options={}){
           try{refreshRoSummary()}catch(e){}
           try{render()}catch(e){}
         }
-        if(!document.getElementById('settingsView')?.classList.contains('hidden'))renderOperationalUsers();
-        if(!document.getElementById('settingsView')?.classList.contains('hidden'))try{populateAdminCleanupRos();}catch(e){}
         setTimeout(()=>{try{showPendingAnnouncement()}catch(e){}},100);
       }catch(e){}
     };
@@ -3130,7 +3130,7 @@ async function loginUser(){
     // O cache pode aparecer imediatamente, mas ainda não é considerado dado atual.
     nucleoSetCentralSyncState('syncing','Login confirmado. Atualizando dados com a base central…');
     // Tudo abaixo é pós-login e NÃO pode fechar/bloquear uma sessão já autorizada.
-    const steps=[refreshAccessUI,enforceAdminVisibility,refreshRoRegistrationAccess,showList,refreshNotificationBell,refreshContestPendingBadge,refreshPdcaSidebarBadge,schedulePendingAnnouncementCheck];
+    const steps=[refreshAccessUI,enforceAdminVisibility,refreshRoRegistrationAccess,()=>showList({deferData:true}),schedulePendingAnnouncementCheck];
     steps.forEach(fn=>{try{if(typeof fn==='function')fn()}catch(e){console.error('Pós-login:',e)}});
     // Toda entrada inicia a atualização central sem depender do botão.
     void nucleoSyncAfterLogin(session.authToken);
@@ -7135,7 +7135,11 @@ function baseTriageSituation(ro){
 
 function getTriageRecordsForRoNumber(roNumber,map=getSavedTriageMap()){
   const base=String(roNumber||'').trim();
-  return [...map.values()].filter(t=>String(t?.roNumber||String(t?.roKey||'').split('::')[0]||'').trim()===base);
+  const matches=[];
+  for(const t of map.values()){
+    if(String(t?.roNumber||String(t?.roKey||'').split('::')[0]||'').trim()===base)matches.push(t);
+  }
+  return matches;
 }
 function getTriageRecordForRoSector(roNumber,sector,map=getSavedTriageMap()){
   const composite=triageCompositeKey(roNumber,sector);
@@ -7263,6 +7267,7 @@ function getSavedTriageMap(){
   // Setor/Pessoa/Status preenchidos na planilha.
   // O registro salvo manualmente no Núcleo continua tendo prioridade.
   try{
+    let operationalUsers;
     getAllRoRecords().forEach(ro=>{
       const key=triageKeyOf(ro);
       // Uma exclusão antiga de duplicata visual não pode transformar a R.O. em não triada.
@@ -7283,7 +7288,8 @@ function getSavedTriageMap(){
 
       let responsibleUserEmail='';
       if(decision==='directed' && pessoa && normalizeAnswer(pessoa)!=='todo o setor'){
-        const u=getOperationalUsers().find(user=>
+        operationalUsers??=getOperationalUsers();
+        const u=operationalUsers.find(user=>
           normalizeAnswer(user.name||'')===normalizeAnswer(pessoa) &&
           normalizeAnswer(user.sector||'')===normalizeAnswer(setor)
         );
@@ -9495,6 +9501,7 @@ function printCurrentPdca(){
     return;
   }
 
+  if(viewOriginalPdcaIfAttached(p))return;
   if(nucleoSystemFormat('pdca',explicitRecordUnit(p))?.design){void nucleoPdcaDownloadModelPdf(p,true);return;}
   renderPdcaPrintDocument(p);
 
@@ -9965,8 +9972,6 @@ function presentCurrentViewedPdca(){
 function openPdcaReport(pdcaId){
   const p=findSentPdcaById(pdcaId);
 
-  if(p) window.currentPrintPdca=p;
-
   if(!p){
     alert('PDCA não encontrado ou indisponível.');
     return;
@@ -9977,6 +9982,9 @@ function openPdcaReport(pdcaId){
     return;
   }
 
+  if(viewOriginalPdcaIfAttached(p))return;
+
+  window.currentPrintPdca=p;
   const overlay=document.getElementById('pdcaQuickViewOverlay');
   const body=document.getElementById('pdcaQuickViewBody');
 
@@ -10131,6 +10139,7 @@ function wrapText(text,maxChars){
 async function downloadCurrentPdcaPdf(){
   const p=window.currentReportPdca;
   if(!p){alert('Abra um PDCA antes de gerar o PDF.');return}
+  if(viewOriginalPdcaIfAttached(p))return;
   if(nucleoSystemFormat('pdca',explicitRecordUnit(p))?.design)return nucleoPdcaDownloadModelPdf(p,false);
   const ans=p.answers||{};
   const model=nucleoSystemFormat('pdca',explicitRecordUnit(p));
@@ -11718,7 +11727,7 @@ function compactRoForStorage(r){
   return {...r,raw:keepRaw};
 }
 
-function saveImportedRosByOrigin(internas,externas){
+function saveImportedRosByOrigin(internas,externas,alreadyCompact=false){
   const inList=Array.isArray(internas)?internas:[];
   const exList=Array.isArray(externas)?externas:[];
 
@@ -11753,8 +11762,8 @@ function saveImportedRosByOrigin(internas,externas){
   // Persiste fora do pico de normalização/renderização e só com raw compacto.
   const persist=()=>{
     try{
-      const durableInternas=inList.map(compactRoForStorage);
-      const durableExternas=exList.map(compactRoForStorage);
+      const durableInternas=alreadyCompact?inList:inList.map(compactRoForStorage);
+      const durableExternas=alreadyCompact?exList:exList.map(compactRoForStorage);
       saveImportedRosDurable(durableInternas,durableExternas).catch(e=>{
         console.warn('NÚCLEO: falha ao salvar R.O.s no IndexedDB.',e);
       });
@@ -11793,62 +11802,72 @@ function importedRoStorageCounts(){
   return {interna:split.internas.length,externa:split.externas.length,total:split.internas.length+split.externas.length};
 }
 
-function applyImportedRos(records,meta){
-  const previousNumbers=ros.map(r=>String(r.numero||''));
+function createImportedRoBatch(){
+  return {incoming:[],incomingInterna:[],incomingExterna:[],loaded:0,hasOriginMarkers:false,registry:getRoOriginRegistry()};
+}
 
-  const qtdInterna=(meta && Number.isFinite(Number(meta.quantidadeInterna)))
-    ? Number(meta.quantidadeInterna)
-    : null;
-  const qtdExterna=(meta && Number.isFinite(Number(meta.quantidadeExterna)))
-    ? Number(meta.quantidadeExterna)
-    : null;
-
-  if(qtdInterna!==null && qtdExterna!==null && (qtdInterna+qtdExterna)!==records.length){
-    throw new Error('A API informou quantidades de Interna/Externa incompatíveis com a lista recebida.');
-  }
-
-  const authoritativeInterna=meta && typeof meta.quantidadeInterna!=='undefined';
-  const authoritativeExterna=meta && typeof meta.quantidadeExterna!=='undefined';
-  const filteredPeriod=Boolean(meta?.filtroPeriodo?.ativo);
-
-  const incoming=[];
-  const incomingInterna=[];
-  const incomingExterna=[];
-  let hasOriginMarkers=false;
-
-  nucleoBulkRoOriginRegistry=getRoOriginRegistry();
+function appendImportedRoBatch(batch,records,qtdInterna){
+  const previousRegistry=nucleoBulkRoOriginRegistry;
+  nucleoBulkRoOriginRegistry=batch.registry;
   try{
     for(let index=0;index<records.length;index++){
+      const absoluteIndex=batch.loaded+index;
       const original=records[index]||{};
       let source=original;
       let origin=String(original.__origemBase||'').trim();
       if(!origin && qtdInterna!==null){
-        origin=index<qtdInterna?'Interna':'Externa';
+        origin=absoluteIndex<qtdInterna?'Interna':'Externa';
         source={...original,__origemBase:origin,__ehSac:origin==='Externa'};
       }
-      if(origin)hasOriginMarkers=true;
+      if(origin)batch.hasOriginMarkers=true;
 
-      const normalized=compactRoForStorage(normalizeImportedRo(source,index));
+      const normalized=compactRoForStorage(normalizeImportedRo(source,absoluteIndex));
       if(!normalized?.numero)continue;
 
-      incoming.push(normalized);
-      if(String(normalized.origemBase||'')==='Interna')incomingInterna.push(normalized);
-      else if(String(normalized.origemBase||'')==='Externa')incomingExterna.push(normalized);
+      batch.incoming.push(normalized);
+      if(normalized.origemBase==='Interna')batch.incomingInterna.push(normalized);
+      else if(normalized.origemBase==='Externa')batch.incomingExterna.push(normalized);
     }
+    batch.loaded+=records.length;
   }finally{
-    const registry=nucleoBulkRoOriginRegistry;
-    nucleoBulkRoOriginRegistry=null;
-    if(registry)saveRoOriginRegistry(registry);
+    batch.registry=nucleoBulkRoOriginRegistry;
+    nucleoBulkRoOriginRegistry=previousRegistry;
   }
+}
 
-  if(!incoming.length && !(meta && Number(meta.quantidadeInterna)===0 && Number(meta.quantidadeExterna)===0))
+function importedRoCount(value){
+  return value!=null && Number.isFinite(Number(value)) ? Number(value) : null;
+}
+
+function applyImportedRos(records,meta){
+  const batch=createImportedRoBatch();
+  appendImportedRoBatch(batch,records,importedRoCount(meta?.quantidadeInterna));
+  return commitImportedRoBatch(batch,meta);
+}
+
+function commitImportedRoBatch(batch,meta){
+  const qtdInterna=importedRoCount(meta?.quantidadeInterna);
+  const qtdExterna=importedRoCount(meta?.quantidadeExterna);
+  const {incoming,incomingInterna,incomingExterna,hasOriginMarkers}=batch;
+
+  if(qtdInterna!==null && qtdExterna!==null && qtdInterna+qtdExterna!==batch.loaded){
+    throw new Error('A API informou quantidades de Interna/Externa incompatíveis com a lista recebida.');
+  }
+  if(!incoming.length && !(qtdInterna===0 && qtdExterna===0))
     throw new Error('Nenhuma R.O. válida foi encontrada.');
+
+  const previousNumbers=ros.map(r=>String(r.numero||''));
+  const authoritativeInterna=qtdInterna!==null;
+  const authoritativeExterna=qtdExterna!==null;
+  const filteredPeriod=Boolean(meta?.filtroPeriodo?.ativo);
+  let reusedCachedOrigin=false;
 
   let normalized=incoming;
   let finalInternas=incomingInterna;
   let finalExternas=incomingExterna;
 
   if(hasOriginMarkers && !(filteredPeriod || (authoritativeInterna && authoritativeExterna))){
+    reusedCachedOrigin=true;
     const previousByOrigin=readImportedRosByOrigin();
     const prevInternas=previousByOrigin.internas;
     const prevExternas=previousByOrigin.externas;
@@ -11865,12 +11884,16 @@ function applyImportedRos(records,meta){
   }
 
   applySacRepresentativeOverridesToRos(normalized);
-  rebuildRoOriginRegistry(normalized);
+  const previousRegistry=nucleoBulkRoOriginRegistry;
+  nucleoBulkRoOriginRegistry=batch.registry;
+  try{rebuildRoOriginRegistry(normalized)}
+  finally{nucleoBulkRoOriginRegistry=previousRegistry}
+  saveRoOriginRegistry(batch.registry);
 
   ros.splice(0,ros.length,...normalized);
   selected=ros[0]||null;
 
-  saveImportedRosByOrigin(finalInternas,finalExternas);
+  saveImportedRosByOrigin(finalInternas,finalExternas,!reusedCachedOrigin);
   try{localStorage.removeItem(IMPORTED_RAW_KEY)}catch(e){}
 
   setTimeout(()=>{
@@ -11986,16 +12009,19 @@ async function loadOfficialRosFullFallback(settings,onProgress,reason){
   if(data?.sucesso===false)throw new Error(data.erro||'A planilha recusou a leitura completa.');
   if(!Array.isArray(data?.dados))throw new Error('A leitura completa não devolveu a lista de R.O.s.');
   const total=Number.isFinite(Number(data.quantidade))?Number(data.quantidade):data.dados.length;
-  const internas=Number.isFinite(Number(data.quantidadeInterna))?Number(data.quantidadeInterna):null;
-  const externas=Number.isFinite(Number(data.quantidadeExterna))?Number(data.quantidadeExterna):null;
+  const internas=importedRoCount(data.quantidadeInterna);
+  const externas=importedRoCount(data.quantidadeExterna);
   if(total!==data.dados.length)throw new Error('A leitura completa devolveu quantidade incompatível com os registros recebidos.');
+  const batch=createImportedRoBatch();
+  appendImportedRoBatch(batch,data.dados,internas);
+  data.dados=null;
   if(onProgress)onProgress(total,total,'Leitura completa concluída: '+total+' R.O.s e SACs.');
-  return {...data,quantidade:total,quantidadeInterna:internas,quantidadeExterna:externas,dados:data.dados,__syncMode:'full'};
+  return {...data,quantidade:total,quantidadeInterna:internas,quantidadeExterna:externas,batch};
 }
 async function loadOfficialRosPaged(settings,onProgress){
   const s=settings||getSavedIntegrationSettings();
   const period=roSyncPeriodParams(s);
-  const all=[];
+  const batch=createImportedRoBatch();
   let total=null,internas=null,externas=null,meta=null;
   const pageSize=200;
   const started=Date.now();
@@ -12010,7 +12036,7 @@ async function loadOfficialRosPaged(settings,onProgress){
       }catch(e){
         lastError=e;
         if(attempt<2){
-          if(onProgress)onProgress(all.length,total,'Repetindo página '+(Math.floor(offset/pageSize)+1)+'...');
+          if(onProgress)onProgress(batch.loaded,total,'Repetindo página '+(Math.floor(offset/pageSize)+1)+'...');
           await new Promise(resolve=>setTimeout(resolve,1000*attempt));
         }
       }
@@ -12033,17 +12059,23 @@ async function loadOfficialRosPaged(settings,onProgress){
       if(offset===0)return loadOfficialRosFullFallback(s,onProgress,'primeira página inválida');
       throw new Error('A planilha devolveu uma página inválida.');
     }
-    if(total===null){total=expected;internas=Number(page.quantidadeInterna);externas=Number(page.quantidadeExterna);meta=page}
-    if(total!==expected||internas!==Number(page.quantidadeInterna)||externas!==Number(page.quantidadeExterna))
+    if(total===null){
+      total=expected;
+      internas=importedRoCount(page.quantidadeInterna);
+      externas=importedRoCount(page.quantidadeExterna);
+      meta={filtroPeriodo:page.filtroPeriodo};
+    }
+    if(total!==expected||internas!==importedRoCount(page.quantidadeInterna)||externas!==importedRoCount(page.quantidadeExterna))
       throw new Error('A planilha mudou durante a leitura. Execute Sincronizar novamente.');
     if(page.dados.length>pageSize||(!page.dados.length && offset<total))
       throw new Error('A planilha devolveu uma página incompleta.');
-    all.push(...page.dados);
-    if(onProgress)onProgress(Math.min(all.length,total),total,'Lendo R.O.s e SACs: '+Math.min(all.length,total)+' de '+total+'...');
+    appendImportedRoBatch(batch,page.dados,internas);
+    page=null;
+    if(onProgress)onProgress(Math.min(batch.loaded,total),total,'Lendo R.O.s e SACs: '+Math.min(batch.loaded,total)+' de '+total+'...');
     await new Promise(resolve=>setTimeout(resolve,0));
   }
-  if(all.length!==total)throw new Error('A leitura terminou com registros faltando. Tente sincronizar novamente.');
-  return {...meta,quantidade:total,quantidadeInterna:internas,quantidadeExterna:externas,dados:all,__syncMode:'paged'};
+  if(batch.loaded!==total)throw new Error('A leitura terminou com registros faltando. Tente sincronizar novamente.');
+  return {...meta,quantidade:total,quantidadeInterna:internas,quantidadeExterna:externas,batch};
 }
 async function refreshLegacyRoCacheFromApi(force=false){
   if(syncNow.inProgress)return false;
@@ -12053,11 +12085,12 @@ async function refreshLegacyRoCacheFromApi(force=false){
   finally{nucleoRoCentralRefreshPromise=null}
 }
 async function refreshRosFromOfficialSheets(force=false){
-  const splitNow=force?{internas:[],externas:[]}:readImportedRosByOrigin();
   const s=getSavedIntegrationSettings();
-  const periodFiltered=String(s.roSyncPeriod||'all')!=='all';
-  const missingOrigin=!periodFiltered && (!splitNow.internas.length || !splitNow.externas.length);
-  if(!force && !importedRoCacheNeedsRefresh && ros.length && !missingOrigin)return false;
+  if(!force && !importedRoCacheNeedsRefresh && ros.length){
+    if(String(s.roSyncPeriod||'all')!=='all')return false;
+    const split=readImportedRosByOrigin();
+    if(split.internas.length && split.externas.length)return false;
+  }
   if(!s?.apiUrl)return false;
 
   try{
@@ -12067,10 +12100,10 @@ async function refreshRosFromOfficialSheets(force=false){
     });
 
     if(data?.sucesso===false)throw new Error(data.erro||'Falha ao carregar R.O.s.');
-    if(!Array.isArray(data?.dados))throw new Error('Resposta sem lista de R.O.s.');
+    if(!data?.batch)throw new Error('Resposta sem lista de R.O.s.');
 
-    applyImportedRos(data.dados,data);
-    data.dados=null;
+    commitImportedRoBatch(data.batch,data);
+    data.batch=null;
     importedRoCacheNeedsRefresh=false;
     const syncMsg=document.getElementById('syncMsg');
     if(syncMsg){syncMsg.textContent='R.O.s e SACs atualizados pelas planilhas centrais às '+new Date().toLocaleTimeString('pt-BR')+'.';syncMsg.className='statusline okline'}
@@ -15252,7 +15285,16 @@ function getPdcaReturnForRo(ro){
   const key=String(ro?.numero||ro?.id||ro?.codigo||'').trim();
   if(!key)return null;
   const sector=ro.__assignedSector||ro.__triageRecord?.responsibleSector||'';
-  return getAllSentPdcas().find(p=>String(p.ro||p.roId||p.numeroRo||'').trim()===key&&(!sector||normalizeAnswer(p.setor||'')===normalizeAnswer(sector)))||null;
+  const unit=explicitRecordUnit(ro);
+  const matches=getAllSentPdcas().filter(p=>{
+    const pdcaUnit=explicitRecordUnit(p);
+    return String(p.ro||p.roId||p.numeroRo||'').trim()===key &&
+      (!unit||!pdcaUnit||unit===pdcaUnit) &&
+      (!sector||normalizeAnswer(p.setor||'')===normalizeAnswer(sector));
+  });
+  return matches.find(p=>isAttachedPdca(p)&&p.fileId) ||
+    matches.find(isAttachedPdca) ||
+    matches.find(p=>!isLegacyPdcaWithoutPdf(p)) || matches[0] || null;
 }
 
 function complainantActionState(p){
@@ -15330,7 +15372,7 @@ function refreshComplainantReturnPanel(ro){
   if(meta)meta.textContent=(p.id||'PDCA')+' · enviado por '+(p.setor||'setor responsável')+(p.envio?' em '+p.envio:'');
 
   const btn=document.getElementById('complainantViewPdcaBtn');
-  if(btn)btn.onclick=()=>openPdcaReport(p.id);
+  if(btn)btn.onclick=()=>openComplainantPdcaReturn(ro.numero||ro.id||ro.codigo);
 
   const action=state.action;
   const actionText=document.getElementById('complainantActionText');
@@ -15477,7 +15519,7 @@ function openComplainantPdcaReturn(numero){
     alert('O retorno em PDCA ainda não foi disponibilizado.');
     return;
   }
-  if(p.externalPdf){return openMyRoResponses(numero);}
+  if(isAttachedPdca(p)){return openMyRoResponses(numero);}
   openPdcaReport(p.id);
 }
 
@@ -15784,12 +15826,13 @@ function renderCurrentOverview(){
   }
 }
 
-function showList(){
+function showList({deferData=false}={}){
   if(!nucleoFeatureRequire('ros','consult'))return;
   roListMode='all';
   refreshRoleNavigationLabels();
   view('listView');
   setNav('ros');
+  if(deferData)return;
   renderCurrentOverview();
   try{refreshNotificationBell()
   const extra=document.getElementById('assignedExtraFilters');if(extra)extra.style.display='none';
@@ -16580,21 +16623,16 @@ async function syncNow(){
   syncMsg.className='statusline';
 
   try{
-    // Se a carga automática estiver em andamento, aguarda pouco tempo. Se ela
-    // travou, libera apenas a referência do front e executa uma leitura manual.
-    // O backend continua seguro porque a leitura não grava na planilha.
+    // A leitura automática já tem limite de espera por página. Aguarda a mesma
+    // carga para evitar manter dois lotes de R.O.s em memória.
     if(nucleoRoCentralRefreshPromise){
       syncMsg.textContent='Conferindo a carga automática em andamento...';
-      const autoResult=await Promise.race([
-        Promise.resolve(nucleoRoCentralRefreshPromise).then(v=>v===true?'ok':'failed').catch(()=> 'failed'),
-        new Promise(resolve=>setTimeout(()=>resolve('timeout'),5000))
-      ]);
-      if(autoResult==='ok'){
+      const autoResult=await nucleoRoCentralRefreshPromise.catch(()=>false);
+      if(autoResult===true){
         syncMsg.textContent='R.O.s e SACs atualizados pela base central.';
         syncMsg.className='statusline okline';
         return;
       }
-      if(autoResult==='timeout')nucleoRoCentralRefreshPromise=null;
       syncMsg.textContent='Executando uma leitura manual da base central...';
       updateNucleoLoading('Executando uma leitura manual da base central...');
     }
@@ -16604,12 +16642,12 @@ async function syncNow(){
     });
 
     if(data?.sucesso===false) throw new Error(data.erro||'Falha informada pelo Apps Script.');
-    if(!Array.isArray(data?.dados)) throw new Error('Resposta sem a lista "dados".');
+    if(!data?.batch) throw new Error('Resposta sem a lista "dados".');
 
-    updateNucleoLoading('Organizando '+data.dados.length+' R.O.s recebidas...');
+    updateNucleoLoading('Finalizando '+data.batch.loaded+' R.O.s recebidas...');
     await new Promise(resolve=>requestAnimationFrame(resolve));
-    const qty=applyImportedRos(data.dados,data);
-    data.dados=null;
+    const qty=commitImportedRoBatch(data.batch,data);
+    data.batch=null;
     updateNucleoLoading('Confirmando configurações e cadastros na base central...');
     const centralOk=await syncPortalBackend(false,{foreground:false});
     if(!centralOk)throw new Error('As R.O.s foram lidas, mas a base central não confirmou todos os dados do Núcleo.');
@@ -16630,52 +16668,12 @@ async function syncNow(){
 try{localStorage.removeItem(IMPORTED_RAW_KEY)}catch(e){}
 ensurePreviewSession();
 initLogin();
-if(getSession()){
-  nucleoSetCentralSyncState('syncing','Cache local exibido temporariamente. Confirmando dados com a base central…');
-  const roListView=document.getElementById('roListView');
-  if(roListView && !roListView.classList.contains('hidden'))try{render()}catch(e){}
+const restoredSessionToken=getSession()?.authToken;
+if(restoredSessionToken){
+  nucleoSetCentralSyncState('syncing','Confirmando dados com a base central…');
+  setTimeout(()=>{void nucleoSyncAfterLogin(restoredSessionToken)},80);
 }
 refreshAccessUI();enforceAdminVisibility();refreshRoRegistrationAccess();
-setTimeout(async()=>{
-  const token=getSession()?.authToken;
-  if(!token)return;
-  try{
-    // A confirmação central é leve e não bloqueia a interface com overlay.
-    const centralOk=await syncPortalBackend(false);
-    if(!centralOk)throw new Error('A base central não confirmou os dados.');
-
-    // A leitura completa das R.O.s ocorre em segundo plano e sem force=true.
-    // Assim o Núcleo abre imediatamente com o cache disponível e atualiza a tela
-    // quando a leitura central terminar.
-    if((!getSession()?.permissions||nucleoPersonCan('ros')) && getSession()?.authToken===token){
-      void refreshLegacyRoCacheFromApi(false).then(()=>{
-        if(getSession()?.authToken!==token)return;
-        try{
-          const roListView=document.getElementById('roListView');
-          const overviewView=document.getElementById('listView');
-          if(roListView && !roListView.classList.contains('hidden')){
-            render();
-            refreshRoSummary();
-          }
-          if(overviewView && !overviewView.classList.contains('hidden'))renderCurrentOverview();
-          refreshMenuNotificationBadges();
-        }catch(e){}
-      }).catch(e=>console.warn('Atualização de R.O.s em segundo plano:',e));
-    }
-  }
-  catch(e){
-    console.warn('Falha ao confirmar dados da base central.',e);
-    nucleoSetCentralSyncState('error','Não foi possível confirmar os dados com a base central: '+(e?.message||e));
-  }
-  finally{try{hideNucleoLoading(true)}catch(e){}}
-},80);
-try{if(getSession())renderCurrentOverview()}catch(e){console.warn('Falha ao carregar a Visão geral inicial.',e)}
-try{refreshNotificationBell();refreshMenuNotificationBadges()}catch(e){}
-
-try{
-  // Força a normalização imediata do cache de SACs antigos.
-  if(getSession()?.authToken)saveExternalRoControlsLocal(getExternalRoControls());
-}catch(e){console.warn('Falha ao normalizar cache de SAC.',e)}
 
 try{refreshDocumentRequestAccess()}catch(e){}
 function refreshDocumentRequestAccess(){
@@ -16937,15 +16935,38 @@ const nucleoOriginalLoadUnitSettings=loadUnitQualitySettings;
 loadUnitQualitySettings=function(...args){const result=nucleoOriginalLoadUnitSettings(...args);const unit=document.getElementById('qualityConfigUnit')?.value,c=unitConfiguration(unit)||{};for(const kind of ['ros','pdcas','standard','requested','templates']){const field=document.getElementById('ndFolder_'+kind);if(field)field.value=c.driveFolders?.[kind]||'';const status=document.getElementById('ndFolderStatus_'+kind);if(status)status.textContent='';}return result;};
 const nucleoOriginalCollectAdminModuleForm=collectAdminModuleForm;
 collectAdminModuleForm=function(key,existing){const r=nucleoOriginalCollectAdminModuleForm(key,existing);if(key==='documents'){r.unit=existing?.unit||document.getElementById('ndRequestUnit')?.value||(getSession()?.role==='quality'?'filial':explicitPortalUnit(getSession()?.unit));}return r;};
-const nucleoOriginalOpenPdcaReport=openPdcaReport;
-openPdcaReport=function(id){const p=getAllSentPdcas().find(x=>String(x.id)===String(id));if(p?.externalPdf){if(!canViewPdca(p)){alert('PDCA fora do seu acesso.');return;}nucleoDriveOpenExternalPdf(p);return;}return nucleoOriginalOpenPdcaReport(id);};
-async function nucleoDriveOpenExternalPdf(p){try{const r=await portalJsonp({acao:'nucleo_drive_file',fileId:p.fileId},90000);if(!r?.sucesso)throw new Error(r?.erro||'Arquivo indisponível.');const bytes=Uint8Array.from(atob(r.base64),c=>c.charCodeAt(0)),url=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));let overlay=document.getElementById('ndExternalPdf');if(overlay)overlay.remove();overlay=document.createElement('div');overlay.id='ndExternalPdf';overlay.style.cssText='position:fixed;inset:0;background:#0008;z-index:99999;padding:20px;display:flex;align-items:center;justify-content:center';overlay.innerHTML='<div style="background:white;padding:18px;border-radius:12px;width:95%;max-height:95vh;overflow:auto"><h3>'+escapeHtml(p.ro+' · '+p.setor+' · V'+(p.version||1))+'</h3><a class="btn secondary" download="'+escapeHtml(p.fileName||'PDCA.pdf')+'" href="'+url+'">Baixar original</a> <button class="btn secondary" id="ndPdfClose">Fechar</button>'+(nucleoPersonFeatureCan('pdca','present')?'<button class="btn primary" id="ndPdfPresent">Registrar apresentação</button>':'')+'<p id="ndExternalStatus" class="small"></p><iframe title="Resposta de PDCA" src="'+url+'" style="width:100%;height:70vh;border:1px solid #ddd"></iframe></div>';document.body.appendChild(overlay);document.getElementById('ndPdfClose').onclick=()=>{URL.revokeObjectURL(url);overlay.remove();};const btn=document.getElementById('ndPdfPresent');if(btn)btn.onclick=async()=>{btn.disabled=true;try{const updated={...p,status:'Apresentado',apresentadoEm:new Date().toISOString(),apresentadoPor:getSession()?.name,updatedAt:new Date().toISOString()};const confirmation=await portalJsonp({acao:'nucleo_drive_present_pdca',unit:explicitRecordUnit(p),id:p.id,fileId:p.fileId},60000);if(!confirmation?.sucesso)throw new Error(confirmation?.erro||'Apresentação não confirmada.');await syncPortalBackend(false);document.getElementById('ndExternalStatus').textContent='Apresentação confirmada na base central.';}catch(e){document.getElementById('ndExternalStatus').textContent=e.message;}finally{btn.disabled=false;}};}catch(e){alert(e.message);}}
+function isAttachedPdca(p){
+  return Boolean(p&&(p.externalPdf===true||p.fileId||p.pdcaFileId||/^PDF-/i.test(String(p.id||''))));
+}
+
+function isLegacyPdcaWithoutPdf(p){
+  return Boolean(p&&(p.legacyMissingPdf===true||p.controlImported===true||p.__virtualReceived===true));
+}
+
+async function resolvePdcaDriveAttachment(p){
+  if(p.fileId)return p;
+  if(p.id){
+    const result=await portalJsonp({acao:'portal_get_record',colecao:'pdca_sent',id:p.id},15000);
+    if(result?.sucesso && result.registro?.fileId)return {...p,...result.registro};
+  }
+  throw new Error('O PDF original ainda não está disponível para esta R.O. Confira o vínculo com o SGQ.');
+}
+
+function viewOriginalPdcaIfAttached(p){
+  if(!isAttachedPdca(p)&&!isLegacyPdcaWithoutPdf(p))return false;
+  if(!canViewPdca(p)){alert('PDCA fora do seu acesso.');return true;}
+  if(isAttachedPdca(p))void nucleoDriveOpenExternalPdf(p);
+  else alert('O PDF original ainda não está disponível para esta R.O. Confira o vínculo com o SGQ.');
+  return true;
+}
+
+async function nucleoDriveOpenExternalPdf(p){try{p=await resolvePdcaDriveAttachment(p);const r=await portalJsonp({acao:'nucleo_drive_file',fileId:p.fileId},90000);if(!r?.sucesso||!r.base64)throw new Error(r?.erro||'Arquivo indisponível.');const bytes=Uint8Array.from(atob(r.base64),c=>c.charCodeAt(0)),url=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));let overlay=document.getElementById('ndExternalPdf');if(overlay)overlay.querySelector('#ndPdfClose').click();overlay=document.createElement('div');overlay.id='ndExternalPdf';overlay.style.cssText='position:fixed;inset:0;background:#0008;z-index:99999;padding:20px;display:flex;align-items:center;justify-content:center';overlay.innerHTML='<div style="background:white;padding:18px;border-radius:12px;width:95%;max-height:95vh;overflow:auto"><h3>'+escapeHtml(p.ro+' · '+p.setor+' · V'+(p.version||1))+'</h3><a class="btn secondary" download="'+escapeHtml(r.fileName||p.fileName||'PDCA.pdf')+'" href="'+url+'">Baixar original</a> <button class="btn secondary" id="ndPdfClose">Fechar</button>'+(nucleoPersonFeatureCan('pdca','present')?'<button class="btn primary" id="ndPdfPresent">Registrar apresentação</button>':'')+'<p id="ndExternalStatus" class="small"></p><iframe title="Resposta de PDCA" src="'+url+'" style="width:100%;height:70vh;border:1px solid #ddd"></iframe></div>';document.body.appendChild(overlay);document.getElementById('ndPdfClose').onclick=()=>{URL.revokeObjectURL(url);overlay.remove();};const btn=document.getElementById('ndPdfPresent');if(btn)btn.onclick=async()=>{btn.disabled=true;try{const updated={...p,status:'Apresentado',apresentadoEm:new Date().toISOString(),apresentadoPor:getSession()?.name,updatedAt:new Date().toISOString()};const confirmation=await portalJsonp({acao:'nucleo_drive_present_pdca',unit:explicitRecordUnit(p),id:p.id,fileId:p.fileId},60000);if(!confirmation?.sucesso)throw new Error(confirmation?.erro||'Apresentação não confirmada.');await syncPortalBackend(false);document.getElementById('ndExternalStatus').textContent='Apresentação confirmada na base central.';}catch(e){document.getElementById('ndExternalStatus').textContent=e.message;}finally{btn.disabled=false;}};}catch(e){alert(e.message);}}
 
 const ndOriginalStandardCreate=openStandardDocumentCreate;
 openStandardDocumentCreate=function(...args){const result=ndOriginalStandardCreate(...args);const input=document.getElementById('stdDocFile');if(input){const label=document.createElement('label');label.innerHTML='<span class="small">Unidade do documento</span><select id="ndStandardUnit" '+(getSession()?.role==='quality'?'disabled':'')+'><option value="matriz">SETA SC — Matriz</option><option value="filial">SETA ES — Unidade Linhares</option></select>';input.closest('label').before(label);const drive=document.createElement('div');drive.style.gridColumn='1/-1';drive.innerHTML='<button type="button" class="btn secondary" id="ndChooseStandardDrive">Selecionar na pasta do Drive</button><input id="ndStandardDriveId" type="hidden"><p id="ndStandardDriveName" class="small"></p><div id="ndStandardDriveList"></div>';input.closest('label').after(drive);document.getElementById('ndChooseStandardDrive').onclick=async()=>{try{await nucleoDriveLoad();await nucleoDriveChooseDocument('standard');}catch(e){document.getElementById('ndStandardDriveName').textContent=e.message;}};const clearDrive=()=>{document.getElementById('ndStandardDriveId').value='';document.getElementById('ndStandardDriveName').textContent='';document.getElementById('ndStandardDriveList').innerHTML='';};input.addEventListener('change',clearDrive);document.getElementById('ndStandardUnit').addEventListener('change',()=>{clearDrive();document.getElementById('stdDocCode').innerHTML=documentTypeOptions(document.getElementById('ndStandardUnit').value);});document.getElementById('ndStandardUnit').value=getSession()?.role==='quality'?'filial':document.getElementById('qualityConfigUnit')?.value||explicitPortalUnit(getSession()?.unit)||'matriz';}return result;};
 
 const ndOriginalPdcaPresentation=openPdcaPresentation;
-openPdcaPresentation=function(p){if(p?.externalPdf)return nucleoDriveOpenExternalPdf(p);return ndOriginalPdcaPresentation(p);};
+openPdcaPresentation=function(p){if(viewOriginalPdcaIfAttached(p))return;return ndOriginalPdcaPresentation(p);};
 
 saveStandardDocument=async function(){try{await nucleoDriveLoad();await nucleoDriveUploadStandard();}catch(e){alert(e.message);}};
 
@@ -17013,12 +17034,16 @@ async function nucleoSyncAfterLogin(token){
  let centralOk=false;
  try{centralOk=await syncPortalBackend(false);}catch(e){console.warn('Atualização central após login:',e);}
  if(getSession()?.authToken!==token)return;
- if(centralOk && (!getSession()?.permissions||nucleoPersonCan('ros'))){
-   try{void refreshLegacyRoCacheFromApi(false).then(()=>{try{render();refreshMenuNotificationBadges();}catch(e){}}).catch(e=>console.warn('Atualização de R.O.s após login:',e));}catch(e){console.warn('Atualização de R.O.s após login:',e);}
+ if(status)status.textContent=centralOk?'Dados confirmados pela base central.':'A base central ainda não confirmou os dados.';
+ if(!centralOk)return;
+ try{refreshSectorSelectors();populateTriageSectors();}catch(e){console.warn('Atualização da tela após login:',e);}
+ const loadedRos=(!getSession()?.permissions||nucleoPersonCan('ros'))
+   ? await refreshLegacyRoCacheFromApi(false).catch(e=>{console.warn('Atualização de R.O.s após login:',e);return false;})
+   : false;
+ if(loadedRos||getSession()?.authToken!==token)return;
+ if(document.getElementById('listView')?.classList.contains('hidden')===false){
+   try{renderCurrentOverview()}catch(e){console.warn('Falha ao carregar a Visão geral inicial.',e);}
  }
- if(getSession()?.authToken!==token)return;
- try{refreshSectorSelectors();populateTriageSectors();render();}catch(e){console.warn('Atualização da tela após login:',e);}
- if(status)status.textContent=centralOk?'Dados confirmados pela base central.':'Dados locais/cache — atualização central ainda não confirmada.';
 }
 
 function nucleoPersonPermissions(user){
@@ -17397,8 +17422,6 @@ function nucleoKpiExtraCounts(){
  return counts;
 }
 
-document.addEventListener('DOMContentLoaded',()=>{try{renderCurrentOverview();}catch(err){console.error(err);}});
-
 function nucleoAiRulesTable(rules){return '<div style="overflow:auto"><table style="width:100%"><thead><tr><th>Critério</th>'+[0,1,2,3].map(n=>'<th>Nota '+n+'</th>').join('')+'</tr></thead><tbody>'+rules.criteria.map(c=>'<tr><th>'+escapeHtml(c.label)+'</th>'+c.points.map(t=>'<td>'+escapeHtml(t)+'</td>').join('')+'</tr>').join('')+'</tbody></table></div><p>'+rules.maxima.map((n,i)=>'Nível '+(i+1)+': '+(i?rules.maxima[i-1]+1:0)+' a '+n+' pontos').join(' · ')+'</p>'+(rules.clientForcesLevel4?'<p>Reclamação ou devolução do cliente: nível 4.</p>':'')+'<p>'+escapeHtml(rules.recurrenceInstructions)+'</p>';}
 async function nucleoAiManual(button){const state=nucleoAiScoreState,host=document.getElementById('roAiScoreResult');button.disabled=true;host.textContent='Carregando critérios para pontuação manual…';try{const r=await portalJsonp({acao:'portal_ai_rules'},60000);if(state!==nucleoAiScoreState)return;if(!r?.sucesso)throw new Error(r?.erro||'Não foi possível carregar os critérios.');state.assessment={mode:'manual',rules:r.rules,confirmed:false,answer:{scores:r.rules.criteria.map(c=>({id:c.id,score:null,reason:''})),clientComplaint:null}};nucleoAiRenderAssessment(state.assessment);}catch(err){if(state===nucleoAiScoreState)host.textContent=err.message;}finally{button.disabled=false;}}
 async function nucleoAiOpenRoTab(){
@@ -17528,6 +17551,7 @@ function nucleoRoDisplayRows(rows,model){
 }
 
 async function nucleoPdcaDownloadModelPdf(p,open){
+ if(viewOriginalPdcaIfAttached(p))return;
  if(!p?.id){alert('Salve o PDCA na base central antes de gerar o PDF.');return;}
  const tab=open?window.open('about:blank','_blank'):null;if(open&&!tab){alert('Permita abrir a aba do PDF neste navegador.');return;}if(tab){tab.opener=null;tab.document.body.textContent='Gerando PDF com o modelo da unidade…';}
  try{await showNucleoLoading('Gerando PDF do PDCA…','Aplicando o modelo salvo para esta unidade.');const result=await portalJsonp({acao:'portal_pdca_model_pdf',id:p.id},90000);if(!result?.sucesso||!result.base64)throw Error(result?.erro||'PDF não confirmado pela base central.');const blob=new Blob([Uint8Array.from(atob(result.base64),c=>c.charCodeAt(0))],{type:'application/pdf'}),url=URL.createObjectURL(blob);if(tab){if(!tab.closed)tab.location.replace(url);}else{const a=document.createElement('a');a.href=url;a.download=result.fileName||'PDCA.pdf';document.body.appendChild(a);a.click();a.remove();}setTimeout(()=>URL.revokeObjectURL(url),300000);
