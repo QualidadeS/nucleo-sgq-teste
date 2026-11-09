@@ -1181,3 +1181,214 @@
   console.info('[NÚCLEO] V46 — líder vê PDCAs pelas R.O.s autorizadas; Filial sem managedSectors do Leonardo.');
 })();
 
+
+/* NÚCLEO | RESPOSTAS PDF + AÇÃO SOMENTE INTERNA + MOTIVO DECISÃO V47 */
+(function(){
+  'use strict';
+  if(window.__nucleoSubmittedResponsesV47)return;
+  window.__nucleoSubmittedResponsesV47=true;
+
+  const esc=v=>typeof escapeHtml==='function'?escapeHtml(String(v??'')):String(v??'');
+
+  function isMeaningful(v){
+    const s=String(v??'').trim();
+    return !!s && !['-','—','nao informado','não informado','n/a'].includes(s.toLowerCase());
+  }
+
+  function isInternalPdca(p){
+    if(!p)return false;
+    if(p.externalPdf===true)return false;
+    if(p.fileId||p.pdcaFileId||p.pdfUrl||p.driveFileId||p.fileUrl||p.webViewLink){
+      const a=p.answers||p.respostas||{};
+      return Object.values(a).some(isMeaningful);
+    }
+    const a=p.answers||p.respostas||{};
+    return Object.values(a).some(isMeaningful);
+  }
+
+  async function findResponsePdf(roNumber){
+    try{
+      const result=await portalJsonp({acao:'nucleo_drive_my_responses',ro:roNumber},60000);
+      if(!result?.sucesso)return null;
+      const items=Array.isArray(result.items)?result.items:[];
+      if(!items.length)return null;
+      return items.slice().sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||'')))[0]||null;
+    }catch(_){
+      return null;
+    }
+  }
+
+  window.nucleoOpenSubmittedReturnV47=async function(numero){
+    const ro=(typeof getAllRoRecords==='function'?getAllRoRecords():[])
+      .find(r=>String(r.numero||r.id||r.codigo)===String(numero));
+    if(!ro || (typeof wasRoSubmittedByCurrentUser==='function'&&!wasRoSubmittedByCurrentUser(ro))){
+      alert('R.O. não encontrada ou indisponível.');
+      return;
+    }
+
+    const p=typeof getPdcaReturnForRo==='function'?getPdcaReturnForRo(ro):null;
+
+    // PDF anexado tem prioridade: consulta o arquivo real em vez de montar PLAN/DO/CHECK/ACT vazio.
+    const file=await findResponsePdf(numero);
+    if(file){
+      return nucleoDriveOpenExternalPdf({
+        ...file,
+        id:file.id||p?.id||'',
+        ro:numero,
+        setor:file.sector||p?.setor||'',
+        externalPdf:true
+      });
+    }
+
+    if(p && isInternalPdca(p)){
+      return openPdcaReport(p.id);
+    }
+
+    if(typeof openMyRoResponses==='function'){
+      return openMyRoResponses(numero);
+    }
+
+    alert('Nenhum PDF ou PDCA interno foi disponibilizado para esta R.O.');
+  };
+
+  window.openComplainantPdcaReturn=function(numero){
+    return window.nucleoOpenSubmittedReturnV47(numero);
+  };
+
+  window.nucleoShowDecisionReasonV47=function(numero){
+    const ro=(typeof getAllRoRecords==='function'?getAllRoRecords():[])
+      .find(r=>String(r.numero||r.id||r.codigo)===String(numero));
+    if(!ro){
+      alert('R.O. não encontrada.');
+      return;
+    }
+    const tri=typeof getRoTriageRecord==='function'?(getRoTriageRecord(ro)||{}):{};
+    const decision=String(tri.decision||'');
+    const labels={
+      record:'Somente para registro',
+      cancelled:'Cancelada pelo SGQ',
+      obsolete:'Obsoleta'
+    };
+    const reason=String(
+      tri.note||tri.reason||tri.motivo||tri.decisionReason||
+      tri.justification||tri.observacao||tri.observation||''
+    ).trim();
+
+    let overlay=document.getElementById('nucleoDecisionReasonV47');
+    if(overlay)overlay.remove();
+    overlay=document.createElement('div');
+    overlay.id='nucleoDecisionReasonV47';
+    overlay.style.cssText='position:fixed;inset:0;background:#0008;z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px';
+    overlay.innerHTML=
+      '<div style="background:#fff;border-radius:14px;padding:22px;width:min(680px,95vw);max-height:90vh;overflow:auto">'+
+        '<div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start">'+
+          '<div><div class="small">R.O. '+esc(numero)+'</div><h3 style="margin:4px 0 0">'+esc(labels[decision]||'Decisão do SGQ')+'</h3></div>'+
+          '<button class="btn secondary" type="button" id="nucleoDecisionReasonCloseV47">Fechar</button>'+
+        '</div>'+
+        '<div class="card" style="margin-top:16px;padding:16px">'+
+          '<div class="label">Motivo da decisão</div>'+
+          '<p style="white-space:pre-wrap;margin:8px 0 0">'+esc(reason||'Motivo não registrado nesta ocorrência.')+'</p>'+
+        '</div>'+
+        (tri.triagedBy?'<p class="small">Decisão registrada por '+esc(tri.triagedBy)+(tri.triagedAt?' · '+esc(typeof formatDateTimeBR==='function'?formatDateTimeBR(tri.triagedAt):tri.triagedAt):'')+'</p>':'')+
+      '</div>';
+    document.body.appendChild(overlay);
+    overlay.querySelector('#nucleoDecisionReasonCloseV47').onclick=()=>overlay.remove();
+    overlay.addEventListener('click',e=>{if(e.target===overlay)overlay.remove();});
+  };
+
+  window.renderMySubmittedRos=function(){
+    if(typeof isAdmin==='function'&&isAdmin())return;
+
+    const q=typeof normalizeAnswer==='function'
+      ? normalizeAnswer(document.getElementById('mySubmittedSearch')?.value||'')
+      : String(document.getElementById('mySubmittedSearch')?.value||'').toLowerCase();
+    const filter=document.getElementById('mySubmittedStatusFilter')?.value||'all';
+    const all=typeof getMySubmittedRos==='function'?getMySubmittedRos():[];
+
+    const counts={
+      total:all.length,
+      waiting:all.filter(x=>x.state.code==='triage').length,
+      directed:all.filter(x=>x.state.code==='directed'||x.state.code==='contest').length,
+      done:all.filter(x=>x.state.code==='done').length
+    };
+    const set=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v};
+    set('mySubmittedTotal',counts.total);
+    set('mySubmittedWaiting',counts.waiting);
+    set('mySubmittedDirected',counts.directed);
+    set('mySubmittedDone',counts.done);
+
+    const rowsData=all.filter(x=>{
+      if(filter!=='all'&&x.state.code!==filter)return false;
+      if(q){
+        const r=x.ro;
+        const hay=typeof normalizeAnswer==='function'
+          ? normalizeAnswer([r.numero,r.cliente,r.assunto,r.tipoRO,r.descricao,x.state.label,x.state.sector].join(' '))
+          : [r.numero,r.cliente,r.assunto,r.tipoRO,r.descricao,x.state.label,x.state.sector].join(' ').toLowerCase();
+        if(!hay.includes(q))return false;
+      }
+      return true;
+    });
+
+    const body=document.getElementById('mySubmittedRows');
+    if(!body)return;
+
+    body.innerHTML=rowsData.length?rowsData.map(({ro,state})=>{
+      const terminal=typeof submittedRoRowClass==='function'?submittedRoRowClass(ro):'';
+      const p=state.returnState?.pdca||null;
+      const internal=!!(p&&isInternalPdca(p));
+      const hasReturn=!!p;
+      const decisionButton=terminal
+        ? '<button class="btn secondary" type="button" onclick="nucleoShowDecisionReasonV47(\''+esc(ro.numero||'')+'\')">Consultar motivo</button>'
+        : '';
+
+      let responseCell='';
+      if(terminal){
+        responseCell=decisionButton;
+      }else if(hasReturn){
+        responseCell='<button class="btn primary" type="button" onclick="nucleoOpenSubmittedReturnV47(\''+esc(ro.numero||'')+'\')">'+
+          (internal?'Ver retorno':'Ver PDF')+
+        '</button>';
+      }else{
+        responseCell='<span class="status-badge pending">Aguardando retorno</span>';
+      }
+
+      let actionCell='';
+      if(terminal){
+        actionCell='<span class="small">Não se aplica</span>';
+      }else if(!hasReturn){
+        actionCell='<span class="small">Ainda sem ação informada</span>';
+      }else if(!internal){
+        actionCell=
+          '<span class="status-badge answered">PDF anexado</span>'+
+          '<div class="small" style="margin-top:4px">Consulta documental · sem controle interno de ação</div>'+
+          '<button class="btn secondary" style="margin-top:6px" type="button" onclick="nucleoOpenSubmittedReturnV47(\''+esc(ro.numero||'')+'\')">Abrir PDF</button>';
+      }else{
+        const action=state.returnState.action;
+        const a=p.answers||{};
+        actionCell=
+          '<span class="status-badge '+((action.code==='finalized'||action.code==='completed')?'answered':'pending')+'">'+esc(action.label)+'</span>'+
+          '<div class="small" style="margin-top:4px">'+esc(a.p12?'Prazo: '+a.p12:'')+'</div>';
+      }
+
+      const bg=typeof nucleoDecisionForRecord==='function'
+        ? (nucleoDecisionForRecord(ro,typeof getRoTriageRecord==='function'?getRoTriageRecord(ro):null)?.color||'')
+        : '';
+
+      return '<tr style="background:'+esc(bg)+'" class="'+esc(terminal)+'">'+
+        '<td><b>'+esc(ro.numero||'-')+'</b></td>'+
+        '<td>'+esc(ro.data||'-')+'</td>'+
+        '<td>'+esc(ro.cliente||'-')+'</td>'+
+        '<td>'+esc(ro.assunto||ro.tipoRO||'-')+'</td>'+
+        '<td><span class="status-badge '+(terminal?'submitted-ro-terminal-badge':state.code==='done'?'answered':state.code==='contest'?'pending':'')+'">'+esc(state.label)+'</span></td>'+
+        '<td>'+esc(state.sector||(terminal?'—':'Aguardando definição'))+'</td>'+
+        '<td>'+responseCell+'</td>'+
+        '<td>'+actionCell+'</td>'+
+        '<td><button class="btn secondary" type="button" onclick="openSubmittedRoTracking(\''+esc(ro.numero||'')+'\')">Acompanhar</button></td>'+
+      '</tr>';
+    }).join('')
+    : '<tr><td colspan="9" style="text-align:center;padding:28px;color:#667085">Nenhuma R.O. encontrada.</td></tr>';
+  };
+
+  console.info('[NÚCLEO] V47 — PDF anexado abre arquivo real; ações só para PDCA interno; motivo de decisão consultável.');
+})();
+
