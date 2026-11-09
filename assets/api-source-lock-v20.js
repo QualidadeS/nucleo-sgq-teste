@@ -160,10 +160,29 @@
   };
 
   const originalPortalJsonp=window.portalJsonp;
+  let portalLoadInFlight=null;
+
   if(typeof originalPortalJsonp==='function'){
     window.portalJsonp=function(params,timeoutMs=60000,baseOverride=''){
-      if(baseOverride)return originalPortalJsonp.call(this,params,timeoutMs,baseOverride);
-      return resolveGlobalApiUrl(false).then(base=>originalPortalJsonp.call(this,params,timeoutMs,base));
+      const action=String(params&&params.acao||'').trim();
+
+      const run=()=>{
+        if(baseOverride)return originalPortalJsonp.call(this,params,timeoutMs,baseOverride);
+        return resolveGlobalApiUrl(false).then(base=>originalPortalJsonp.call(this,params,timeoutMs,base));
+      };
+
+      // portal_load é a maior resposta do Núcleo. Se duas rotinas pedirem a
+      // mesma carga ao mesmo tempo, ambas usam a MESMA Promise em vez de
+      // manter duas respostas grandes na memória do navegador.
+      if(action==='portal_load'){
+        if(portalLoadInFlight)return portalLoadInFlight;
+        portalLoadInFlight=Promise.resolve()
+          .then(run)
+          .finally(()=>{portalLoadInFlight=null;});
+        return portalLoadInFlight;
+      }
+
+      return run();
     };
   }
 
@@ -243,9 +262,9 @@
       if(typeof originalPortalJsonp!=='function')throw new Error('Conexão central indisponível.');
 
       // Busca a configuração CENTRAL atual. localStorage não participa da decisão.
-      const loaded=await originalPortalJsonp({acao:'portal_load'},60000,currentBase);
+      const loaded=await originalPortalJsonp({acao:'portal_get_config'},30000,currentBase);
       if(!loaded?.sucesso)throw new Error(loaded?.erro||'Não foi possível ler a configuração central atual.');
-      const centralConfig={...(loaded?.dados?.config||{})};
+      const centralConfig={...(loaded?.config||loaded?.dados?.config||{})};
 
       const device=window.saveIntegrationSettings(true)||{};
       const nextConfig={
@@ -365,7 +384,57 @@
     .catch(e=>{console.error('[NÚCLEO] Falha ao resolver API global.',e);return bootstrapApiUrl();});
 
   window.addEventListener('load',()=>{resolveGlobalApiUrl(true).then(enableApiField).catch(()=>{});},{once:true});
-  console.info('[NÚCLEO] API GLOBAL CANÔNICA V40 ativa — localStorage não escolhe API e o campo SGQ não é sobrescrito.');
+
+  // Proteção de memória: a função real de sincronização pode ser declarada por
+  // outro arquivo depois deste. Assim que existir, ela é envolvida uma única vez.
+  // Chamadas concorrentes compartilham a mesma execução e chamadas repetidas em
+  // poucos segundos não disparam outro portal_load desnecessário.
+  (function installCentralSyncMemoryGuard(){
+    let tries=0;
+    const timer=setInterval(function(){
+      const original=window.syncPortalBackend;
+      if(typeof original!=='function'){
+        if(++tries>200)clearInterval(timer);
+        return;
+      }
+      if(original.__nucleoMemoryGuardV57){
+        clearInterval(timer);
+        return;
+      }
+
+      let inFlight=null;
+      let lastOkAt=0;
+
+      const wrapped=async function(showMessage=false,options={}){
+        const force=!!(showMessage||options?.foreground||options?.force);
+
+        if(inFlight)return inFlight;
+
+        // Para atualizações automáticas, uma confirmação recente é suficiente.
+        // O usuário ainda pode forçar a sincronização pelo botão.
+        if(!force && lastOkAt && Date.now()-lastOkAt<8000){
+          return true;
+        }
+
+        inFlight=Promise.resolve()
+          .then(()=>original.apply(this,arguments))
+          .then(ok=>{
+            if(ok!==false)lastOkAt=Date.now();
+            return ok;
+          })
+          .finally(()=>{inFlight=null;});
+
+        return inFlight;
+      };
+
+      wrapped.__nucleoMemoryGuardV57=true;
+      wrapped.__original=original;
+      window.syncPortalBackend=wrapped;
+      clearInterval(timer);
+    },50);
+  })();
+
+  console.info('[NÚCLEO] API GLOBAL CANÔNICA V57 ativa — URL global + proteção contra portal_load concorrente.');
 })();
 
 /* NÚCLEO | Diretório compartilhado Matriz/Filial V31
