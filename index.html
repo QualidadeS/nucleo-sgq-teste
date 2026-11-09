@@ -6173,15 +6173,15 @@ function renderSupplierIndicatorsWorkspace(){
   }
 
   #nucleoSidebar{
-    display:none;
+    display:none!important;
     width:min(300px,calc(100% - 48px))!important;
     z-index:21;
-    overflow-y:auto;
+    overflow-y:auto!important;
     overscroll-behavior:contain;
     padding-bottom:max(12px,env(safe-area-inset-bottom))!important;
   }
   body.nucleo-mobile-menu-open{overflow:hidden}
-  body.nucleo-mobile-menu-open #nucleoSidebar{display:flex}
+  body.nucleo-mobile-menu-open #nucleoSidebar{display:flex!important}
   body.nucleo-mobile-menu-open .nucleo-mobile-menu-backdrop{
     display:block;
     position:fixed;
@@ -6190,7 +6190,13 @@ function renderSupplierIndicatorsWorkspace(){
     background:#17203366;
     touch-action:none;
   }
-  #nucleoSidebar .brand{justify-content:flex-start}
+  #nucleoSidebar .brand{
+    position:sticky;
+    top:0;
+    z-index:31;
+    background:#f8fcfe;
+    justify-content:flex-start;
+  }
   #nucleoSidebar .brand-text-wrap,
   #nucleoSidebar .side-item > span:nth-child(2),
   #nucleoSidebar .side-module-head > span:nth-child(2),
