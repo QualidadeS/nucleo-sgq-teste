@@ -6131,7 +6131,7 @@ function renderSupplierIndicatorsWorkspace(){
 <script src="assets/modules-v2/indicators/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/modules-v2/announcements/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/team-load-local-v47.js?v=20261027-team-local-central"></script>
-<script src="assets/nucleo-app.js?v=20261110-sync-detalhe-v65"></script>
+<script src="assets/nucleo-app.js?v=20261110-memoria-v66"></script>
 <script src="assets/api-source-lock-v20.js?v=20261110-sessao-api-v64"></script>
 
 <script id="nucleoModuleMaintenanceGuardV1">
@@ -6528,22 +6528,6 @@ function renderSupplierIndicatorsWorkspace(){
     return url;
   }
 
-  function refreshUi(){
-    try{window.refreshSectorSelectors?.()}catch(_){}
-    try{window.refreshExternalRoSidebarBadge?.()}catch(_){}
-    try{window.refreshNotificationBell?.()}catch(_){}
-    try{window.refreshContestPendingBadge?.()}catch(_){}
-    try{window.refreshPdcaSidebarBadge?.()}catch(_){}
-    try{window.refreshRoSummary?.()}catch(_){}
-    try{
-      if(!document.getElementById('roListView')?.classList.contains('hidden'))window.render?.();
-    }catch(_){}
-    try{
-      if(!document.getElementById('listView')?.classList.contains('hidden'))window.renderCurrentOverview?.();
-    }catch(_){}
-    try{window.nucleoEnsureInlineTeam?.()}catch(_){}
-  }
-
   /*
     Substitui o sincronizador central antigo.
     Não usa portalBackendSyncInProgress, que podia ficar travado depois do login.
@@ -6604,7 +6588,7 @@ function renderSupplierIndicatorsWorkspace(){
         alert(detail.startsWith('Sincronização não concluída:')?detail:'Não foi possível concluir a sincronização. Confira se sua sessão ainda está ativa.');
         return;
       }
-      refreshUi();
+      try{window.nucleoEnsureInlineTeam?.()}catch(_){}
 
     }catch(e){
       alert('Não foi possível sincronizar: '+(e?.message||e));
@@ -7224,8 +7208,7 @@ body.nucleo-hide-sac-indicators [data-nucleo-sac-indicator="1"]{
       ).forEach(card=>{
         const txt=String(card.textContent||'').replace(/\s+/g,' ').trim();
         if(/\bSAC\b/i.test(txt) && !/Minha equipe/i.test(txt)){
-          card.dataset.nucleoSacIndicator='1';
-          card.style.display=canRegister?'':'none';
+          if(card.dataset.nucleoSacIndicator!=='1')card.dataset.nucleoSacIndicator='1';
         }
       });
     });
