@@ -5213,14 +5213,14 @@ Cancelada</textarea></label>
         <label><div class="label">URL do Web App / API</div><input id="apiUrl" placeholder="https://script.google.com/macros/s/.../exec"></label>
         <label><div class="label">Chave de integração</div><input id="apiKey" placeholder="Chave definida no Apps Script"></label>
         <label><div class="label">Sincronização automática</div><select id="autoSync"><option value="5">A cada 5 minutos</option><option value="15">A cada 15 minutos</option><option value="30">A cada 30 minutos</option><option value="0">Somente manual</option></select></label>
-        <label><div class="label">Período buscado na planilha</div><select id="roSyncPeriod" onchange="updateRoSyncPeriodUi()"><option value="all">Todo o período</option><option value="30">Últimos 30 dias</option><option value="90">Últimos 90 dias</option><option value="180">Últimos 180 dias</option><option value="365">Últimos 12 meses</option><option value="custom">Período personalizado</option></select></label>
-        <label id="roSyncDateFromWrap" class="hidden"><div class="label">Buscar de</div><input id="roSyncDateFrom" type="date"></label>
+        <label><div class="label">Período buscado na planilha</div><select id="roSyncPeriod" onchange="editRoSyncPeriod()"><option value="all">Todo o período</option><option value="30">Últimos 30 dias</option><option value="90">Últimos 90 dias</option><option value="180">Últimos 180 dias</option><option value="365">Últimos 12 meses</option><option value="custom">Período personalizado</option></select></label>
+        <label id="roSyncDateFromWrap" class="hidden"><div class="label">Buscar de</div><input id="roSyncDateFrom" type="date" oninput="editRoSyncPeriod()"></label>
         <label><div class="label">Sincronizar ao enviar PDCA</div><select><option>Sim</option><option>Não</option></select></label>
       </div>
       <div class="actions">
         <button class="btn secondary" type="button" onclick="openIntegrationApi()">Abrir API</button>
         <button class="btn secondary" type="button" onclick="testConnection()">Testar conexão</button>
-        <button class="btn primary" type="button" onclick="saveIntegrationSettingsConfirmed()">Salvar integração</button>
+        <button class="btn primary" type="button" id="saveIntegrationButton" onclick="saveIntegrationSettingsConfirmed()">Salvar integração</button>
       </div>
       <div id="testResult" class="statusline hidden"></div>
 
@@ -6109,8 +6109,8 @@ function renderSupplierIndicatorsWorkspace(){
 <script src="assets/modules-v2/indicators/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/modules-v2/announcements/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/team-load-local-v47.js?v=20261027-team-local-central"></script>
-<script src="assets/nucleo-app.js?v=20261110-pdca-apresentado-v68"></script>
-<script src="assets/api-source-lock-v20.js?v=20261110-sessao-api-v64"></script>
+<script src="assets/nucleo-app.js?v=20261110-periodo-central-v69"></script>
+<script src="assets/api-source-lock-v20.js?v=20261110-periodo-central-v69"></script>
 
 <script id="nucleoModuleMaintenanceGuardV1">
 (function(){
