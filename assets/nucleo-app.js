@@ -14695,6 +14695,18 @@ function assignedRoDeadline(r,status=assignedRoStatus(r),triageMap){
   return String(tri.pdcaDeadline||tri.deadline||nextTuesdayIsoDate()).trim()||nextTuesdayIsoDate();
 }
 
+let assignedLifecycle='active';
+function setAssignedLifecycle(mode){
+  assignedLifecycle=mode==='history'?'history':'active';
+  document.getElementById('assignedActiveTab')?.classList.toggle('primary',assignedLifecycle==='active');
+  document.getElementById('assignedActiveTab')?.classList.toggle('secondary',assignedLifecycle==='history');
+  document.getElementById('assignedHistoryTab')?.classList.toggle('primary',assignedLifecycle==='history');
+  document.getElementById('assignedHistoryTab')?.classList.toggle('secondary',assignedLifecycle==='active');
+  const filter=document.getElementById('filter');
+  if(filter)filter.value='todas';
+  render();
+}
+
 let roListVisibleLimit=60;
 let roListFilterSignature='';
 function showMoreRos(){roListVisibleLimit+=60;render()}
@@ -14708,7 +14720,7 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
   const assignedSector=document.getElementById('assignedSectorFilter')?.value||'all';
   const assignedOrigin=document.getElementById('assignedOriginFilter')?.value||'all';
   const assignedUnit=document.getElementById('assignedUnitFilter')?.value||'all';
-  const filterSignature=JSON.stringify([q,f,roListMode,assignedSector,assignedOrigin,assignedUnit]);
+  const filterSignature=JSON.stringify([q,f,roListMode,assignedLifecycle,assignedSector,assignedOrigin,assignedUnit]);
   if(filterSignature!==roListFilterSignature){roListVisibleLimit=60;roListFilterSignature=filterSignature}
   const hiddenAssigned=roListMode==='assigned'?getHiddenAssignedKeys():null;
   const triageMap=getSavedTriageMap();
@@ -14793,7 +14805,12 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
       }
       const text=nucleoRoSearchMatches(r,q);
       const displayStatus=assignedRoStatus(r,triageMap,pdcaByRo,presentationMap);
-      const statusKey={'Pendente':'pendente','PDCA externo':'pdca_externo','PDCA respondido':'pdca_respondido','PDCA apresentado':'pdca_apresentado','Cancelada':'cancelada','Registro':'registro','Obsoleto':'obsoleto'}[displayStatus]||'pendente';
+      if(roListMode==='assigned'){
+        const closed=['Cancelada','Registro','Obsoleto'].includes(displayStatus)
+          || (!admin&&displayStatus==='PDCA apresentado');
+        if(closed!==(assignedLifecycle==='history'))return false;
+      }
+      const statusKey={'Pendente':'precisa_resposta','PDCA externo':'ja_respondeu','PDCA respondido':'ja_respondeu','PDCA apresentado':'ja_respondeu','Cancelada':'cancelada','Registro':'registro','Obsoleto':'obsoleto'}[displayStatus];
       const filt=f==='todas'||f===statusKey;
       return text&&filt;
     });
@@ -14810,6 +14827,7 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
     const responsibleSector=String(tri?.responsibleSector||tri?.setorDirecionado||r.__assignedSector||r.setorResponsavelPlanilha||r.raw?.__setorResponsavel||r.setorResponsavel||r.setor||'—').trim()||'—';
     const pdcaSituation=pdcaSituationLabel(r,triageMap);
     const displayStatus=assignedRoStatus(r,triageMap,pdcaByRo,presentationMap);
+    const presented=displayStatus==='PDCA apresentado';
     const displayDecisionLabel=nucleoAssignedDecisionLabel(r,tri,displayStatus);
 
     let operationalActions='';
@@ -14820,12 +14838,12 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
       operationalActions=`
         <td class="operational-action-col">
           <div style="display:flex;gap:6px;flex-wrap:wrap;min-width:230px">
-            <button class="btn primary" type="button"
+            ${presented?'':`<button class="btn primary" type="button"
               ${respondDisabled?'disabled':''}
               onclick="startPdcaFromList('${escapeHtml(r.numero)}')">
               ${alreadySent?'PDCA enviado':pdcaActionLabel(r.numero)}
             </button>
-            ${(!alreadySent&&isPdcaStarted(r.numero))?'<span class="status-badge pending" style="align-self:center">Rascunho iniciado</span>':''}
+            ${(!alreadySent&&isPdcaStarted(r.numero))?'<span class="status-badge pending" style="align-self:center">Rascunho iniciado</span>':''}`}
             <button class="btn secondary" type="button"
               ${contestDisabled?'disabled':''}
               onclick="contestRoFromList('${escapeHtml(r.numero)}')">
@@ -14912,6 +14930,11 @@ function selectRoForOperationalAction(numero){
   return ro;
 }
 
+function selectedRoHasPresentedPdca(ro){
+  const sector=ro.__assignedSector||getRoTriageRecord(ro)?.responsibleSector||'';
+  return assignedRoStatus({...ro,__assignedSector:sector})==='PDCA apresentado';
+}
+
 function startPdcaFromList(numero){
   if(!nucleoFeatureRequire('pdca','respond'))return;
   const ro=selectRoForOperationalAction(numero);
@@ -14978,7 +15001,7 @@ function view(id){
   setTimeout(refreshRoPdfAccess,0);
   setNav('ros');
 }function fillDetail(){
-  document.getElementById('submittedRoDecisionInfo')?.remove();dNumero.textContent=selected.numero;dCliente.textContent=selected.cliente;dStatus.textContent=selected.status;dStatus.className=badgeClass(selected.status);dUnidade.textContent=selected.unidade;dSetor.textContent=selected.setor;dData.textContent=selected.data;dPrazo.textContent=selected.prazo;dDescricao.textContent=selected.descricao;const noPDCA=['Cancelada','Somente para registro'].includes(selected.status),contest=selected.status==='Em contestação';pdcaBtn.disabled=noPDCA||contest;contestBtn.disabled=noPDCA||contest;if(pdcaBtn&&!noPDCA&&!contest){const roKey=selected.numero||selected.id||selected.codigo||'';pdcaBtn.textContent=isPdcaStarted(roKey)?'Continuar a responder o PDCA':'Responder o PDCA';}dNotice.classList.toggle('hidden',!(noPDCA||contest));dNotice.textContent=contest?'O PDCA está suspenso enquanto a contestação estiver em análise pelo SGQ.':noPDCA?'Esta R.O. não exige PDCA.':'';refreshContestUserStatus();refreshFavoriteButton();renderRoTimeline();renderRoIntelligence()}
+  document.getElementById('submittedRoDecisionInfo')?.remove();dNumero.textContent=selected.numero;dCliente.textContent=selected.cliente;dStatus.textContent=selected.status;dStatus.className=badgeClass(selected.status);dUnidade.textContent=selected.unidade;dSetor.textContent=selected.setor;dData.textContent=selected.data;dPrazo.textContent=selected.prazo;dDescricao.textContent=selected.descricao;const noPDCA=['Cancelada','Somente para registro'].includes(selected.status),contest=selected.status==='Em contestação';const presented=selectedRoHasPresentedPdca(selected);pdcaBtn.hidden=presented;pdcaBtn.disabled=noPDCA||contest||presented;contestBtn.disabled=noPDCA||contest;if(pdcaBtn&&!pdcaBtn.disabled){const roKey=selected.numero||selected.id||selected.codigo||'';pdcaBtn.textContent=isPdcaStarted(roKey)?'Continuar a responder o PDCA':'Responder o PDCA';}dNotice.classList.toggle('hidden',!(noPDCA||contest));dNotice.textContent=contest?'O PDCA está suspenso enquanto a contestação estiver em análise pelo SGQ.':noPDCA?'Esta R.O. não exige PDCA.':'';refreshContestUserStatus();refreshFavoriteButton();renderRoTimeline();renderRoIntelligence()}
 function roSummaryData(){
   const source=(typeof ROs!=='undefined' ? ROs : (typeof ros!=='undefined' ? ros : []));
   const triageMap=getSavedTriageMap();
@@ -15712,6 +15735,10 @@ function showAssignedRos(){
 }function openPDCA(){
   if(!nucleoFeatureRequire('pdca','respond'))return;
   if(!selected){alert('Não foi possível identificar a R.O. deste PDCA. Abra a R.O. novamente.');return}
+  if(selectedRoHasPresentedPdca(selected)){
+    alert('O PDCA desta R.O. já foi apresentado.');
+    return;
+  }
   const roKey=selected.numero||selected.id||selected.codigo;
   const wasStarted=isPdcaStarted(roKey);
   markPdcaStarted(roKey);
@@ -17168,7 +17195,7 @@ function nucleoHasManagedScope(){return isManager()||managedSectorsForCurrentUse
 
 function nucleoKpiCatalog(){return (isAdmin()?[['triage','R.O.s aguardando triagem','ros','triage'],['sac_classify','SACs aguardando classificação','sac','edit'],['action_review','Ações para atenção do SGQ','pdca','reviewActions'],['contests','Contestações pendentes','ros','reviewContests'],['registrations','Cadastros aguardando aprovação','users','approve'],['documents','Solicitações de documentos abertas','documents','consult']]:[['pdca_pending','PDCAs que aguardam sua resposta','ros','assigned'],['sector_actions','Ações do seu setor','pdca','actions'],['submitted','R.O.s que você abriu aguardando triagem','ros','submitted'],['sacs','SACs em acompanhamento','sac','consult'],['documents','Solicitações de documentos abertas','documents','consult']]).concat(nucleoKpiExtraCatalog());}
 function nucleoKpiOrder(available,saved){return Array.isArray(saved)?[...new Set(saved)].filter(id=>available.includes(id)):available;}
-function nucleoRenderKpiChoices(cards,ids){const host=document.getElementById('overviewKpis');if(!host)return;const extra=nucleoKpiExtraCatalog();if((getSession()?.overviewIndicators||[]).some(id=>extra.some(x=>x[0]===id))){const counts=nucleoKpiExtraCounts();extra.forEach(x=>{if(!ids.includes(x[0])){ids.push(x[0]);cards.push(overviewKpi(counts[x[0]]||0,x[1],'',null));}});}const allowed=nucleoKpiCatalog().filter(x=>nucleoPersonFeatureCan(x[2],x[3])).map(x=>x[0]),order=Array.isArray(getSession()?.overviewIndicators)?nucleoKpiOrder(ids.filter(id=>allowed.includes(id)),getSession().overviewIndicators):ids.filter(id=>allowed.includes(id)&&nucleoKpiDefaultIds().includes(id));host.innerHTML=order.map(id=>cards[ids.indexOf(id)]).join('')||'<p class="small">Nenhum indicador selecionado. Use Personalizar indicadores.</p>';let toolbar=document.getElementById('overviewIndicatorToolbar');if(!toolbar){toolbar=document.createElement('div');toolbar.id='overviewIndicatorToolbar';toolbar.className='actions';toolbar.style.cssText='justify-content:flex-end;align-items:center;gap:10px;flex-wrap:wrap;margin:8px 0';toolbar.innerHTML='<button class="btn secondary" type="button" onclick="nucleoOpenKpiEditor()">⚙ Personalizar indicadores</button>';host.before(toolbar);}const refresh=document.getElementById('overviewRefreshButton');if(refresh)toolbar.appendChild(refresh);nucleoEnsureInlineTeam();}
+function nucleoRenderKpiChoices(cards,ids){const host=document.getElementById('overviewKpis');if(!host)return;const extra=nucleoKpiExtraCatalog();if((getSession()?.overviewIndicators||[]).some(id=>extra.some(x=>x[0]===id))){const counts=nucleoKpiExtraCounts();extra.forEach(x=>{if(!ids.includes(x[0])){ids.push(x[0]);cards.push(overviewKpi(counts[x[0]]||0,x[1],'',null));}});}const allowed=nucleoKpiCatalog().filter(x=>nucleoPersonFeatureCan(x[2],x[3])).map(x=>x[0]),order=Array.isArray(getSession()?.overviewIndicators)?nucleoKpiOrder(ids.filter(id=>allowed.includes(id)),getSession().overviewIndicators):ids.filter(id=>allowed.includes(id)&&nucleoKpiDefaultIds().includes(id));host.innerHTML=order.map(id=>cards[ids.indexOf(id)]).join('')||'<p class="small">Nenhum indicador selecionado. Use Personalizar indicadores.</p>';nucleoEnsureInlineTeam();}
 var nucleoKpiDraft;
 function nucleoOpenKpiEditor(){const catalog=nucleoKpiCatalog().filter(x=>nucleoPersonFeatureCan(x[2],x[3]));nucleoKpiDraft=nucleoKpiOrder(catalog.map(x=>x[0]),getSession()?.overviewIndicators||nucleoKpiDefaultIds());let overlay=document.getElementById('overviewIndicatorEditor');overlay?.remove();overlay=document.createElement('div');overlay.id='overviewIndicatorEditor';overlay.className='modal open';overlay.style.cssText='position:fixed;inset:0;background:#0008;z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px';overlay.innerHTML='<div class="modal-box" style="max-width:650px;max-height:85vh;overflow:auto"><h3>Personalizar indicadores</h3><p class="small">Escolha os cartões e a ordem. A preferência acompanha seu login.</p><div id="overviewIndicatorChoices"></div><p id="overviewIndicatorSaveStatus" role="status"></p><div class="actions"><button class="btn primary" id="overviewIndicatorSave" onclick="nucleoSaveKpis()">Salvar</button><button class="btn secondary" onclick="nucleoKpiDraft=null;nucleoRenderKpiEditor()">Restaurar padrão</button><button class="btn secondary" onclick="document.getElementById(\'overviewIndicatorEditor\').remove()">Cancelar</button></div></div>';document.body.appendChild(overlay);nucleoRenderKpiEditor();}
 function nucleoRenderKpiEditor(){const catalog=nucleoKpiCatalog().filter(x=>nucleoPersonFeatureCan(x[2],x[3]));if(!Array.isArray(nucleoKpiDraft))nucleoKpiDraft=nucleoKpiDefaultIds().filter(id=>catalog.some(x=>x[0]===id));const ordered=[...nucleoKpiDraft,...catalog.map(x=>x[0]).filter(id=>!nucleoKpiDraft.includes(id))];document.getElementById('overviewIndicatorChoices').innerHTML=ordered.map(id=>{const item=catalog.find(x=>x[0]===id);if(!item)return '';const pos=nucleoKpiDraft.indexOf(id);return '<div style="display:flex;gap:12px;align-items:center;padding:10px;border-bottom:1px solid #eee"><label style="flex:1"><input type="checkbox" style="width:20px;height:20px" '+(pos>=0?'checked':'')+' onchange="nucleoToggleKpi(\''+id+'\',this.checked)"> '+escapeHtml(item[1])+'</label><button class="btn secondary" '+(pos<=0?'disabled':'')+' onclick="nucleoMoveKpi(\''+id+'\',-1)" aria-label="Mover para cima">↑</button><button class="btn secondary" '+(pos<0||pos===nucleoKpiDraft.length-1?'disabled':'')+' onclick="nucleoMoveKpi(\''+id+'\',1)" aria-label="Mover para baixo">↓</button></div>';}).join('');}
