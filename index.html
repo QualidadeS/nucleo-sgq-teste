@@ -3134,33 +3134,9 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
     padding:7px 10px!important;
     font-size:10px!important;
   }
-  .top-actions>.top-btn:not(.primary-top){
-    grid-area:sync!important;
-    justify-self:end!important;
-    min-width:112px!important;
-    white-space:nowrap!important;
-  }
   .global-search-input{
     height:44px!important;
     border-radius:11px!important;
-  }
-
-  /* PERSONALIZAR + ATUALIZAR lado a lado */
-  #overviewIndicatorToolbar{
-    display:grid!important;
-    grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;
-    gap:8px!important;
-    width:100%!important;
-    margin:10px 0 12px!important;
-    justify-content:stretch!important;
-  }
-  #overviewIndicatorToolbar .btn{
-    width:100%!important;
-    min-width:0!important;
-    margin:0!important;
-    padding:10px 8px!important;
-    white-space:normal!important;
-    line-height:1.2!important;
   }
 
   /* MINHA EQUIPE */
@@ -3384,7 +3360,10 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
         🔔
         <span id="notificationCountBadge" class="notification-count hidden">0</span>
       </button>
-      <button class="top-btn" onclick="syncNow()">↻ Sincronizar</button>
+      <div class="top-sync-controls">
+        <button class="top-btn" type="button" onclick="syncNow()">↻ Sincronizar</button>
+        <button class="top-btn top-kpi-button" type="button" onclick="nucleoOpenKpiEditor()" title="Personalizar indicadores" aria-label="Personalizar indicadores">⚙</button>
+      </div>
       <span id="syncMsg" role="status" title="Clique para ler a mensagem completa" onclick="if(this.textContent)alert(this.textContent)" style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;cursor:pointer"></span>
     </div>
   </header>
@@ -3407,7 +3386,6 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
       <h2 id="overviewTitle" style="margin:4px 0 0">Sua situação agora</h2>
       <p id="overviewSubtitle" class="small" style="margin:6px 0 0">O que precisa da sua atenção neste momento.</p>
     </div>
-    <button class="btn secondary" type="button" id="overviewRefreshButton" onclick="renderCurrentOverview()">↻ Atualizar</button>
   </div>
 
   <div id="overviewKpis" class="overview-kpis"></div>
@@ -6131,7 +6109,7 @@ function renderSupplierIndicatorsWorkspace(){
 <script src="assets/modules-v2/indicators/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/modules-v2/announcements/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/team-load-local-v47.js?v=20261027-team-local-central"></script>
-<script src="assets/nucleo-app.js?v=20261110-memoria-v66"></script>
+<script src="assets/nucleo-app.js?v=20261110-pdca-apresentado-v68"></script>
 <script src="assets/api-source-lock-v20.js?v=20261110-sessao-api-v64"></script>
 
 <script id="nucleoModuleMaintenanceGuardV1">
@@ -6601,22 +6579,6 @@ function renderSupplierIndicatorsWorkspace(){
     }
   };
 
-  /* Reorganiza a barra de indicadores após renderizações dinâmicas */
-  function normalizeOverviewToolbar(){
-    const bar=document.getElementById('overviewIndicatorToolbar');
-    const refresh=document.getElementById('overviewRefreshButton');
-    if(bar&&refresh&&refresh.parentElement!==bar)bar.appendChild(refresh);
-  }
-
-  const observer=new MutationObserver(()=>{
-    normalizeOverviewToolbar();
-  });
-  observer.observe(document.documentElement,{childList:true,subtree:true});
-
-  window.addEventListener('load',()=>{
-    normalizeOverviewToolbar();
-  },{once:true});
-
   console.info('[NÚCLEO] V53 — sync central destravado + ajustes mobile ativos.');
 })();
 </script>
@@ -6670,22 +6632,6 @@ function renderSupplierIndicatorsWorkspace(){
   margin:0!important;
   line-height:1.25!important;
   overflow-wrap:anywhere!important;
-}
-
-/* Barra Personalizar indicadores + Atualizar */
-#overviewIndicatorToolbar{
-  display:grid!important;
-  grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;
-  gap:8px!important;
-  width:100%!important;
-  align-items:stretch!important;
-}
-#overviewIndicatorToolbar>.btn,
-#overviewIndicatorToolbar>button{
-  width:100%!important;
-  min-width:0!important;
-  margin:0!important;
-  min-height:42px!important;
 }
 
 /* Segurança geral contra estouro de largura */
@@ -6772,15 +6718,6 @@ img,svg,canvas,video,iframe{max-width:100%}
     text-overflow:ellipsis!important;
     white-space:nowrap!important;
   }
-  .top-actions>.top-btn:not(.primary-top){
-    grid-area:sync!important;
-    display:block!important;
-    min-width:0!important;
-    max-width:132px!important;
-    white-space:nowrap!important;
-    overflow:hidden!important;
-    text-overflow:ellipsis!important;
-  }
   .top-actions>.primary-top,
   .top-actions>.save-state,
   #syncMsg{
@@ -6825,23 +6762,11 @@ img,svg,canvas,video,iframe{max-width:100%}
   #overviewTeam .inline-team-person{
     padding:12px 7px!important;
   }
-  #overviewIndicatorToolbar{
-    grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;
-  }
 }
 
 @media (max-width:360px){
   .top-actions{
     grid-template-columns:42px minmax(0,1fr) 104px!important;
-  }
-  #overviewIndicatorToolbar{
-    gap:6px!important;
-  }
-  #overviewIndicatorToolbar>.btn,
-  #overviewIndicatorToolbar>button{
-    padding-left:6px!important;
-    padding-right:6px!important;
-    font-size:12px!important;
   }
 }
 </style>
@@ -6856,43 +6781,6 @@ img,svg,canvas,video,iframe{max-width:100%}
     if(!el)return false;
     const s=getComputedStyle(el);
     return s.display!=='none' && s.visibility!=='hidden';
-  }
-
-  function textOf(el){
-    return String(el?.textContent||'').replace(/\s+/g,' ').trim();
-  }
-
-  function ensureIndicatorToolbar(){
-    const refresh=document.getElementById('overviewRefreshButton');
-    if(!refresh)return;
-
-    let customize=document.querySelector(
-      '#listView [id*="indicator" i][id*="custom" i],'+
-      '#listView [class*="indicator" i][class*="custom" i]'
-    );
-
-    if(!customize){
-      customize=[...document.querySelectorAll('#listView button,#listView .btn')]
-        .find(el=>/personalizar\s+indicadores/i.test(textOf(el)))||null;
-    }
-    if(!customize)return;
-
-    let bar=document.getElementById('overviewIndicatorToolbar');
-    if(!bar){
-      bar=document.createElement('div');
-      bar.id='overviewIndicatorToolbar';
-    }
-
-    const head=document.querySelector('#listView .overview-head');
-    const kpis=document.getElementById('overviewKpis');
-
-    if(!bar.isConnected){
-      if(kpis?.parentElement) kpis.parentElement.insertBefore(bar,kpis);
-      else if(head?.parentElement) head.parentElement.insertBefore(bar,head.nextSibling);
-    }
-
-    if(customize.parentElement!==bar)bar.appendChild(customize);
-    if(refresh.parentElement!==bar)bar.appendChild(refresh);
   }
 
   function normalizeTeam(){
@@ -6956,10 +6844,7 @@ img,svg,canvas,video,iframe{max-width:100%}
     }catch(_){}
     try{window.nucleoEnsureInlineTeam?.()}catch(_){}
 
-    setTimeout(()=>{
-      ensureIndicatorToolbar();
-      normalizeTeam();
-    },0);
+    setTimeout(normalizeTeam,0);
   }
 
   /* Sincronização convergente para celular e computador */
@@ -7019,7 +6904,6 @@ img,svg,canvas,video,iframe{max-width:100%}
   window.nucleoSyncAllDevices=v54SyncAll;
 
   function normalize(){
-    ensureIndicatorToolbar();
     normalizeTeam();
     normalizeMobileNav();
   }
@@ -7244,6 +7128,24 @@ body.nucleo-hide-sac-indicators [data-nucleo-sac-indicator="1"]{
   justify-content:flex-end!important;
   min-width:0;
 }
+.topbar .top-sync-controls{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  min-width:0;
+}
+.topbar .top-sync-controls .top-btn{
+  white-space:nowrap;
+}
+.topbar .top-sync-controls .top-kpi-button{
+  display:inline-grid;
+  place-items:center;
+  width:34px;
+  min-height:34px;
+  padding:0;
+  flex:0 0 auto;
+  font-size:16px;
+}
 .topbar #syncMsg:not(:empty){
   display:block!important;
   min-width:0;
@@ -7254,6 +7156,15 @@ body.nucleo-hide-sac-indicators [data-nucleo-sac-indicator="1"]{
     display:grid!important;
     grid-template-columns:44px minmax(0,1fr) auto!important;
     grid-template-areas:"bell . sync" "syncmsg syncmsg syncmsg"!important;
+  }
+  .topbar .top-sync-controls{
+    grid-area:sync;
+    justify-self:end;
+  }
+  .topbar .top-sync-controls .top-kpi-button{
+    min-width:44px;
+    min-height:44px;
+    padding:0!important;
   }
   .topbar #syncMsg{
     grid-area:syncmsg!important;
