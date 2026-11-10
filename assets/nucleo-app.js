@@ -786,7 +786,7 @@ let nucleoAuthenticatedApi=null;
 function nucleoSessionApiBase(token=getSession()?.authToken){
   return token&&nucleoAuthenticatedApi?.token===token ? nucleoAuthenticatedApi.base : '';
 }
-function portalJsonp(params,timeoutMs=60000,baseOverride=''){
+function portalJsonp(params,timeoutMs=60000,baseOverride='',options={}){
   return new Promise((resolve,reject)=>{
     const base=baseOverride||portalApiBase();
     if(!base){reject(new Error('URL do Apps Script não configurada.'));return;}
@@ -837,7 +837,12 @@ function portalJsonp(params,timeoutMs=60000,baseOverride=''){
     const requestParams={...(params||{})};
     const actionName=String(requestParams.acao||'').toLowerCase();
     const sessionToken=String(getSession()?.authToken||'').trim();
-    if(sessionToken && nucleoActionNeedsCentralConfirmation(actionName) && !nucleoCentralDataConfirmed()){
+    // A integração tem confirmação própria: a configuração foi lida da mesma API
+    // com a mesma sessão, mesmo se a sincronização geral estiver em andamento.
+    const integrationReadConfirmed=actionName==='portal_save_config'
+      && options.integrationReadToken===sessionToken && isAdmin();
+    if(sessionToken && nucleoActionNeedsCentralConfirmation(actionName)
+      && !integrationReadConfirmed && !nucleoCentralDataConfirmed()){
       cleanup();
       reject(new Error('Dados ainda não confirmados pela base central. Aguarde o indicador ficar verde e tente novamente.'));
       return;

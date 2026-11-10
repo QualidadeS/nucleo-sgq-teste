@@ -231,6 +231,12 @@
       return false;
     }
 
+    const session=window.getSession?.();
+    const token=session?.authToken;
+    if(!token){
+      alert('Entre com o login do SGQ para salvar a integração.');
+      return false;
+    }
     const draft=window.saveIntegrationSettings();
     if(!draft)return false;
     const saveButton=document.getElementById('saveIntegrationButton');
@@ -246,7 +252,10 @@
       if(typeof originalPortalJsonp!=='function')throw new Error('Conexão central indisponível.');
 
       // Busca a configuração CENTRAL atual. localStorage não participa da decisão.
-      const request=params=>originalPortalJsonp(params,60000,currentBase);
+      const request=params=>{
+        if(window.getSession?.()?.authToken!==token)throw new Error('A sessão mudou. Entre novamente para salvar a integração.');
+        return originalPortalJsonp({...params,token},60000,currentBase);
+      };
       const loaded=await request({acao:'portal_load'});
       if(!loaded?.sucesso)throw new Error(loaded?.erro||'A base central não respondeu à leitura autenticada da configuração.');
       const loadedConfig=loaded.dados?.config;
@@ -263,15 +272,19 @@
 
       // Salva no backend global ATUAL. Assim a cadeia bootstrap -> atual -> nova
       // é comum a todos os dispositivos e não depende de estado local.
+      if(window.getSession?.()?.authToken!==token)throw new Error('A sessão mudou antes do salvamento da integração.');
       const saved=await originalPortalJsonp({
         acao:'portal_save_config',
+        token,
         dados:JSON.stringify(nextConfig),
-        ator:(typeof getSession==='function'?getSession()?.name:'')||'SGQ'
-      },60000,currentBase);
+        ator:session.name||'SGQ'
+      },60000,currentBase,{integrationReadToken:token});
+      if(window.getSession?.()?.authToken!==token)throw new Error('A sessão mudou durante o salvamento da integração.');
       if(!saved?.sucesso)throw new Error(saved?.erro||'A base central não confirmou a integração.');
 
       if(currentBase===candidate){
         const confirmed=await window.readNucleoSavedIntegration(request);
+        if(window.getSession?.()?.authToken!==token)throw new Error('A sessão mudou antes da confirmação da integração.');
         if(String(confirmed?.roSyncPeriod??'')!==draft.roSyncPeriod
           || (draft.roSyncPeriod==='custom'&&String(confirmed?.roSyncDateFrom??'')!==draft.roSyncDateFrom)){
           throw new Error('A base central ainda não devolveu o período escolhido. Tente salvar novamente.');
