@@ -428,7 +428,7 @@ function pendingHubData(){
   const sentRos=new Set((Array.isArray(sent)?sent:[]).map(p=>String(p?.ro||p?.numeroRo||p?.roNumber||'').trim()));
 
   const roItems=getAllRoRecords()
-    .filter(ro=>canAdminSeeAllPortalRecords()?true:canViewRO(ro))
+    .filter(ro=>canAdminSeeAllPortalRecords()?true:canViewRO(ro,triageMap))
     .filter(ro=>{
       const st=normalizeAnswer(ro.status||'');
       if(st.includes('cancel')||st.includes('somente para registro'))return false;
@@ -7200,7 +7200,11 @@ function baseTriageSituation(ro){
 
 function getTriageRecordsForRoNumber(roNumber,map=getSavedTriageMap()){
   const base=String(roNumber||'').trim();
-  return [...map.values()].filter(t=>String(t?.roNumber||String(t?.roKey||'').split('::')[0]||'').trim()===base);
+  const matches=[];
+  for(const t of map.values()){
+    if(String(t?.roNumber||String(t?.roKey||'').split('::')[0]||'').trim()===base)matches.push(t);
+  }
+  return matches;
 }
 function getTriageRecordForRoSector(roNumber,sector,map=getSavedTriageMap()){
   const composite=triageCompositeKey(roNumber,sector);
@@ -7328,6 +7332,7 @@ function getSavedTriageMap(){
   // Setor/Pessoa/Status preenchidos na planilha.
   // O registro salvo manualmente no Núcleo continua tendo prioridade.
   try{
+    let operationalUsers;
     getAllRoRecords().forEach(ro=>{
       const key=triageKeyOf(ro);
       // Uma exclusão antiga de duplicata visual não pode transformar a R.O. em não triada.
@@ -7348,7 +7353,8 @@ function getSavedTriageMap(){
 
       let responsibleUserEmail='';
       if(decision==='directed' && pessoa && normalizeAnswer(pessoa)!=='todo o setor'){
-        const u=getOperationalUsers().find(user=>
+        operationalUsers??=getOperationalUsers();
+        const u=operationalUsers.find(user=>
           normalizeAnswer(user.name||'')===normalizeAnswer(pessoa) &&
           normalizeAnswer(user.sector||'')===normalizeAnswer(setor)
         );
@@ -10365,13 +10371,12 @@ function sameSector(sector){
   return sameCanonicalSector(sector,currentSector());
 }
 
-function getRoTriageRecord(ro){
+function getRoTriageRecord(ro,triageMap){
   try{
     if(ro?.__triageRecord)return ro.__triageRecord;
     const base=String(ro?.numero||ro?.id||ro?.codigo||'').trim();
     if(!base)return null;
-    const map=getSavedTriageMap();
-    return resolvedTriageForRo(ro,map);
+    return resolvedTriageForRo(ro,triageMap||getSavedTriageMap());
   }catch(e){return null}
 }
 
@@ -10383,9 +10388,9 @@ function effectiveResponsibleSector(ro){
   return '';
 }
 
-function getOperationalRoView(ro){
+function getOperationalRoView(ro,triageMap){
   if(!ro)return ro;
-  const tri=getRoTriageRecord(ro);
+  const tri=getRoTriageRecord(ro,triageMap);
   const copy={...ro};
 
   // Preserve what came from the spreadsheet only as reference.
@@ -10577,12 +10582,12 @@ function notifyManagersOfDirectedRo(roKey,sector,triageRo,responsibleUserName){
   });
 }
 
-function canViewRO(ro){
+function canViewRO(ro,triageMap){
   if(!nucleoManagerScopeAllows(ro))return false;
   // ADM Geral vê as duas unidades. ADM Matriz/Filial fica restrito à sua unidade.
   if(isAdmin())return getSession()?.role==='quality'?qualityRecordAllowed(ro):isGeneralAdmin()||sameUnitAsCurrentUser(ro);
 
-  const tri=getRoTriageRecord(ro);
+  const tri=getRoTriageRecord(ro,triageMap);
   if(!tri || tri.decision!=='directed')return false;
   const linked=(getSession()?.sectorMemberships||[]).some(m=>normalizePortalUnit(m.unit)===roUnit(ro)&&normalizeAnswer(m.sector)===normalizeAnswer(tri.responsibleSector));
   if(linked)return userMatchesDirectedPerson(tri);
@@ -11785,25 +11790,25 @@ function applyImportedRos(records,meta){
     ? Number(meta.quantidadeExterna)
     : null;
 
-  const prepared=records.map((row,index)=>{
-    const copy={...(row||{})};
-    if(!String(copy.__origemBase||'').trim() && qtdInterna!==null){
-      copy.__origemBase=index<qtdInterna?'Interna':'Externa';
-      copy.__ehSac=copy.__origemBase==='Externa';
-    }
-    return copy;
-  });
-
   if(qtdInterna!==null && qtdExterna!==null && (qtdInterna+qtdExterna)!==records.length){
     throw new Error('A API informou quantidades de Interna/Externa incompatíveis com a lista recebida.');
   }
 
-  // Durante uma importação grande, rememberRoOrigin é chamado para cada linha.
-  // Acumula o mapa em memória e envia somente uma gravação central ao final.
+  const incoming=[];
+  let hasOriginMarkers=false;
   nucleoBulkRoOriginRegistry=getRoOriginRegistry();
-  let incoming;
   try{
-    incoming=prepared.map(normalizeImportedRo).filter(r=>r.numero);
+    records.forEach((row,index)=>{
+      let raw=row||{};
+      let origin=String(raw.__origemBase||'').trim();
+      if(!origin&&qtdInterna!==null){
+        origin=index<qtdInterna?'Interna':'Externa';
+        raw={...raw,__origemBase:origin,__ehSac:origin==='Externa'};
+      }
+      if(origin)hasOriginMarkers=true;
+      const ro=normalizeImportedRo(raw,index);
+      if(ro.numero)incoming.push(ro);
+    });
   }finally{
     const registry=nucleoBulkRoOriginRegistry;
     nucleoBulkRoOriginRegistry=null;
@@ -11813,15 +11818,11 @@ function applyImportedRos(records,meta){
   if(!incoming.length && !(meta && Number(meta.quantidadeInterna)===0 && Number(meta.quantidadeExterna)===0))
     throw new Error('Nenhuma R.O. válida foi encontrada.');
 
-  const hasOriginMarkers=prepared.some(x=>String(x?.__origemBase||'').trim());
   let normalized=incoming;
 
   // A sincronização oficial informa as quantidades das duas abas.
   // Se a chamada for parcial/antiga e trouxer somente uma origem, preserva a outra base
   // em vez de substituir todas as R.O.s por apenas Interna ou apenas Externa.
-  const previousByOrigin=readImportedRosByOrigin();
-  const previous=[...previousByOrigin.internas,...previousByOrigin.externas];
-
   const incomingInterna=incoming.filter(r=>String(r.origemBase||'')==='Interna');
   const incomingExterna=incoming.filter(r=>String(r.origemBase||'')==='Externa');
 
@@ -11829,13 +11830,10 @@ function applyImportedRos(records,meta){
   const authoritativeExterna=meta && typeof meta.quantidadeExterna!=='undefined';
 
   if(hasOriginMarkers){
-    const prevInternas=previous.filter(r=>String(r.origemBase||'')==='Interna');
-    const prevExternas=previous.filter(r=>String(r.origemBase||'')==='Externa');
-
-    // Uma sincronização parcial NÃO pode apagar a outra origem.
-    // Mesmo que uma resposta informe 0 registros de uma origem, preservamos o que
-    // já estava memorizado até recebermos registros concretos dessa origem.
     const filteredPeriod=Boolean(meta?.filtroPeriodo?.ativo);
+    const needsPrevious=!filteredPeriod&&(!authoritativeInterna||!authoritativeExterna);
+    const {internas:prevInternas,externas:prevExternas}=needsPrevious
+      ? readImportedRosByOrigin() : {internas:[],externas:[]};
     let internas=(filteredPeriod||authoritativeInterna) ? incomingInterna : (incomingInterna.length ? incomingInterna : prevInternas);
     let externas=(filteredPeriod||authoritativeExterna) ? incomingExterna : (incomingExterna.length ? incomingExterna : prevExternas);
 
@@ -11880,7 +11878,9 @@ function applyImportedRos(records,meta){
     }
     try{notifyNewImportedRos(previousNumbers,normalized)}catch(e){}
   }
-  try{renderCurrentOverview()}catch(e){}
+  if(document.getElementById('listView')?.classList.contains('hidden')===false){
+    try{renderCurrentOverview()}catch(e){}
+  }
   refreshNotificationBell();
   return normalized.length;
 }
@@ -14610,12 +14610,12 @@ const stages=[{"id": "plan", "number": "01", "name": "Planejar", "subtitle": "En
 let detailReturnView='ros';
 let selected=ros[0],activeStage=0;let answers={};
 
-function pdcaExternalExists(ro){
-  const tri=getRoTriageRecord(ro);
+function pdcaExternalExists(ro,triageMap){
+  const tri=getRoTriageRecord(ro,triageMap);
   return tri?.pdcaExternal===true || String(tri?.pdcaSource||'').toLowerCase()==='external';
 }
-function pdcaSituationLabel(ro){
-  if(pdcaExternalExists(ro))return 'PDCA externo';
+function pdcaSituationLabel(ro,triageMap){
+  if(pdcaExternalExists(ro,triageMap))return 'PDCA externo';
   const status=String(ro?.status||'');
   const pdca=String(ro?.pdca||'');
   if(pdca==='Enviado'||status==='PDCA enviado')return 'PDCA enviado';
@@ -14667,9 +14667,9 @@ async function setExternalPdca(numero,hasExternal,sector=''){
   }
 }
 
-function assignedRoStatus(r){
+function assignedRoStatus(r,triageMap,pdcaByRo,presentationMap){
   const raw=String(r?.status||'').trim().toLowerCase();
-  const tri=getRoTriageRecord(r)||{};
+  const tri=getRoTriageRecord(r,triageMap)||{};
   if(raw.includes('cancel')) return 'Cancelada';
   if(raw.includes('obsolet')) return 'Obsoleto';
   if(tri.decision==='record'||raw==='falta de caixa'||raw==='falta de caixas'||raw.includes('registro')) return 'Registro';
@@ -14678,19 +14678,18 @@ function assignedRoStatus(r){
   // Fonte de verdade para "PDCA respondido": precisa existir um PDCA REAL
   // salvo/enviado na coleção pdca_sent para esta R.O. Não usa mais r.status/r.pdca
   // das planilhas antigas, pois esses campos estavam promovendo registros sem resposta.
-  const sentPdca=getPdcaReturnForRo(r);
+  const sentPdca=getPdcaReturnForRo(r,pdcaByRo);
   if(sentPdca){
     const presented = Boolean(sentPdca.apresentadoEm) ||
-      (!sentPdca.externalPdf&&typeof getPdcaPresentationMap==='function' && getPdcaPresentationMap().has(String(sentPdca.id||sentPdca.pdcaId||'')));
+      (!sentPdca.externalPdf&&typeof getPdcaPresentationMap==='function' && (presentationMap||getPdcaPresentationMap()).has(String(sentPdca.id||sentPdca.pdcaId||'')));
     return presented ? 'PDCA apresentado' : 'PDCA respondido';
   }
   return 'Pendente';
 }
 
-function assignedRoDeadline(r){
-  const status=assignedRoStatus(r);
+function assignedRoDeadline(r,status=assignedRoStatus(r),triageMap){
   if(status!=='Pendente') return '—';
-  const tri=getRoTriageRecord(r)||{};
+  const tri=getRoTriageRecord(r,triageMap)||{};
   // Pendência sem PDCA externo sempre vence na próxima terça. Se a triagem já
   // possui um prazo central salvo, preserva-o; caso contrário calcula para exibição.
   return String(tri.pdcaDeadline||tri.deadline||nextTuesdayIsoDate()).trim()||nextTuesdayIsoDate();
@@ -14712,9 +14711,17 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
   const filterSignature=JSON.stringify([q,f,roListMode,assignedSector,assignedOrigin,assignedUnit]);
   if(filterSignature!==roListFilterSignature){roListVisibleLimit=60;roListFilterSignature=filterSignature}
   const hiddenAssigned=roListMode==='assigned'?getHiddenAssignedKeys():null;
+  const triageMap=getSavedTriageMap();
+  const pdcaByRo=new Map();
+  for(const pdca of getAllSentPdcas()){
+    const key=String(pdca.ro||pdca.roId||pdca.numeroRo||'').trim();
+    if(!pdcaByRo.has(key))pdcaByRo.set(key,[]);
+    pdcaByRo.get(key).push(pdca);
+  }
+  const presentationMap=getPdcaPresentationMap();
   const assignedTriageByRo=new Map();
   if(roListMode==='assigned'){
-    getSavedTriageMap().forEach(t=>{
+    triageMap.forEach(t=>{
       const number=String(t?.roNumber||String(t?.roKey||'').split('::')[0]||'').trim();
       if(!number)return;
       const entries=assignedTriageByRo.get(number)||[];
@@ -14726,7 +14733,7 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
   const assignedSource = roListMode==='assigned' ? ros.flatMap(r=>{
     const base=String(r.numero||r.id||r.codigo||'').trim();
     let records=(assignedTriageByRo.get(base)||[]).filter(t=>String(t.decision||'')!=='' && !hiddenAssigned.has(String(t.roKey||'')));
-    const confirmed=resolvedTriageForRo(r,getSavedTriageMap());
+    const confirmed=resolvedTriageForRo(r,triageMap);
     if(confirmed?.decision&&confirmed.decision!=='directed')records=[confirmed];
     // Recuperação segura: se SGQ_TRIAGENS estiver vazio/desatualizado, mas a
     // própria R.O. importada ainda trouxer setor causa, ela continua atribuída.
@@ -14759,8 +14766,8 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
   }) : ros;
   const list=assignedSource.filter(nucleoManagerScopeAllows)
     .filter(r=>{
-      if(roListMode!=='assigned')return canViewRO(r);
-      const tri=getRoTriageRecord(r);
+      if(roListMode!=='assigned')return canViewRO(r,triageMap);
+      const tri=getRoTriageRecord(r,triageMap);
       // Uma R.O. é atribuída quando existe uma decisão central OU quando a própria
       // planilha ainda comprova o direcionamento. Isso evita esvaziar esta tela se
       // o cache de SGQ_TRIAGENS ainda não tiver sido restaurado/sincronizado.
@@ -14771,12 +14778,12 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
       const assignedByTriage=!!tri && !['','new','nova','aguardando','aguardando triagem'].includes(triStatus);
       if(!assignedByTriage && !assignedBySheet)return false;
       // ADM vê todo o restante; usuário/gestor continua limitado ao que pode visualizar.
-      return isAdmin()?true:canViewRO(r);
+      return isAdmin()?true:canViewRO(r,triageMap);
     })
-    .map(r=>isAdmin()?r:getOperationalRoView(r))
+    .map(r=>isAdmin()?r:getOperationalRoView(r,triageMap))
     .filter(r=>{
       if(roListMode==='assigned'){
-        const tri=getRoTriageRecord(r);
+        const tri=getRoTriageRecord(r,triageMap);
         const rowSector=String(tri?.responsibleSector||tri?.setorDirecionado||r.setor||'').trim();
         const rowOrigin=String(r.origemBase||r.raw?.__origemBase||'').trim();
         const rowUnit=String(r.unidade||'').trim();
@@ -14785,7 +14792,7 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
         if(assignedUnit!=='all'&&!sameCanonicalUnit(rowUnit,assignedUnit))return false;
       }
       const text=nucleoRoSearchMatches(r,q);
-      const displayStatus=assignedRoStatus(r);
+      const displayStatus=assignedRoStatus(r,triageMap,pdcaByRo,presentationMap);
       const statusKey={'Pendente':'pendente','PDCA externo':'pdca_externo','PDCA respondido':'pdca_respondido','PDCA apresentado':'pdca_apresentado','Cancelada':'cancelada','Registro':'registro','Obsoleto':'obsoleto'}[displayStatus]||'pendente';
       const filt=f==='todas'||f===statusKey;
       return text&&filt;
@@ -14797,12 +14804,12 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
     const pdca=String(r.pdca||'');
     const noPdca=['Cancelada','Somente para registro'].includes(status);
     const contest=status==='Em contestação';
-    const externalPdca=pdcaExternalExists(r);
+    const externalPdca=pdcaExternalExists(r,triageMap);
     const alreadySent=pdca==='Enviado' || status==='PDCA enviado' || externalPdca;
-    const tri=getRoTriageRecord(r);
+    const tri=getRoTriageRecord(r,triageMap);
     const responsibleSector=String(tri?.responsibleSector||tri?.setorDirecionado||r.__assignedSector||r.setorResponsavelPlanilha||r.raw?.__setorResponsavel||r.setorResponsavel||r.setor||'—').trim()||'—';
-    const pdcaSituation=pdcaSituationLabel(r);
-    const displayStatus=assignedRoStatus(r);
+    const pdcaSituation=pdcaSituationLabel(r,triageMap);
+    const displayStatus=assignedRoStatus(r,triageMap,pdcaByRo,presentationMap);
     const displayDecisionLabel=nucleoAssignedDecisionLabel(r,tri,displayStatus);
 
     let operationalActions='';
@@ -14839,7 +14846,7 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
       <td>${escapeHtml(r.unidade||'')}</td>
       <td>${escapeHtml(responsibleSector)}</td>
       <td><span class="status-badge">${escapeHtml(r.origemBase||'')}</span></td>
-      <td>${escapeHtml(assignedRoDeadline(r))}</td>
+      <td>${escapeHtml(assignedRoDeadline(r,displayStatus,triageMap))}</td>
       <td>${statusControl}</td>
       <td class="ro-eye-cell"><div class="ro-row-actions"><button class="ro-eye-btn" type="button" onclick="openRoReport('${escapeHtml(r.numero)}')" title="Visualizar R.O." aria-label="Visualizar R.O. ${escapeHtml(r.numero)}">👁</button>${admin&&tri?.roKey?`<button class="ro-eye-btn ro-edit-btn" type="button" onclick="openAssignedSectorEdit('${escapeHtml(tri.roKey)}')" title="Editar setor causa" aria-label="Editar setor causa">✎</button><button class="ro-eye-btn ro-delete-btn" type="button" onclick="deleteAssignedDirection('${escapeHtml(tri.roKey)}')" title="Excluir este direcionamento" aria-label="Excluir este direcionamento">🗑</button>`:''}</div></td>
       ${operationalActions}
@@ -14974,9 +14981,10 @@ function view(id){
   document.getElementById('submittedRoDecisionInfo')?.remove();dNumero.textContent=selected.numero;dCliente.textContent=selected.cliente;dStatus.textContent=selected.status;dStatus.className=badgeClass(selected.status);dUnidade.textContent=selected.unidade;dSetor.textContent=selected.setor;dData.textContent=selected.data;dPrazo.textContent=selected.prazo;dDescricao.textContent=selected.descricao;const noPDCA=['Cancelada','Somente para registro'].includes(selected.status),contest=selected.status==='Em contestação';pdcaBtn.disabled=noPDCA||contest;contestBtn.disabled=noPDCA||contest;if(pdcaBtn&&!noPDCA&&!contest){const roKey=selected.numero||selected.id||selected.codigo||'';pdcaBtn.textContent=isPdcaStarted(roKey)?'Continuar a responder o PDCA':'Responder o PDCA';}dNotice.classList.toggle('hidden',!(noPDCA||contest));dNotice.textContent=contest?'O PDCA está suspenso enquanto a contestação estiver em análise pelo SGQ.':noPDCA?'Esta R.O. não exige PDCA.':'';refreshContestUserStatus();refreshFavoriteButton();renderRoTimeline();renderRoIntelligence()}
 function roSummaryData(){
   const source=(typeof ROs!=='undefined' ? ROs : (typeof ros!=='undefined' ? ros : []));
+  const triageMap=getSavedTriageMap();
   const visibleRos=source
-    .filter(ro=>canViewRO(ro))
-    .map(ro=>isAdmin()?ro:getOperationalRoView(ro));
+    .filter(ro=>canViewRO(ro,triageMap))
+    .map(ro=>isAdmin()?ro:getOperationalRoView(ro,triageMap));
 
   const sent=getSentPdcas().filter(p=>isAdmin() || sameSector(p.setor));
   const byRo=new Map();
@@ -14985,7 +14993,6 @@ function roSummaryData(){
     if(key)byRo.set(key,p);
   });
 
-  const triageMap=getSavedTriageMap();
   let pending=0,noPresentation=0,openActions=0,overdue=0;
   const now=new Date();
 
@@ -15109,11 +15116,12 @@ function wasRoSubmittedByCurrentUser(ro){
 }
 
 
-function getPdcaReturnForRo(ro){
+function getPdcaReturnForRo(ro,pdcaByRo){
   const key=String(ro?.numero||ro?.id||ro?.codigo||'').trim();
   if(!key)return null;
   const sector=ro.__assignedSector||ro.__triageRecord?.responsibleSector||'';
-  return getAllSentPdcas().find(p=>String(p.ro||p.roId||p.numeroRo||'').trim()===key&&(!sector||normalizeAnswer(p.setor||'')===normalizeAnswer(sector)))||null;
+  const records=pdcaByRo?(pdcaByRo.get(key)||[]):getAllSentPdcas();
+  return records.find(p=>String(p.ro||p.roId||p.numeroRo||'').trim()===key&&(!sector||normalizeAnswer(p.setor||'')===normalizeAnswer(sector)))||null;
 }
 
 function complainantActionState(p){
@@ -15637,7 +15645,7 @@ function renderCurrentOverview(){
     console.error('Falha ao renderizar Visão geral:',e);
     const k=document.getElementById('overviewKpis');
     if(k)k.innerHTML=[
-      overviewKpi(overviewSafe(()=>getAllRoRecords().filter(r=>canViewRO(r)).length,0),'R.O.s disponíveis','','showAssignedRos()','Abrir'),
+      overviewKpi(overviewSafe(()=>{const map=getSavedTriageMap();return getAllRoRecords().filter(r=>canViewRO(r,map)).length},0),'R.O.s disponíveis','','showAssignedRos()','Abrir'),
       overviewKpi(overviewSafe(()=>userSectorPendingActions().length,0),'Ações em acompanhamento','','showActionsDashboard()','Abrir')
     ].join('');
     renderOverviewPriorities([]);
@@ -16490,7 +16498,6 @@ if(getSession()?.authToken){
   nucleoSetCentralSyncState('syncing','Confirmando dados com a base central…');
 }
 refreshAccessUI();enforceAdminVisibility();refreshRoRegistrationAccess();
-try{if(getSession())renderCurrentOverview()}catch(e){console.warn('Falha ao carregar a Visão geral inicial.',e)}
 try{refreshNotificationBell();refreshMenuNotificationBadges()}catch(e){}
 
 try{
@@ -17210,7 +17217,7 @@ function nucleoKpiExtraCatalog(){return [['ro_total','R.O.s disponíveis','ros',
 function nucleoKpiClassificationNames(){const names=['Método','Máquina','Mão de obra','Material','Medição','Meio ambiente'];if(document.readyState!=='loading'){const map=getSavedTriageMap();map.forEach(t=>{(t.classificationMs||[]).concat(t.classificationOther?[t.classificationOther]:!t.classificationMs&&t.classification?[t.classification]:[]).forEach(n=>{const name=String(n||'').trim();if(name&&!names.some(x=>normalizeAnswer(x)===normalizeAnswer(name)))names.push(name);});});}return names;}
 function nucleoKpiDefaultIds(){return isAdmin()?['triage','sac_classify','action_review','contests','registrations','documents']:['pdca_pending','sector_actions','submitted','sacs','documents'];}
 function nucleoKpiExtraCounts(){
- const map=getSavedTriageMap(),classNames=nucleoKpiClassificationNames(),ros=getAllRoRecords().filter(r=>canViewRO(r)&&nucleoManagerScopeAllows(r)),pdcas=getAllSentPdcas().filter(p=>canViewPdca(p)&&nucleoManagerScopeAllows(p)),byRo=new Map();pdcas.forEach(p=>{const key=String(p.ro||p.roId||'').split('::')[0];if(!byRo.has(key))byRo.set(key,[]);byRo.get(key).push(p);});
+ const map=getSavedTriageMap(),classNames=nucleoKpiClassificationNames(),ros=getAllRoRecords().filter(r=>canViewRO(r,map)&&nucleoManagerScopeAllows(r)),pdcas=getAllSentPdcas().filter(p=>canViewPdca(p)&&nucleoManagerScopeAllows(p)),byRo=new Map();pdcas.forEach(p=>{const key=String(p.ro||p.roId||'').split('::')[0];if(!byRo.has(key))byRo.set(key,[]);byRo.get(key).push(p);});
  const triageByRo=new Map();map.forEach(t=>{const key=String(t.roNumber||t.roKey||'').split('::')[0],old=triageByRo.get(key);if(!old||old.importedFromSheet&&!t.importedFromSheet||old.importedFromSheet===t.importedFromSheet&&String(t.triagedAt||'')>String(old.triagedAt||''))triageByRo.set(key,t);});
  const counts={ro_total:ros.length,ro_pending:0,ro_answered:0,ro_presented:0,ro_finalized:0,ro_record:0,ro_cancelled:0,ro_obsolete:0,ro_box:0,pdca_received:pdcas.length,pdca_dispatch:0,actions_ontime:0,actions_late:0,actions_done:0,sacs_done:0,docs_done:0};
  let deliveries=[];try{deliveries=JSON.parse(localStorage.getItem('nucleo-pdca-dispatches-v1')||'[]');}catch(_){}const delivered=p=>deliveries.some(d=>d.ro===p.ro&&d.unit===explicitRecordUnit(p)&&(d.pdcaFileId&&d.pdcaFileId===p.pdcaFileId||d.fileId&&d.fileId===p.fileId)&&Number(d.version||1)===Number(p.version||1));
@@ -17225,7 +17232,6 @@ function nucleoKpiExtraCounts(){
  return counts;
 }
 
-document.addEventListener('DOMContentLoaded',()=>{try{renderCurrentOverview();}catch(err){console.error(err);}});
 
 function nucleoAiRulesTable(rules){return '<div style="overflow:auto"><table style="width:100%"><thead><tr><th>Critério</th>'+[0,1,2,3].map(n=>'<th>Nota '+n+'</th>').join('')+'</tr></thead><tbody>'+rules.criteria.map(c=>'<tr><th>'+escapeHtml(c.label)+'</th>'+c.points.map(t=>'<td>'+escapeHtml(t)+'</td>').join('')+'</tr>').join('')+'</tbody></table></div><p>'+rules.maxima.map((n,i)=>'Nível '+(i+1)+': '+(i?rules.maxima[i-1]+1:0)+' a '+n+' pontos').join(' · ')+'</p>'+(rules.clientForcesLevel4?'<p>Reclamação ou devolução do cliente: nível 4.</p>':'')+'<p>'+escapeHtml(rules.recurrenceInstructions)+'</p>';}
 async function nucleoAiManual(button){const state=nucleoAiScoreState,host=document.getElementById('roAiScoreResult');button.disabled=true;host.textContent='Carregando critérios para pontuação manual…';try{const r=await portalJsonp({acao:'portal_ai_rules'},60000);if(state!==nucleoAiScoreState)return;if(!r?.sucesso)throw new Error(r?.erro||'Não foi possível carregar os critérios.');state.assessment={mode:'manual',rules:r.rules,confirmed:false,answer:{scores:r.rules.criteria.map(c=>({id:c.id,score:null,reason:''})),clientComplaint:null}};nucleoAiRenderAssessment(state.assessment);}catch(err){if(state===nucleoAiScoreState)host.textContent=err.message;}finally{button.disabled=false;}}
