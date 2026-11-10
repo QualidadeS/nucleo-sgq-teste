@@ -1230,17 +1230,22 @@ let nucleoCentralLoad=null;
 async function syncPortalBackend(showMessage=false,options={}){
   const token=getSession()?.authToken;
   if(nucleoCentralLoad){
-    if(nucleoCentralLoad.token===token)return nucleoCentralLoad.promise;
+    if(nucleoCentralLoad.token===token){
+      if(options.afterRoSetup)nucleoCentralLoad.afterRoSetup=options.afterRoSetup;
+      return nucleoCentralLoad.promise;
+    }
     await nucleoCentralLoad.promise;
     if(getSession()?.authToken!==token)return false;
     return syncPortalBackend(showMessage,options);
   }
-  const promise=loadPortalBackend(showMessage,options,token);
-  nucleoCentralLoad={token,promise};
-  try{return await promise}
+  const load={token,afterRoSetup:options.afterRoSetup};
+  nucleoCentralLoad=load;
+  load.promise=loadPortalBackend(showMessage,options,load);
+  try{return await load.promise}
   finally{nucleoCentralLoad=null}
 }
-async function loadPortalBackend(showMessage,options,token){
+async function loadPortalBackend(showMessage,options,load){
+  const {token}=load;
   if(!portalBackendEnabled()){
     if(showMessage)alert('Configure primeiro a URL do Apps Script em Administração → Integração.');
     updateBackendStatus(false,'Apps Script não configurado.');
@@ -1265,6 +1270,7 @@ async function loadPortalBackend(showMessage,options,token){
 
   try{
     let lastUpdated='';
+    let roStepStarted=false;
 
     for(let i=0;i<parts.length;i++){
       const [part,label]=parts[i];
@@ -1286,6 +1292,15 @@ async function loadPortalBackend(showMessage,options,token){
         Object.keys(res.dados).forEach(k=>{ try{res.dados[k]=null}catch(e){} });
       }
       await new Promise(resolve=>setTimeout(resolve,0));
+
+      // Depois de confirmar configuração, triagem e SACs, leia a planilha
+      // antes dos módulos restantes, mantendo as requisições em sequência.
+      if(i>=2&&!roStepStarted&&load.afterRoSetup){
+        if(getSession()?.authToken!==token)return false;
+        roStepStarted=true;
+        await load.afterRoSetup();
+        if(getSession()?.authToken!==token)return false;
+      }
     }
 
     nucleoSetCentralSyncState('synced','Base central confirmada. Os dados em tela estão atualizados.',lastUpdated);
@@ -12025,13 +12040,28 @@ async function nucleoRunFullSync(options={}){
       if(window.nucleoGlobalApiReady?.then)await window.nucleoGlobalApiReady;
       if(getSession()?.authToken!==token)return false;
 
-      // 1) Snapshot operacional em partes.
+      let roResult;
+      async function readOfficialRos(){
+        if(roResult!==undefined||getSession()?.authToken!==token)return;
+        if(!getSession()?.permissions||nucleoPersonCan('ros')){
+          if(status){
+            status.textContent='Atualizando R.O.s e SACs...';
+            status.className='statusline';
+          }
+          roResult=await refreshLegacyRoCacheFromApi(forceRos);
+        }else{
+          roResult=true;
+          if(status)status.textContent='';
+        }
+      }
+
+      // Depois de confirmar a configuração central, prioriza as planilhas.
       let centralOk=false;
       for(let attempt=1;attempt<=3;attempt++){
         if(getSession()?.authToken!==token)return false;
 
         try{
-          centralOk=await syncPortalBackend(false,{foreground:foreground && attempt===1});
+          centralOk=await syncPortalBackend(false,{foreground:foreground && attempt===1,afterRoSetup:readOfficialRos});
         }catch(e){
           centralOk=false;
           console.warn('[NÚCLEO AUTO SYNC] tentativa central '+attempt+' falhou:',e);
@@ -12048,23 +12078,12 @@ async function nucleoRunFullSync(options={}){
 
       if(getSession()?.authToken!==token)return false;
 
-      // 2) R.O.s/SACs oficiais somente depois que o snapshot central terminou.
-      if(!getSession()?.permissions || nucleoPersonCan('ros')){
-        if(status){
-          status.textContent='Atualizando R.O.s e SACs...';
-          status.className='statusline';
-        }
-
-        // refreshLegacyRoCacheFromApi possui sua própria trava. Não roda em
-        // paralelo com outra leitura de R.O.s.
-        const loaded=await refreshLegacyRoCacheFromApi(forceRos);
-        if(!loaded&&forceRos){
-          nucleoSetCentralSyncState('error','R.O.s e SACs não conferidos com as planilhas centrais.');
-          return false;
-        }
-      }else if(status){
-        status.textContent='';
-        status.className='statusline';
+      // Uma sincronização central já no fim pode ter passado da última
+      // oportunidade de executar a leitura. Nesse caso, faça-a aqui.
+      await readOfficialRos();
+      if(roResult===false&&forceRos){
+        nucleoSetCentralSyncState('error','R.O.s e SACs não conferidos com as planilhas centrais.');
+        return false;
       }
 
       if(getSession()?.authToken!==token)return false;
