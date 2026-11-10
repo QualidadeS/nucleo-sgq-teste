@@ -782,6 +782,10 @@ function portalBase64EncodeJson(obj){
   const json=JSON.stringify(obj||{});
   return btoa(unescape(encodeURIComponent(json))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 }
+let nucleoAuthenticatedApi=null;
+function nucleoSessionApiBase(token=getSession()?.authToken){
+  return token&&nucleoAuthenticatedApi?.token===token ? nucleoAuthenticatedApi.base : '';
+}
 function portalJsonp(params,timeoutMs=60000,baseOverride=''){
   return new Promise((resolve,reject)=>{
     const base=baseOverride||portalApiBase();
@@ -806,6 +810,14 @@ function portalJsonp(params,timeoutMs=60000,baseOverride=''){
     window[cb]=function(data){
       const current=getSession();
       const action=String(requestParams.acao||'').toLowerCase();
+      const loginToken=['portal_login','portal_login_jsonp','portal_auth_v2'].includes(action)
+        ? String(data?.authToken||data?.token||'').trim() : '';
+      if(data?.sucesso===true&&loginToken){
+        nucleoAuthenticatedApi={token:loginToken,base};
+      }else if(data?.sucesso===true&&requestParams.token&&current?.authToken===requestParams.token
+        &&!nucleoSessionApiBase(requestParams.token)){
+        nucleoAuthenticatedApi={token:requestParams.token,base};
+      }
 
       // Não encerra a sessão por causa de UMA resposta de sincronização.
       // Confirma primeiro o token em uma rota mínima e específica.
@@ -815,7 +827,7 @@ function portalJsonp(params,timeoutMs=60000,baseOverride=''){
         action!=='portal_session_status' &&
         nucleoSessionError(data)
       ){
-        nucleoConfirmExpiredSession(requestParams.token);
+        void nucleoConfirmExpiredSession(requestParams.token,base);
       }
 
       finish(null,data);
@@ -851,7 +863,7 @@ function portalPostForm(params){
   params={...(params||{})};if(params.acao==='portal_upload_standard_document'){const metadata=JSON.parse(params.metadata||'{}');if(!metadata.unit&&!metadata.unidade)metadata.unit=getSession()?.role==='quality'?'filial':document.getElementById('ndStandardUnit')?.value||document.getElementById('qualityConfigUnit')?.value||explicitPortalUnit(getSession()?.unit);params.metadata=JSON.stringify(metadata);}
   const authToken=getSession()?.authToken;if(authToken&&!params.token)params.token=authToken;
   if(authToken && nucleoActionNeedsCentralConfirmation(params.acao) && !nucleoCentralDataConfirmed())return false;
-  const base=portalApiBase();
+  const base=nucleoSessionApiBase(params.token)||portalApiBase();
   if(!base)return false;
   try{
     const frameName='portalBackendFrame_'+Date.now()+'_'+Math.floor(Math.random()*9999);
@@ -1113,7 +1125,16 @@ function applyPortalBackendSnapshot(snapshot){
   if(!snapshot||snapshot.sucesso===false)return false;
 
   const data=snapshot.dados||{};
-  if(snapshot.session&&getSession()){setSession({...getSession(),...snapshot.session,...(data.overviewIndicators!==undefined?{overviewIndicators:data.overviewIndicators}:{})});}
+  const currentSession=getSession();
+  if(snapshot.session&&currentSession){
+    const {authToken,sessionExpiresAt,sessionExpiryClockVersion}=currentSession;
+    const received=snapshot.session;
+    if(currentSession.personId&&received.personId&&currentSession.personId!==received.personId){
+      throw new Error('A base central retornou dados de outra sessão.');
+    }
+    setSession({...currentSession,...received,authToken,sessionExpiresAt,sessionExpiryClockVersion,
+      ...(data.overviewIndicators!==undefined?{overviewIndicators:data.overviewIndicators}:{})});
+  }
 
   if(Array.isArray(data.unitContacts))localStorage.setItem('nucleo-unit-contacts',JSON.stringify(data.unitContacts));
   if(Array.isArray(data.unitConfigs))localStorage.setItem('nucleo-unit-configs',JSON.stringify(data.unitConfigs));
@@ -3138,11 +3159,12 @@ async function loginUser(){
       sectorMemberships:Array.isArray(u.sectorMemberships)?u.sectorMemberships:[],
       managedSectors:Array.isArray(u.managedSectors)?u.managedSectors:[],
       approvalStatus:u.approvalStatus||'approved',
-      authToken:remote.authToken||remote.token||'',
+      authToken:String(remote.authToken||remote.token||'').trim(),
       sessionExpiresAt:Date.now()+21600000,
       sessionExpiryClockVersion:2
     };
-    // ABRE O APP imediatamente após sucesso=true. Persistência local não pode bloquear acesso válido.
+    if(!session.authToken)throw new Error('A API confirmou o login, mas não entregou um token de sessão.');
+    // Persistência local não pode bloquear acesso válido.
     document.body.classList.add('nucleo-authenticated');
     const login=document.getElementById('loginOverlay');
     if(login){
@@ -3601,6 +3623,7 @@ function logoutUser(){
   try{localStorage.removeItem(SESSION_KEY)}catch(e){}
   try{sessionStorage.removeItem(SESSION_KEY)}catch(e){}
   try{sessionStorage.setItem('nucleo-force-login','1')}catch(e){}
+  nucleoAuthenticatedApi=null;
   nucleoSessionMemory=null;
   try{
     const access=JSON.parse(localStorage.getItem(ACCESS_KEY)||'{}')||{};
@@ -16744,19 +16767,23 @@ async function confirmReceivedPdcaClaimant(id){
 // A expiração central encerra o acesso local sem apagar cadastros ou rascunhos.
 let nucleoEndingExpiredSession=false;
 function nucleoSessionError(data){return data?.sucesso===false&&/sess[aã]o (?:inv[aá]lida ou )?expirada/i.test(String(data.erro||data.error||''));}
-let nucleoSessionConfirmPromise=null;
+let nucleoSessionConfirmation=null;
 
-async function nucleoConfirmExpiredSession(token){
+async function nucleoConfirmExpiredSession(token,reportedBase){
   token=String(token||'').trim();
-  if(!token || getSession()?.authToken!==token)return false;
-  if(nucleoSessionConfirmPromise)return nucleoSessionConfirmPromise;
+  if(!token||getSession()?.authToken!==token)return false;
+  const base=nucleoSessionApiBase(token)||reportedBase;
+  if(nucleoSessionConfirmation?.token===token)return nucleoSessionConfirmation.promise;
 
-  nucleoSessionConfirmPromise=(async()=>{
+  const confirmation={token,promise:null};
+  nucleoSessionConfirmation=confirmation;
+  confirmation.promise=(async()=>{
     try{
       const check=await portalJsonp({
         acao:'portal_session_status',
         token:token
-      },15000);
+      },15000,base);
+      if(getSession()?.authToken!==token)return false;
 
       // Se a rota mínima confirma a sessão, a falha anterior era apenas
       // transitória/de sincronização. Mantém o usuário logado.
@@ -16775,11 +16802,11 @@ async function nucleoConfirmExpiredSession(token){
       console.warn('[NÚCLEO] Não foi possível confirmar expiração da sessão:',e);
       return false;
     }finally{
-      nucleoSessionConfirmPromise=null;
+      if(nucleoSessionConfirmation===confirmation)nucleoSessionConfirmation=null;
     }
   })();
 
-  return nucleoSessionConfirmPromise;
+  return confirmation.promise;
 }
 
 function nucleoEndExpiredSession(){

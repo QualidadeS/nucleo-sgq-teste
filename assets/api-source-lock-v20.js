@@ -163,7 +163,17 @@
   if(typeof originalPortalJsonp==='function'){
     window.portalJsonp=function(params,timeoutMs=60000,baseOverride=''){
       if(baseOverride)return originalPortalJsonp.call(this,params,timeoutMs,baseOverride);
-      return resolveGlobalApiUrl(false).then(base=>originalPortalJsonp.call(this,params,timeoutMs,base));
+      const action=String(params?.acao||'').toLowerCase();
+      const publicAction=['portal_public_config','portal_login','portal_login_jsonp','portal_auth_v2','portal_register_user'].includes(action);
+      const token=publicAction?'':(params?.token||window.getSession?.()?.authToken||'');
+      const sessionBase=token&&window.nucleoSessionApiBase?.(token);
+      if(sessionBase)return originalPortalJsonp.call(this,params,timeoutMs,sessionBase);
+      return resolveGlobalApiUrl(false).then(base=>{
+        if(token&&window.getSession?.()?.authToken!==token){
+          throw new Error('A sessão mudou durante a conexão com a API.');
+        }
+        return originalPortalJsonp.call(this,params,timeoutMs,base);
+      });
     };
   }
 
