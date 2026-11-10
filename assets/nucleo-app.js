@@ -14791,24 +14791,9 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
         records=[{roKey:syntheticKey,roNumber:base,decision:'directed',responsibleSector:sheetSector,importedFromSheet:true,__synthetic:true}];
       }
     }
-    if(!records.length)return [];
-    // Uma linha visual por R.O. + setor. Registros legados/duplicados não podem
-    // reaparecer como uma segunda linha após atualizar o PDCA.
-    const bySector=new Map();
-    records.forEach(t=>{
-      const sector=String(t.responsibleSector||t.setorDirecionado||'').trim();
-      const visualKey=triageCompositeKey(base,sector||'__sem_setor__');
-      const prev=bySector.get(visualKey);
-      const score=x=>{
-        const composite=String(x?.roKey||'').includes('::')?10000000000000:0;
-        const ts=Date.parse(x?.pdcaExternalUpdatedAt||x?.updatedAt||x?.triagedAt||x?.createdAt||'')||0;
-        return composite+ts;
-      };
-      if(!prev||score(t)>=score(prev))bySector.set(visualKey,t);
-    });
-    return [...bySector.values()].map(t=>({...r,__triageKey:t.roKey,__triageRecord:t,__assignedSector:t.responsibleSector||''}));
+    return records.map(t=>({...r,__triageKey:t.roKey,__triageRecord:t,__assignedSector:t.responsibleSector||t.setorDirecionado||''}));
   }) : ros;
-  const list=assignedSource.filter(nucleoManagerScopeAllows)
+  let list=assignedSource.filter(nucleoManagerScopeAllows)
     .filter(r=>{
       if(roListMode!=='assigned')return canViewRO(r,triageMap);
       const tri=getRoTriageRecord(r,triageMap);
@@ -14847,6 +14832,28 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
       return text&&filt;
     });
 
+  if(roListMode==='assigned'){
+    // A mesma ocorrência pode chegar mais de uma vez da planilha.
+    // Consolida depois do filtro de acesso, preservando atribuições distintas.
+    const unique=new Map();
+    for(const ro of list){
+      const tri=ro.__triageRecord;
+      const key=JSON.stringify([
+        triageBaseRoNumber(ro),
+        normalizeAnswer(canonicalUnitName(ro.unidade)),
+        normalizeAnswer(ro.origemBase||ro.raw?.__origemBase||''),
+        normalizeAnswer(ro.__assignedSector||'')
+      ]);
+      const rank=tri?.__synthetic?0:String(tri?.roKey||'').includes('::')?2:1;
+      const time=Date.parse(tri?.pdcaExternalUpdatedAt||tri?.updatedAt||tri?.triagedAt||tri?.createdAt||'')||0;
+      const previous=unique.get(key);
+      if(!previous||rank>previous.rank||(rank===previous.rank&&time>previous.time)){
+        unique.set(key,{ro,rank,time});
+      }
+    }
+    list=Array.from(unique.values(),entry=>entry.ro);
+  }
+
   // Mantém busca e totais sobre a lista completa, mas cria apenas 60 linhas no DOM.
   rowsEl.innerHTML=list.slice(0,roListVisibleLimit).map(r=>{
     const status=String(r.status||'');
@@ -14869,7 +14876,7 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
 
       operationalActions=`
         <td class="operational-action-col">
-          <div style="display:flex;gap:6px;flex-wrap:wrap;min-width:230px">
+          <div class="assigned-operational-icons assigned-response-actions">
             ${hasResponse?'':`<button class="btn primary" type="button"
               ${respondDisabled?'disabled':''}
               onclick="startPdcaFromList('${escapeHtml(r.numero)}')">
