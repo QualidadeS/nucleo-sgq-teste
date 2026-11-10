@@ -1332,6 +1332,7 @@ body.external-ro-denied #navNewExternalRo{
 </style>
 
 <style id="v96-20-unified-notification-badges">
+.sidebar .side-pending-badge.hidden{display:none!important}
 .side-item{position:relative!important}
 .menu-notification-badge{
   position:absolute!important;
@@ -2951,8 +2952,8 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
   .sidebar.mobile-open{transform:translateX(0)!important}
   .sidebar .brand-name,.sidebar .brand-sub,.sidebar .brand-text-wrap,
   .sidebar .side-kicker,.sidebar .side-title,.sidebar .side-copy,
-  .sidebar .side-item span:last-child,.sidebar .side-module-head span:last-child,
-  .sidebar .side-independent-module span:last-child{display:block!important}
+  .sidebar .side-item span:last-child:not(.side-pending-badge),.sidebar .side-module-head span:last-child:not(.side-pending-badge),
+  .sidebar .side-independent-module span:last-child:not(.side-pending-badge){display:block!important}
   .sidebar .side-item,.sidebar .side-module-head,.sidebar .side-independent-module{justify-content:flex-start!important}
   .sidebar-collapse-btn{display:none!important}
   .mobile-nav-backdrop{display:none;position:fixed;inset:0;background:rgba(15,23,42,.42);z-index:2147481900}
@@ -3420,7 +3421,7 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
       <div id="overviewPriorities"></div>
     </div>
 
-    <div class="overview-panel">
+    <div class="overview-panel" id="overviewQuickAccess">
       <div class="overview-panel-head">
         <div>
           <div class="overview-panel-kicker">ACESSOS RÁPIDOS</div>
@@ -3454,7 +3455,7 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
     <select id="assignedUnitFilter" onchange="render()"><option value="all">Todas as unidades</option></select>
     <select id="filter" onchange="render()"><option value="todas">Todas as situações</option><option value="precisa_resposta">Precisa de resposta</option><option value="ja_respondeu">Já tem resposta</option><option value="cancelada">Cancelada</option><option value="registro">Registro</option><option value="obsoleto">Obsoleto</option></select>
   </div>
-  <div class="ro-control-table-wrap"><table class="ro-control-table"><thead><tr>
+  <div class="ro-control-table-wrap"><table class="mobile-code-actions ro-control-table"><thead><tr>
 <th>R.O.</th>
 <th>Unidade</th>
 <th>Setor responsável</th>
@@ -3583,7 +3584,7 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
   </div>
 
   <div style="overflow:auto;margin-top:12px">
-    <table>
+    <table class="mobile-code-actions">
       <thead>
         <tr>
           <th>R.O.</th>
@@ -3774,7 +3775,7 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
       <option value="Devolvido">Devolvido</option>
     </select>
   </div>
-  <table>
+  <table class="mobile-code-actions">
     <thead><tr><th>PDCA</th><th>R.O.</th><th>Responsável pela resposta</th><th>Reclamante identificado</th><th>Unidade</th><th>Recebimento</th><th>Status</th><th></th></tr></thead>
     <tbody id="sentRows"></tbody>
   </table>
@@ -3934,7 +3935,7 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
   </div>
 
   <div style="overflow:auto">
-    <table class="action-table">
+    <table class="mobile-code-actions action-table">
       <thead>
         <tr>
           <th>ID</th>
@@ -4183,7 +4184,7 @@ Diretoria"></textarea>
   </div>
 
   <div style="overflow:auto">
-    <table class="action-table">
+    <table class="mobile-code-actions action-table">
       <thead>
         <tr>
           <th>R.O.</th>
@@ -4579,7 +4580,7 @@ Diretoria"></textarea>
     <div><div class="label">Busca</div><input id="contestSearch" placeholder="R.O., setor, usuário ou motivo" oninput="renderContestations()"></div>
   </div>
   <div style="overflow:auto">
-    <table class="action-table">
+    <table class="mobile-code-actions action-table">
       <thead><tr><th>R.O.</th><th>Setor</th><th>Contestada por</th><th>Motivo da contestação</th><th>Data</th><th>Situação</th><th>Ações SGQ</th></tr></thead>
       <tbody id="contestationsBody"></tbody>
     </table>
@@ -4755,7 +4756,7 @@ Diretoria"></textarea>
   </div>
 
   <div style="overflow:auto">
-    <table class="action-table">
+    <table class="mobile-code-actions action-table">
       <thead>
         <tr>
           <th>R.O. / PDCA</th>
@@ -7181,82 +7182,6 @@ img,svg,canvas,video,iframe{max-width:100%}
 <style id="nucleo-v55-mobile-assigned-sac-session">
 /* NÚCLEO — ajustes solicitados em 09/11 */
 
-/* Mobile: R.O.s atribuídas = número + ações */
-@media (max-width:760px){
-  #roListView .ro-control-table-wrap{
-    overflow:visible!important;
-    width:100%!important;
-  }
-  #roListView .ro-control-table{
-    width:100%!important;
-    min-width:0!important;
-    table-layout:fixed!important;
-  }
-
-  #roListView .ro-control-table th:nth-child(2),
-  #roListView .ro-control-table th:nth-child(3),
-  #roListView .ro-control-table th:nth-child(4),
-  #roListView .ro-control-table th:nth-child(5),
-  #roListView .ro-control-table th:nth-child(6),
-  #roListView .ro-control-table th:nth-child(7),
-  #roListView .ro-control-table td:nth-child(2),
-  #roListView .ro-control-table td:nth-child(3),
-  #roListView .ro-control-table td:nth-child(4),
-  #roListView .ro-control-table td:nth-child(5),
-  #roListView .ro-control-table td:nth-child(6),
-  #roListView .ro-control-table td:nth-child(7){
-    display:none!important;
-  }
-
-  #roListView .ro-control-table th:nth-child(1),
-  #roListView .ro-control-table td:nth-child(1){
-    display:table-cell!important;
-    width:34%!important;
-    white-space:nowrap!important;
-    font-weight:700!important;
-    padding:14px 8px!important;
-  }
-
-  #roListView .ro-control-table th:nth-child(8),
-  #roListView .ro-control-table td:nth-child(8){
-    display:table-cell!important;
-    width:66%!important;
-    padding:10px 6px!important;
-    text-align:right!important;
-    white-space:normal!important;
-  }
-
-  #roListView .ro-control-table th:nth-child(8){
-    font-size:0!important;
-  }
-  #roListView .ro-control-table th:nth-child(8)::after{
-    content:"Ações";
-    font-size:12px;
-  }
-
-  #roListView .mobile-assigned-actions{
-    display:flex!important;
-    justify-content:flex-end!important;
-    align-items:center!important;
-    gap:5px!important;
-    flex-wrap:wrap!important;
-  }
-  #roListView .mobile-assigned-actions button{
-    min-height:36px!important;
-    padding:7px 9px!important;
-    border-radius:9px!important;
-    font-size:12px!important;
-    line-height:1.1!important;
-    white-space:nowrap!important;
-  }
-  #roListView .mobile-assigned-original-actions{
-    display:none!important;
-  }
-}
-@media (min-width:761px){
-  #roListView .mobile-assigned-actions{display:none!important}
-}
-
 /* Indicadores de SAC sem acesso ao cadastro não aparecem. */
 body.nucleo-hide-sac-indicators [data-nucleo-sac-indicator="1"]{
   display:none!important;
@@ -7299,92 +7224,8 @@ body.nucleo-hide-sac-indicators [data-nucleo-sac-indicator="1"]{
     });
   }
 
-  function findAction(cell,kind){
-    const nodes=[...cell.querySelectorAll('button,a,[role="button"]')];
-    const tests={
-      consult:/consult|visual|ver\b|olho|eye|detalh|abrir/i,
-      respond:/respond|pdca|resposta/i,
-      contest:/contest/i
-    };
-    return nodes.find(el=>{
-      const hay=[
-        el.textContent,
-        el.getAttribute('title'),
-        el.getAttribute('aria-label'),
-        el.getAttribute('onclick'),
-        el.className
-      ].join(' ');
-      return tests[kind].test(hay);
-    })||null;
-  }
-
-  function proxyButton(label,kind,cell){
-    const b=document.createElement('button');
-    b.type='button';
-    b.className='btn '+(kind==='contest'?'danger':kind==='respond'?'primary':'secondary');
-    b.textContent=label;
-    b.addEventListener('click',function(e){
-      e.preventDefault();
-      e.stopPropagation();
-
-      const direct=findAction(cell,kind);
-      if(direct){
-        direct.click();
-        return;
-      }
-
-      const consult=findAction(cell,'consult');
-      if(consult)consult.click();
-
-      if(kind==='respond'){
-        setTimeout(()=>{
-          try{
-            if(typeof window.openPDCA==='function')window.openPDCA();
-          }catch(_){}
-        },80);
-      }else if(kind==='contest'){
-        setTimeout(()=>{
-          try{
-            if(typeof window.openContest==='function')window.openContest();
-          }catch(_){}
-        },80);
-      }
-    });
-    return b;
-  }
-
-  function normalizeAssignedMobileRows(){
-    const body=document.getElementById('rows');
-    if(!body)return;
-
-    [...body.querySelectorAll('tr')].forEach(row=>{
-      const cells=row.children;
-      if(cells.length<8)return;
-      const actionCell=cells[7];
-
-      let mobile=actionCell.querySelector('.mobile-assigned-actions');
-      if(!mobile){
-        const original=document.createElement('div');
-        original.className='mobile-assigned-original-actions';
-
-        while(actionCell.firstChild){
-          original.appendChild(actionCell.firstChild);
-        }
-        actionCell.appendChild(original);
-
-        mobile=document.createElement('div');
-        mobile.className='mobile-assigned-actions';
-        mobile.appendChild(proxyButton('Consultar','consult',original));
-        mobile.appendChild(proxyButton('Responder','respond',original));
-        mobile.appendChild(proxyButton('Contestar','contest',original));
-        actionCell.appendChild(mobile);
-      }
-    });
-  }
-
   function refresh(){
     refreshSacIndicatorAccess();
-    normalizeAssignedMobileRows();
   }
 
   let timer=null;
@@ -7433,4 +7274,89 @@ body.nucleo-hide-sac-indicators [data-nucleo-sac-indicator="1"]{
 }
 </style>
 
+<style id="nucleo-mobile-code-actions">
+@media screen and (max-width:760px){
+  #overviewQuickAccess{display:none!important}
+  main :is(table.mobile-code-actions,#ncTreatmentList > div > table){
+    display:block!important;
+    width:100%!important;
+    min-width:0!important;
+  }
+  main :is(table.mobile-code-actions,#ncTreatmentList > div > table) > :is(thead,tbody){
+    display:block;
+  }
+  main :is(table.mobile-code-actions,#ncTreatmentList > div > table) > :is(thead,tbody) > tr{
+    display:grid;
+    grid-template-columns:minmax(0,1fr) minmax(0,1.65fr);
+    align-items:start;
+    padding:4px 0;
+  }
+  main :is(table.mobile-code-actions,#ncTreatmentList > div > table) > :is(thead,tbody) > tr > :is(th,td){
+    display:none!important;
+    min-width:0!important;
+    width:auto!important;
+    white-space:normal!important;
+    overflow-wrap:anywhere;
+  }
+  main :is(table.mobile-code-actions,#ncTreatmentList > div > table) > :is(thead,tbody) > tr > :is(th,td):first-child{
+    display:block!important;
+    grid-column:1;
+    grid-row:1;
+  }
+  main :is(table.mobile-code-actions,#ncTreatmentList > div > table) > thead > tr > th:last-child{
+    display:block!important;
+    grid-column:2;
+    text-align:right;
+    font-size:0!important;
+  }
+  main :is(table.mobile-code-actions,#ncTreatmentList > div > table) > thead > tr > th:last-child::after{
+    content:"Ações";
+    font-size:12px;
+  }
+  main :is(table.mobile-code-actions,#ncTreatmentList > div > table) > tbody > tr > td:not(:first-child):is(:last-child,:has(button,a[href])){
+    display:block!important;
+    grid-column:2;
+    text-align:right;
+  }
+  main :is(table.mobile-code-actions,#ncTreatmentList > div > table) > tbody > tr > td:only-child[colspan]{
+    display:block!important;
+    grid-column:1/-1;
+  }
+  main :is(table.mobile-code-actions,#ncTreatmentList > div > table) > tbody > tr > td :is(button,a.btn){
+    max-width:100%;
+    min-height:36px;
+    white-space:normal!important;
+    overflow-wrap:anywhere;
+  }
+  #roListView .ro-control-table-wrap{min-width:0}
+  #roListView .ro-control-table td.operational-action-col > div{
+    min-width:0!important;
+    flex-wrap:wrap!important;
+    justify-content:flex-end;
+  }
+  #roListView .ro-control-table .pdca-source-control .badge,
+  #ncTreatmentList > div > table > tbody > tr > td:first-child > .small{
+    display:none!important;
+  }
+  /* The received list may show a filename in column one. Use the RO code. */
+  main #sentView table.mobile-code-actions > :is(thead,tbody) > tr > :is(th,td):first-child:not(:only-child){
+    display:none!important;
+  }
+  main #sentView table.mobile-code-actions > :is(thead,tbody) > tr > :is(th,td):nth-child(2){
+    display:block!important;
+    grid-column:1;
+    grid-row:1;
+    font-weight:700;
+  }
+  #sentRows > tr > td:nth-child(4){
+    font-size:0;
+  }
+  #sentRows > tr > td:nth-child(4) > .small{
+    display:none;
+  }
+  #sentRows > tr > td:nth-child(4) > .btn{
+    font-size:12px;
+  }
+}
+</style>
 </body></html>
