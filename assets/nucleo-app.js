@@ -1120,6 +1120,12 @@ function nucleoApplySharedState(list){
   }finally{nucleoApplyingCentralState=false;}
 }
 
+async function readNucleoSavedIntegration(request=portalJsonp){
+  const response=await request({acao:'portal_get_record',colecao:'config',id:'config-central'});
+  if(!response?.sucesso)throw new Error(response?.erro||'A base central não confirmou a leitura da integração.');
+  return response.registro||null;
+}
+
 function applyNucleoCentralConfig(config,updatedAt){
   const previous=getSavedIntegrationSettings();
   const mergedConfig={
@@ -1322,6 +1328,15 @@ async function loadPortalBackend(showMessage,options,load){
       if(!res.dados||typeof res.dados!=='object')throw new Error('A API não retornou os dados desta etapa.');
 
       applyPortalBackendSnapshot(res);
+      if(part==='core'&&isAdmin()&&res.dados.config?.roSyncPeriod==null){
+        try{
+          const integration=await readNucleoSavedIntegration();
+          if(getSession()?.authToken!==token)return false;
+          if(integration?.roSyncPeriod!=null)applyNucleoCentralConfig({...res.dados.config,...integration});
+        }catch(error){
+          console.warn('A base central não devolveu o período de busca salvo:',error);
+        }
+      }
       lastUpdated=res.atualizadoEm||lastUpdated;
 
       // Solta a referência da resposta antes da próxima parte.

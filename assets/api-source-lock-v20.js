@@ -246,9 +246,13 @@
       if(typeof originalPortalJsonp!=='function')throw new Error('Conexão central indisponível.');
 
       // Busca a configuração CENTRAL atual. localStorage não participa da decisão.
-      const loaded=await originalPortalJsonp({acao:'portal_load_part',parte:'core'},60000,currentBase);
-      if(!loaded?.sucesso||!loaded?.dados?.config)throw new Error(loaded?.erro||'Não foi possível ler a configuração central atual.');
-      const centralConfig=loaded.dados.config;
+      const request=params=>originalPortalJsonp(params,60000,currentBase);
+      const loaded=await request({acao:'portal_load'});
+      if(!loaded?.sucesso)throw new Error(loaded?.erro||'A base central não respondeu à leitura autenticada da configuração.');
+      const loadedConfig=loaded.dados?.config;
+      const centralConfig=loadedConfig&&typeof loadedConfig==='object'
+        ? loadedConfig : await window.readNucleoSavedIntegration(request);
+      if(!centralConfig)throw new Error('A API respondeu sem a configuração administrativa. Entre novamente com o login do SGQ e tente salvar.');
 
       const nextConfig={
         ...centralConfig,
@@ -267,13 +271,12 @@
       if(!saved?.sucesso)throw new Error(saved?.erro||'A base central não confirmou a integração.');
 
       if(currentBase===candidate){
-        const verified=await originalPortalJsonp({acao:'portal_load_part',parte:'core'},60000,currentBase);
-        const confirmed=verified?.dados?.config;
-        if(!verified?.sucesso||String(confirmed?.roSyncPeriod??'')!==draft.roSyncPeriod
+        const confirmed=await window.readNucleoSavedIntegration(request);
+        if(String(confirmed?.roSyncPeriod??'')!==draft.roSyncPeriod
           || (draft.roSyncPeriod==='custom'&&String(confirmed?.roSyncDateFrom??'')!==draft.roSyncDateFrom)){
           throw new Error('A base central ainda não devolveu o período escolhido. Tente salvar novamente.');
         }
-        window.applyNucleoCentralConfig(confirmed,verified.atualizadoEm);
+        window.applyNucleoCentralConfig(confirmed);
         const formPeriod=document.getElementById('roSyncPeriod')?.value;
         const formFrom=document.getElementById('roSyncDateFrom')?.value;
         if(formPeriod===draft.roSyncPeriod&&(formPeriod!=='custom'||formFrom===draft.roSyncDateFrom)){
