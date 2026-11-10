@@ -10177,7 +10177,8 @@ function wrapText(text,maxChars){
 }
 async function downloadCurrentPdcaPdf(){
   const p=window.currentReportPdca;
-  if(!p){alert('Abra um PDCA antes de gerar o PDF.');return}
+  if(!p){alert('Abra um PDCA antes de visualizar o PDF.');return}
+  if(nucleoPdcaUsesAttachedPdf(p))return nucleoOpenAttachedPdca(p);
   if(nucleoSystemFormat('pdca',explicitRecordUnit(p))?.design)return nucleoPdcaDownloadModelPdf(p,false);
   const ans=p.answers||{};
   const model=nucleoSystemFormat('pdca',explicitRecordUnit(p));
@@ -16812,14 +16813,86 @@ loadUnitQualitySettings=function(...args){const result=nucleoOriginalLoadUnitSet
 const nucleoOriginalCollectAdminModuleForm=collectAdminModuleForm;
 collectAdminModuleForm=function(key,existing){const r=nucleoOriginalCollectAdminModuleForm(key,existing);if(key==='documents'){r.unit=existing?.unit||document.getElementById('ndRequestUnit')?.value||(getSession()?.role==='quality'?'filial':explicitPortalUnit(getSession()?.unit));}return r;};
 const nucleoOriginalOpenPdcaReport=openPdcaReport;
-openPdcaReport=function(id){const p=getAllSentPdcas().find(x=>String(x.id)===String(id));if(p?.externalPdf){if(!canViewPdca(p)){alert('PDCA fora do seu acesso.');return;}nucleoDriveOpenExternalPdf(p);return;}return nucleoOriginalOpenPdcaReport(id);};
-async function nucleoDriveOpenExternalPdf(p){try{const r=await portalJsonp({acao:'nucleo_drive_file',fileId:p.fileId},90000);if(!r?.sucesso)throw new Error(r?.erro||'Arquivo indisponível.');const bytes=Uint8Array.from(atob(r.base64),c=>c.charCodeAt(0)),url=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));let overlay=document.getElementById('ndExternalPdf');if(overlay)overlay.remove();overlay=document.createElement('div');overlay.id='ndExternalPdf';overlay.style.cssText='position:fixed;inset:0;background:#0008;z-index:99999;padding:20px;display:flex;align-items:center;justify-content:center';overlay.innerHTML='<div style="background:white;padding:18px;border-radius:12px;width:95%;max-height:95vh;overflow:auto"><h3>'+escapeHtml(p.ro+' · '+p.setor+' · V'+(p.version||1))+'</h3><a class="btn secondary" download="'+escapeHtml(p.fileName||'PDCA.pdf')+'" href="'+url+'">Baixar original</a> <button class="btn secondary" id="ndPdfClose">Fechar</button>'+(nucleoPersonFeatureCan('pdca','present')?'<button class="btn primary" id="ndPdfPresent">Registrar apresentação</button>':'')+'<p id="ndExternalStatus" class="small"></p><iframe title="Resposta de PDCA" src="'+url+'" style="width:100%;height:70vh;border:1px solid #ddd"></iframe></div>';document.body.appendChild(overlay);document.getElementById('ndPdfClose').onclick=()=>{URL.revokeObjectURL(url);overlay.remove();};const btn=document.getElementById('ndPdfPresent');if(btn)btn.onclick=async()=>{btn.disabled=true;try{const updated={...p,status:'Apresentado',apresentadoEm:new Date().toISOString(),apresentadoPor:getSession()?.name,updatedAt:new Date().toISOString()};const confirmation=await portalJsonp({acao:'nucleo_drive_present_pdca',unit:explicitRecordUnit(p),id:p.id,fileId:p.fileId},60000);if(!confirmation?.sucesso)throw new Error(confirmation?.erro||'Apresentação não confirmada.');await syncPortalBackend(false);document.getElementById('ndExternalStatus').textContent='Apresentação confirmada na base central.';}catch(e){document.getElementById('ndExternalStatus').textContent=e.message;}finally{btn.disabled=false;}};}catch(e){alert(e.message);}}
+openPdcaReport=function(id){
+  const p=findSentPdcaById(id);
+  if(p&&nucleoPdcaUsesAttachedPdf(p))return nucleoOpenAttachedPdca(p);
+  return nucleoOriginalOpenPdcaReport(id);
+};
+
+function nucleoPdcaDriveFileId(p){
+  const value=String(p.fileId||p.pdfFileId||p.driveFileId||p.storageFileId||p.pdfUrl||'').trim();
+  if(/^[A-Za-z0-9_-]{10,}$/.test(value))return value;
+  try{
+    const url=new URL(value);
+    if(url.protocol==='https:'&&url.hostname==='drive.google.com'){
+      const id=url.pathname.match(/^\/file\/d\/([A-Za-z0-9_-]+)(?:\/|$)/)?.[1]||url.searchParams.get('id')||'';
+      if(/^[A-Za-z0-9_-]{10,}$/.test(id))return id;
+    }
+  }catch(e){}
+  return '';
+}
+
+function nucleoPdcaUsesAttachedPdf(p){
+  if(p.externalPdf||p.pdcaFileId||p.fileId||p.pdfFileId||p.driveFileId||p.storageFileId||p.pdfUrl
+    ||p.legacyMissingPdf||p.pdfPending||p.controlImported||/^PDF-/i.test(String(p.id||'')))return true;
+  const answers=p.answers||p.respostas||{};
+  return !Object.values(answers).some(value=>String(value??'').trim());
+}
+
+async function nucleoResolvePdcaAttachment(p){
+  const fileId=nucleoPdcaDriveFileId(p);
+  if(fileId)return {...p,fileId};
+
+  const ro=String(p.ro||p.roId||p.numeroRo||'').trim();
+  const sector=String(p.setor||p.sector||p.responsibleSector||'').trim();
+  const unit=explicitRecordUnit(p)||explicitRecordUnit(findRoByAnyNumber(ro));
+  const tri=ro&&sector?getTriageRecordForRoSector(ro,sector):null;
+  const triFileId=tri&&normalizeAnswer(tri.responsibleSector||tri.setorDirecionado||'')===normalizeAnswer(sector)
+    ?tri.pdcaFileId:'';
+  const attachmentId=p.pdcaFileId||triFileId;
+  if(attachmentId){
+    const result=await portalJsonp({acao:'portal_get_record',colecao:'pdca_files',id:attachmentId},60000);
+    if(!result?.sucesso)throw new Error(result?.erro||'Não foi possível consultar o vínculo do PDF.');
+    const record=result.registro;
+    const linked=Array.isArray(record?.links)&&record.links.some(link=>String(link.ro||link.roNumber||'').trim()===ro&&
+      normalizeAnswer(link.sector||link.setor||'')===normalizeAnswer(sector));
+    if(linked&&unit&&explicitRecordUnit(record)===unit&&(!p.version||Number(p.version)===Number(record.version||1))){
+      const registeredId=nucleoPdcaDriveFileId(record);
+      if(registeredId)return {...p,fileId:registeredId,fileName:record.fileName||p.fileName};
+    }
+  }else if(ro&&sector&&unit){
+    const candidates=new Map();
+    for(const item of getAllSentPdcas()){
+      if(item===p||String(item.ro||item.roId||item.numeroRo||'').trim()!==ro
+        ||normalizeAnswer(item.setor||item.sector||item.responsibleSector||'')!==normalizeAnswer(sector)
+        ||explicitRecordUnit(item)!==unit||(p.version&&Number(p.version)!==Number(item.version||1)))continue;
+      const id=nucleoPdcaDriveFileId(item);
+      if(id&&canViewPdca(item))candidates.set(id,{...p,fileId:id,fileName:item.fileName||p.fileName});
+    }
+    if(candidates.size===1)return candidates.values().next().value;
+    if(candidates.size>1)throw new Error('Há mais de um PDF para esta R.O. e setor. Abra a resposta que identifica a versão do anexo.');
+  }
+  throw new Error('Não foi possível localizar o PDF original vinculado a este PDCA.');
+}
+
+async function nucleoOpenAttachedPdca(p){
+  if(!canViewPdca(p)){alert('PDCA fora do seu acesso.');return;}
+  const token=getSession()?.authToken;
+  try{
+    const attachment=await nucleoResolvePdcaAttachment(p);
+    if(getSession()?.authToken!==token)return;
+    // Só mantém o registro de apresentação quando o arquivo pertence ao registro aberto.
+    const canPresent=Boolean(p.externalPdf&&p.fileId===attachment.fileId);
+    return nucleoDriveOpenExternalPdf(attachment,canPresent);
+  }catch(e){alert(e.message);}
+}
+async function nucleoDriveOpenExternalPdf(p,canPresent=Boolean(p.externalPdf)){try{const token=getSession()?.authToken;const r=await portalJsonp({acao:'nucleo_drive_file',fileId:p.fileId},90000);if(getSession()?.authToken!==token)return;if(!r?.sucesso||!r.base64)throw new Error(r?.erro||'PDF original indisponível.');const raw=atob(r.base64);if(!raw.startsWith('%PDF-'))throw new Error('O arquivo vinculado não é um PDF válido.');const bytes=Uint8Array.from(raw,c=>c.charCodeAt(0)),url=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));let overlay=document.getElementById('ndExternalPdf');if(overlay)overlay.remove();overlay=document.createElement('div');overlay.id='ndExternalPdf';overlay.style.cssText='position:fixed;inset:0;background:#0008;z-index:99999;padding:20px;display:flex;align-items:center;justify-content:center';overlay.innerHTML='<div style="background:white;padding:18px;border-radius:12px;width:95%;max-height:95vh;overflow:auto"><h3>'+escapeHtml(p.ro+' · '+p.setor+' · V'+(p.version||1))+'</h3><a class="btn secondary" download="'+escapeHtml(r.fileName||p.fileName||'PDCA.pdf')+'" href="'+url+'">Baixar original</a> <button class="btn secondary" id="ndPdfClose">Fechar</button>'+(canPresent&&nucleoPersonFeatureCan('pdca','present')?'<button class="btn primary" id="ndPdfPresent">Registrar apresentação</button>':'')+'<p id="ndExternalStatus" class="small"></p><iframe title="Resposta de PDCA" src="'+url+'" style="width:100%;height:70vh;border:1px solid #ddd"></iframe></div>';document.body.appendChild(overlay);document.getElementById('ndPdfClose').onclick=()=>{URL.revokeObjectURL(url);overlay.remove();};const btn=document.getElementById('ndPdfPresent');if(btn)btn.onclick=async()=>{btn.disabled=true;try{const updated={...p,status:'Apresentado',apresentadoEm:new Date().toISOString(),apresentadoPor:getSession()?.name,updatedAt:new Date().toISOString()};const confirmation=await portalJsonp({acao:'nucleo_drive_present_pdca',unit:explicitRecordUnit(p),id:p.id,fileId:p.fileId},60000);if(!confirmation?.sucesso)throw new Error(confirmation?.erro||'Apresentação não confirmada.');await syncPortalBackend(false);document.getElementById('ndExternalStatus').textContent='Apresentação confirmada na base central.';}catch(e){document.getElementById('ndExternalStatus').textContent=e.message;}finally{btn.disabled=false;}};}catch(e){alert(e.message);}}
 
 const ndOriginalStandardCreate=openStandardDocumentCreate;
 openStandardDocumentCreate=function(...args){const result=ndOriginalStandardCreate(...args);const input=document.getElementById('stdDocFile');if(input){const label=document.createElement('label');label.innerHTML='<span class="small">Unidade do documento</span><select id="ndStandardUnit" '+(getSession()?.role==='quality'?'disabled':'')+'><option value="matriz">SETA SC — Matriz</option><option value="filial">SETA ES — Unidade Linhares</option></select>';input.closest('label').before(label);const drive=document.createElement('div');drive.style.gridColumn='1/-1';drive.innerHTML='<button type="button" class="btn secondary" id="ndChooseStandardDrive">Selecionar na pasta do Drive</button><input id="ndStandardDriveId" type="hidden"><p id="ndStandardDriveName" class="small"></p><div id="ndStandardDriveList"></div>';input.closest('label').after(drive);document.getElementById('ndChooseStandardDrive').onclick=async()=>{try{await nucleoDriveLoad();await nucleoDriveChooseDocument('standard');}catch(e){document.getElementById('ndStandardDriveName').textContent=e.message;}};const clearDrive=()=>{document.getElementById('ndStandardDriveId').value='';document.getElementById('ndStandardDriveName').textContent='';document.getElementById('ndStandardDriveList').innerHTML='';};input.addEventListener('change',clearDrive);document.getElementById('ndStandardUnit').addEventListener('change',()=>{clearDrive();document.getElementById('stdDocCode').innerHTML=documentTypeOptions(document.getElementById('ndStandardUnit').value);});document.getElementById('ndStandardUnit').value=getSession()?.role==='quality'?'filial':document.getElementById('qualityConfigUnit')?.value||explicitPortalUnit(getSession()?.unit)||'matriz';}return result;};
 
 const ndOriginalPdcaPresentation=openPdcaPresentation;
-openPdcaPresentation=function(p){if(p?.externalPdf)return nucleoDriveOpenExternalPdf(p);return ndOriginalPdcaPresentation(p);};
+openPdcaPresentation=function(p){if(p&&nucleoPdcaUsesAttachedPdf(p))return nucleoOpenAttachedPdca(p);return ndOriginalPdcaPresentation(p);};
 
 saveStandardDocument=async function(){try{await nucleoDriveLoad();await nucleoDriveUploadStandard();}catch(e){alert(e.message);}};
 
@@ -17428,6 +17501,7 @@ function nucleoRoDisplayRows(rows,model){
 }
 
 async function nucleoPdcaDownloadModelPdf(p,open){
+ if(p&&nucleoPdcaUsesAttachedPdf(p))return nucleoOpenAttachedPdca(p);
  if(!p?.id){alert('Salve o PDCA na base central antes de gerar o PDF.');return;}
  const tab=open?window.open('about:blank','_blank'):null;if(open&&!tab){alert('Permita abrir a aba do PDF neste navegador.');return;}if(tab){tab.opener=null;tab.document.body.textContent='Gerando PDF com o modelo da unidade…';}
  try{await showNucleoLoading('Gerando PDF do PDCA…','Aplicando o modelo salvo para esta unidade.');const result=await portalJsonp({acao:'portal_pdca_model_pdf',id:p.id},90000);if(!result?.sucesso||!result.base64)throw Error(result?.erro||'PDF não confirmado pela base central.');const blob=new Blob([Uint8Array.from(atob(result.base64),c=>c.charCodeAt(0))],{type:'application/pdf'}),url=URL.createObjectURL(blob);if(tab){if(!tab.closed)tab.location.replace(url);}else{const a=document.createElement('a');a.href=url;a.download=result.fileName||'PDCA.pdf';document.body.appendChild(a);a.click();a.remove();}setTimeout(()=>URL.revokeObjectURL(url),300000);
