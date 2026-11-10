@@ -1120,6 +1120,34 @@ function nucleoApplySharedState(list){
   }finally{nucleoApplyingCentralState=false;}
 }
 
+function applyNucleoCentralConfig(config,updatedAt){
+  const previous=getSavedIntegrationSettings();
+  const mergedConfig={
+    ...config,
+    autoSync:String(config.autoSync??'0'),
+    roSyncPeriod:String(config.roSyncPeriod??previous.roSyncPeriod),
+    roSyncDateFrom:String(config.roSyncDateFrom??previous.roSyncDateFrom),
+    roSyncDateTo:String(config.roSyncDateTo??previous.roSyncDateTo)
+  };
+  delete mergedConfig.apiUrl;
+  localStorage.setItem(ADMIN_CONFIG_KEY,JSON.stringify(mergedConfig));
+  const integration={
+    apiKey:String(config.apiKey||''),
+    autoSync:mergedConfig.autoSync,
+    roSyncPeriod:mergedConfig.roSyncPeriod,
+    roSyncDateFrom:mergedConfig.roSyncDateFrom,
+    roSyncDateTo:mergedConfig.roSyncDateTo,
+    savedAt:String(config.__savedAt||updatedAt||'')
+  };
+  try{
+    localStorage.setItem(INTEGRATION_PERSIST_KEY,JSON.stringify(integration));
+    localStorage.setItem('ro-sync-settings',JSON.stringify(integration));
+  }catch(e){}
+  if(currentRoSyncPeriodSignature(previous)!==currentRoSyncPeriodSignature(integration)){
+    importedRoCacheNeedsRefresh=true;
+  }
+}
+
 function applyPortalBackendSnapshot(snapshot){
   claimantIdentityCache=null;
   if(!snapshot||snapshot.sucesso===false)return false;
@@ -1146,32 +1174,7 @@ function applyPortalBackendSnapshot(snapshot){
   if(Array.isArray(data.processTemplates)){
     try{nucleoNativeStorageSetItem.call(localStorage,'nucleo_process_templates_v1',JSON.stringify(data.processTemplates));}catch(e){console.warn('Falha ao aplicar modelos centrais:',e)}
   }
-  if(data.config && typeof data.config==='object'){
-    // Configuração administrativa vem integralmente da base central.
-    const mergedConfig={
-      ...data.config,
-      apiUrl:portalApiBase(),
-      autoSync:String(data.config.autoSync??'0'),
-      roSyncPeriod:String(data.config.roSyncPeriod??'all'),
-      roSyncDateFrom:String(data.config.roSyncDateFrom??''),
-      roSyncDateTo:String(data.config.roSyncDateTo??'')
-    };
-    localStorage.setItem(ADMIN_CONFIG_KEY,JSON.stringify(mergedConfig));
-    // Mantém somente uma cópia de cache, nunca usada para escolher a API.
-    const persistedIntegration={
-      apiUrl:portalApiBase(),
-      apiKey:String(data.config.apiKey||''),
-      autoSync:mergedConfig.autoSync,
-      roSyncPeriod:mergedConfig.roSyncPeriod,
-      roSyncDateFrom:mergedConfig.roSyncDateFrom,
-      roSyncDateTo:mergedConfig.roSyncDateTo,
-      savedAt:String(data.config.__savedAt||snapshot.atualizadoEm||new Date().toISOString())
-    };
-    try{
-      localStorage.setItem(INTEGRATION_PERSIST_KEY,JSON.stringify(persistedIntegration));
-      localStorage.setItem('ro-sync-settings',JSON.stringify(persistedIntegration));
-    }catch(e){}
-  }
+  if(data.config && typeof data.config==='object')applyNucleoCentralConfig(data.config,snapshot.atualizadoEm);
   if(Array.isArray(data.triage))localStorage.setItem(TRIAGE_KEY,JSON.stringify(data.triage));
   // triageDeletedKeys era usado por uma versão antiga para bloquear a reconstrução
   // da triagem. Isso fazia R.O.s válidas irem para 'Não triada'. Não reaplicar esse estado.
@@ -3019,18 +3022,9 @@ async function syncPublicPortalConfig(){
       'nucleo-unit-public-sectors',
       JSON.stringify(res.config.sectorListsByUnit||{})
     );
-    localStorage.setItem(
-      ADMIN_CONFIG_KEY,
-      JSON.stringify({...res.config,apiUrl:base})
-    );
-
-    const persisted={
-      ...res.config,
-      apiUrl:base,
-      savedAt:String(res.config.__savedAt||new Date().toISOString())
-    };
-    localStorage.setItem(INTEGRATION_PERSIST_KEY,JSON.stringify(persisted));
-    localStorage.setItem('ro-sync-settings',JSON.stringify(persisted));
+    const publicConfig={...getAdminConfig(),...res.config};
+    delete publicConfig.apiUrl;
+    localStorage.setItem(ADMIN_CONFIG_KEY,JSON.stringify(publicConfig));
 
     nucleoPublicConfigReady=true;
     refreshSectorSelectors();
@@ -5025,6 +5019,12 @@ function openRoReport(id){
 }
 
 
+
+let nucleoRoSyncPeriodDirty=false;
+function editRoSyncPeriod(){
+  nucleoRoSyncPeriodDirty=true;
+  updateRoSyncPeriodUi();
+}
 
 function updateRoSyncPeriodUi(){
   const custom=(document.getElementById('roSyncPeriod')?.value||'all')==='custom';
@@ -10649,6 +10649,7 @@ function loadAdminConfig(){
 
   document.querySelectorAll('#settingsView input, #settingsView select, #settingsView textarea').forEach((el,i)=>{
     if(!el.id) el.id='adminCfgAuto'+i;
+    if(nucleoRoSyncPeriodDirty&&['roSyncPeriod','roSyncDateFrom'].includes(el.id))return;
     if(Object.prototype.hasOwnProperty.call(c,el.id)) el.value=c[el.id];
   });
 
@@ -10658,8 +10659,10 @@ function loadAdminConfig(){
   if(document.getElementById('apiUrl'))document.getElementById('apiUrl').value=integration.apiUrl||c.apiUrl||'';
   if(document.getElementById('apiKey'))document.getElementById('apiKey').value=integration.apiKey||c.apiKey||'';
   if(document.getElementById('autoSync'))document.getElementById('autoSync').value=String(integration.autoSync||c.autoSync||'0');
-  if(document.getElementById('roSyncPeriod'))document.getElementById('roSyncPeriod').value=String(integration.roSyncPeriod||c.roSyncPeriod||'all');
-  if(document.getElementById('roSyncDateFrom'))document.getElementById('roSyncDateFrom').value=integration.roSyncDateFrom||c.roSyncDateFrom||'';
+  if(!nucleoRoSyncPeriodDirty){
+    if(document.getElementById('roSyncPeriod'))document.getElementById('roSyncPeriod').value=integration.roSyncPeriod;
+    if(document.getElementById('roSyncDateFrom'))document.getElementById('roSyncDateFrom').value=integration.roSyncDateFrom;
+  }
   updateRoSyncPeriodUi();
 
   const st=document.getElementById('configSavedState');
@@ -12194,6 +12197,9 @@ async function refreshRosFromOfficialSheets(force=false){
     });
 
     if(getSession()?.authToken!==token)return false;
+    if(currentRoSyncPeriodSignature(s)!==currentRoSyncPeriodSignature()){
+      throw new Error('O período de busca mudou durante a leitura. Clique em Sincronizar para aplicar o novo período.');
+    }
     if(data?.sucesso===false)throw new Error(data.erro||'Falha ao carregar R.O.s.');
     if(!Array.isArray(data?.dados))throw new Error('Resposta sem lista de R.O.s.');
 
@@ -12294,7 +12300,8 @@ function clearImportedRos(){
 function openIntegrationApi(){
   if(!requireIntegrationUnlock())return;
 
-  const s=saveIntegrationSettings(true);
+  const s=saveIntegrationSettings();
+  if(!s)return;
   const result=document.getElementById('testResult');
   if(!s.apiUrl){
     if(result){
@@ -14687,6 +14694,10 @@ function assignedRoStatus(r,triageMap,pdcaByRo,presentationMap){
   return 'Pendente';
 }
 
+function assignedRoHasResponse(status){
+  return status==='PDCA respondido'||status==='PDCA apresentado';
+}
+
 function assignedRoDeadline(r,status=assignedRoStatus(r),triageMap){
   if(status!=='Pendente') return '—';
   const tri=getRoTriageRecord(r,triageMap)||{};
@@ -14807,7 +14818,7 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
       const displayStatus=assignedRoStatus(r,triageMap,pdcaByRo,presentationMap);
       if(roListMode==='assigned'){
         const closed=['Cancelada','Registro','Obsoleto'].includes(displayStatus)
-          || (!admin&&displayStatus==='PDCA apresentado');
+          || (!admin&&assignedRoHasResponse(displayStatus));
         if(closed!==(assignedLifecycle==='history'))return false;
       }
       const statusKey={'Pendente':'precisa_resposta','PDCA externo':'ja_respondeu','PDCA respondido':'ja_respondeu','PDCA apresentado':'ja_respondeu','Cancelada':'cancelada','Registro':'registro','Obsoleto':'obsoleto'}[displayStatus];
@@ -14827,7 +14838,7 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
     const responsibleSector=String(tri?.responsibleSector||tri?.setorDirecionado||r.__assignedSector||r.setorResponsavelPlanilha||r.raw?.__setorResponsavel||r.setorResponsavel||r.setor||'—').trim()||'—';
     const pdcaSituation=pdcaSituationLabel(r,triageMap);
     const displayStatus=assignedRoStatus(r,triageMap,pdcaByRo,presentationMap);
-    const presented=displayStatus==='PDCA apresentado';
+    const hasResponse=assignedRoHasResponse(displayStatus);
     const displayDecisionLabel=nucleoAssignedDecisionLabel(r,tri,displayStatus);
 
     let operationalActions='';
@@ -14838,7 +14849,7 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
       operationalActions=`
         <td class="operational-action-col">
           <div style="display:flex;gap:6px;flex-wrap:wrap;min-width:230px">
-            ${presented?'':`<button class="btn primary" type="button"
+            ${hasResponse?'':`<button class="btn primary" type="button"
               ${respondDisabled?'disabled':''}
               onclick="startPdcaFromList('${escapeHtml(r.numero)}')">
               ${alreadySent?'PDCA enviado':pdcaActionLabel(r.numero)}
@@ -14930,9 +14941,9 @@ function selectRoForOperationalAction(numero){
   return ro;
 }
 
-function selectedRoHasPresentedPdca(ro){
+function selectedRoHasPdcaResponse(ro){
   const sector=ro.__assignedSector||getRoTriageRecord(ro)?.responsibleSector||'';
-  return assignedRoStatus({...ro,__assignedSector:sector})==='PDCA apresentado';
+  return assignedRoHasResponse(assignedRoStatus({...ro,__assignedSector:sector}));
 }
 
 function startPdcaFromList(numero){
@@ -15001,7 +15012,7 @@ function view(id){
   setTimeout(refreshRoPdfAccess,0);
   setNav('ros');
 }function fillDetail(){
-  document.getElementById('submittedRoDecisionInfo')?.remove();dNumero.textContent=selected.numero;dCliente.textContent=selected.cliente;dStatus.textContent=selected.status;dStatus.className=badgeClass(selected.status);dUnidade.textContent=selected.unidade;dSetor.textContent=selected.setor;dData.textContent=selected.data;dPrazo.textContent=selected.prazo;dDescricao.textContent=selected.descricao;const noPDCA=['Cancelada','Somente para registro'].includes(selected.status),contest=selected.status==='Em contestação';const presented=selectedRoHasPresentedPdca(selected);pdcaBtn.hidden=presented;pdcaBtn.disabled=noPDCA||contest||presented;contestBtn.disabled=noPDCA||contest;if(pdcaBtn&&!pdcaBtn.disabled){const roKey=selected.numero||selected.id||selected.codigo||'';pdcaBtn.textContent=isPdcaStarted(roKey)?'Continuar a responder o PDCA':'Responder o PDCA';}dNotice.classList.toggle('hidden',!(noPDCA||contest));dNotice.textContent=contest?'O PDCA está suspenso enquanto a contestação estiver em análise pelo SGQ.':noPDCA?'Esta R.O. não exige PDCA.':'';refreshContestUserStatus();refreshFavoriteButton();renderRoTimeline();renderRoIntelligence()}
+  document.getElementById('submittedRoDecisionInfo')?.remove();dNumero.textContent=selected.numero;dCliente.textContent=selected.cliente;dStatus.textContent=selected.status;dStatus.className=badgeClass(selected.status);dUnidade.textContent=selected.unidade;dSetor.textContent=selected.setor;dData.textContent=selected.data;dPrazo.textContent=selected.prazo;dDescricao.textContent=selected.descricao;const noPDCA=['Cancelada','Somente para registro'].includes(selected.status),contest=selected.status==='Em contestação';const hasResponse=selectedRoHasPdcaResponse(selected);pdcaBtn.hidden=hasResponse;pdcaBtn.disabled=noPDCA||contest||hasResponse;contestBtn.disabled=noPDCA||contest;if(pdcaBtn&&!pdcaBtn.disabled){const roKey=selected.numero||selected.id||selected.codigo||'';pdcaBtn.textContent=isPdcaStarted(roKey)?'Continuar a responder o PDCA':'Responder o PDCA';}dNotice.classList.toggle('hidden',!(noPDCA||contest));dNotice.textContent=contest?'O PDCA está suspenso enquanto a contestação estiver em análise pelo SGQ.':noPDCA?'Esta R.O. não exige PDCA.':'';refreshContestUserStatus();refreshFavoriteButton();renderRoTimeline();renderRoIntelligence()}
 function roSummaryData(){
   const source=(typeof ROs!=='undefined' ? ROs : (typeof ros!=='undefined' ? ros : []));
   const triageMap=getSavedTriageMap();
@@ -15735,8 +15746,8 @@ function showAssignedRos(){
 }function openPDCA(){
   if(!nucleoFeatureRequire('pdca','respond'))return;
   if(!selected){alert('Não foi possível identificar a R.O. deste PDCA. Abra a R.O. novamente.');return}
-  if(selectedRoHasPresentedPdca(selected)){
-    alert('O PDCA desta R.O. já foi apresentado.');
+  if(selectedRoHasPdcaResponse(selected)){
+    alert('Esta R.O. já tem uma resposta de PDCA.');
     return;
   }
   const roKey=selected.numero||selected.id||selected.codigo;

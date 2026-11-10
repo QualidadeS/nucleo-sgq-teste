@@ -184,20 +184,6 @@
     return {...previous,apiUrl:window.portalApiBase()};
   };
 
-  function readLocalDeviceSettings(){
-    let previous={};
-    try{previous=typeof originalGetSaved==='function'?(originalGetSaved()||{}):{};}catch(_){}
-    if(previous&&typeof previous==='object')delete previous.apiUrl;
-    return previous||{};
-  }
-
-  function saveLocalDeviceSettings(settings){
-    const copy={...(settings||{})};
-    delete copy.apiUrl;
-    try{localStorage.setItem('nucleo-integration-settings-v1',JSON.stringify(copy));}catch(_){}
-    try{localStorage.setItem('ro-sync-settings',JSON.stringify(copy));}catch(_){}
-  }
-
   window.nucleoEnsureApiConfigured=async function(candidateUrl){
     if(candidateUrl){
       const candidate=validApiUrl(candidateUrl);
@@ -210,26 +196,24 @@
     return {url,result};
   };
 
-  // Mantém preferências realmente locais, mas a URL nunca é persistida localmente.
+  // Lê o formulário para prévia. Só uma confirmação central altera a configuração.
   window.saveIntegrationSettings=function(silent=false){
     if(typeof window.requireIntegrationUnlock==='function'&&!window.requireIntegrationUnlock())return false;
-    const current=readLocalDeviceSettings();
+    const current=window.getSavedIntegrationSettings();
     const next={
-      ...current,
-      apiKey:String(document.getElementById('apiKey')?.value||current.apiKey||'').trim(),
+      apiUrl:window.portalApiBase(),
+      apiKey:String(document.getElementById('apiKey')?.value??current.apiKey??'').trim(),
       autoSync:document.getElementById('autoSync')?.value||current.autoSync||'0',
       roSyncPeriod:document.getElementById('roSyncPeriod')?.value||current.roSyncPeriod||'all',
-      roSyncDateFrom:document.getElementById('roSyncDateFrom')?.value||current.roSyncDateFrom||'',
-      roSyncDateTo:'',
-      savedAt:new Date().toISOString()
+      roSyncDateFrom:document.getElementById('roSyncDateFrom')?.value??current.roSyncDateFrom??'',
+      roSyncDateTo:''
     };
     if(next.roSyncPeriod==='custom'&&!next.roSyncDateFrom){
       if(!silent)alert('Informe a data inicial da busca.');
       return false;
     }
-    saveLocalDeviceSettings(next);
-    if(!silent)alert('Preferências deste dispositivo salvas. A URL da API continua sendo global.');
-    return {...next,apiUrl:window.portalApiBase()};
+    if(next.roSyncPeriod!=='custom')next.roSyncDateFrom='';
+    return next;
   };
 
   window.saveIntegrationSettingsConfirmed=async function(){
@@ -247,25 +231,29 @@
       return false;
     }
 
+    const draft=window.saveIntegrationSettings();
+    if(!draft)return false;
+    const saveButton=document.getElementById('saveIntegrationButton');
+    if(saveButton?.disabled)return false;
+    if(saveButton)saveButton.disabled=true;
+    if(st){
+      st.classList.remove('hidden');
+      st.textContent='Confirmando a integração na base central…';
+    }
     try{
       await probeApi(candidate);
       const currentBase=await resolveGlobalApiUrl(true);
       if(typeof originalPortalJsonp!=='function')throw new Error('Conexão central indisponível.');
 
       // Busca a configuração CENTRAL atual. localStorage não participa da decisão.
-      const loaded=await originalPortalJsonp({acao:'portal_load'},60000,currentBase);
-      if(!loaded?.sucesso)throw new Error(loaded?.erro||'Não foi possível ler a configuração central atual.');
-      const centralConfig={...(loaded?.dados?.config||{})};
+      const loaded=await originalPortalJsonp({acao:'portal_load_part',parte:'core'},60000,currentBase);
+      if(!loaded?.sucesso||!loaded?.dados?.config)throw new Error(loaded?.erro||'Não foi possível ler a configuração central atual.');
+      const centralConfig=loaded.dados.config;
 
-      const device=window.saveIntegrationSettings(true)||{};
       const nextConfig={
         ...centralConfig,
+        ...draft,
         apiUrl:candidate,
-        apiKey:device.apiKey||centralConfig.apiKey||'',
-        autoSync:device.autoSync??centralConfig.autoSync??'0',
-        roSyncPeriod:device.roSyncPeriod||centralConfig.roSyncPeriod||'all',
-        roSyncDateFrom:device.roSyncDateFrom||centralConfig.roSyncDateFrom||'',
-        roSyncDateTo:'',
         __savedAt:new Date().toISOString()
       };
 
@@ -276,7 +264,22 @@
         dados:JSON.stringify(nextConfig),
         ator:(typeof getSession==='function'?getSession()?.name:'')||'SGQ'
       },60000,currentBase);
-      if(!saved?.sucesso)throw new Error(saved?.erro||'A base central não confirmou a URL global.');
+      if(!saved?.sucesso)throw new Error(saved?.erro||'A base central não confirmou a integração.');
+
+      if(currentBase===candidate){
+        const verified=await originalPortalJsonp({acao:'portal_load_part',parte:'core'},60000,currentBase);
+        const confirmed=verified?.dados?.config;
+        if(!verified?.sucesso||String(confirmed?.roSyncPeriod??'')!==draft.roSyncPeriod
+          || (draft.roSyncPeriod==='custom'&&String(confirmed?.roSyncDateFrom??'')!==draft.roSyncDateFrom)){
+          throw new Error('A base central ainda não devolveu o período escolhido. Tente salvar novamente.');
+        }
+        window.applyNucleoCentralConfig(confirmed,verified.atualizadoEm);
+        const formPeriod=document.getElementById('roSyncPeriod')?.value;
+        const formFrom=document.getElementById('roSyncDateFrom')?.value;
+        if(formPeriod===draft.roSyncPeriod&&(formPeriod!=='custom'||formFrom===draft.roSyncDateFrom)){
+          nucleoRoSyncPeriodDirty=false;
+        }
+      }
 
       globalApiUrl=candidate;
       try{window.nucleoConfirmedApiUrl=candidate;}catch(_){}
@@ -303,15 +306,18 @@
         return true;
       }
 
-      alert('URL global confirmada na base central.');
+      if(st)st.textContent='Período salvo na base central. Clique em Sincronizar para atualizar as R.O.s.';
+      alert('Período salvo. Clique em Sincronizar para buscar as R.O.s no intervalo escolhido.');
       return true;
     }catch(e){
       if(st){
         st.classList.remove('hidden');
-        st.textContent='Não foi possível salvar a URL global.';
+        st.textContent='O salvamento da integração não foi confirmado.';
       }
-      alert('Não foi possível salvar a URL global: '+(e?.message||e));
+      alert('Não foi possível confirmar a integração: '+(e?.message||e));
       return false;
+    }finally{
+      if(saveButton)saveButton.disabled=false;
     }
   };
 
