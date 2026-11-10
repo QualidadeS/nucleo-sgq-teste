@@ -6131,7 +6131,7 @@ function renderSupplierIndicatorsWorkspace(){
 <script src="assets/modules-v2/indicators/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/modules-v2/announcements/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/team-load-local-v47.js?v=20261027-team-local-central"></script>
-<script src="assets/nucleo-app.js?v=20261110-sessao-api-v64"></script>
+<script src="assets/nucleo-app.js?v=20261110-sync-detalhe-v65"></script>
 <script src="assets/api-source-lock-v20.js?v=20261110-sessao-api-v64"></script>
 
 <script id="nucleoModuleMaintenanceGuardV1">
@@ -6599,7 +6599,11 @@ function renderSupplierIndicatorsWorkspace(){
         forceRos:true
       });
 
-      if(!ok)throw new Error('A sincronização não foi concluída.');
+      if(!ok){
+        const detail=document.getElementById('syncMsg')?.textContent||'';
+        alert(detail.startsWith('Sincronização não concluída:')?detail:'Não foi possível concluir a sincronização. Confira se sua sessão ainda está ativa.');
+        return;
+      }
       refreshUi();
 
     }catch(e){
@@ -7266,12 +7270,14 @@ body.nucleo-hide-sac-indicators [data-nucleo-sac-indicator="1"]{
   .topbar .top-actions{
     display:grid!important;
     grid-template-columns:44px minmax(0,1fr) auto!important;
-    grid-template-areas:"bell syncmsg sync"!important;
+    grid-template-areas:"bell . sync" "syncmsg syncmsg syncmsg"!important;
   }
   .topbar #syncMsg{
     grid-area:syncmsg!important;
     font-size:11px;
     white-space:normal!important;
+    overflow:visible!important;
+    text-align:left;
     overflow-wrap:anywhere;
   }
 }
