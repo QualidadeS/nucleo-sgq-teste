@@ -1247,6 +1247,12 @@ function applyPortalBackendSnapshot(snapshot){
   if(el)el.textContent=now;
   return true;
 }
+function nucleoSyncDetail(error){
+  if(!navigator.onLine)return 'O dispositivo está sem conexão.';
+  if(error?.name==='QuotaExceededError')return 'O armazenamento do navegador atingiu o limite ao salvar os dados.';
+  return String(error?.message||error||'A API não informou o motivo.').replace(/https?:\/\/[^\s]+/gi,'[endereço da API]');
+}
+
 let nucleoCentralLoad=null;
 async function syncPortalBackend(showMessage=false,options={}){
   const token=getSession()?.authToken;
@@ -1270,6 +1276,7 @@ async function loadPortalBackend(showMessage,options,load){
   if(!portalBackendEnabled()){
     if(showMessage)alert('Configure primeiro a URL do Apps Script em Administração → Integração.');
     updateBackendStatus(false,'Apps Script não configurado.');
+    nucleoSetCentralSyncState('error','A URL da API do Apps Script não está configurada.');
     return false;
   }
 
@@ -1287,14 +1294,19 @@ async function loadPortalBackend(showMessage,options,load){
   portalBackendSyncInProgress=true;
   nucleoSetCentralSyncState('syncing','Atualizando a base central em partes.');
   updateBackendStatus(null,'Sincronizando...');
-  if(foreground)await showNucleoLoading('Preparando sincronização em partes...','Carregando NÚCLEO');
-
+  let stage='Preparando a base central';
   try{
+    if(foreground)await showNucleoLoading('Preparando sincronização em partes...','Carregando NÚCLEO');
     let lastUpdated='';
     let roStepStarted=false;
 
     for(let i=0;i<parts.length;i++){
       const [part,label]=parts[i];
+      stage='Etapa '+(i+1)+' de '+parts.length+' · '+label;
+      if(load.afterRoSetup){
+        const status=document.getElementById('syncMsg');
+        if(status){status.textContent=stage;status.className='statusline'}
+      }
 
       if(foreground){
         try{updateNucleoLoading('Etapa '+(i+1)+' de '+parts.length+': '+label+'...')}catch(e){}
@@ -1303,7 +1315,8 @@ async function loadPortalBackend(showMessage,options,load){
 
       const res=await portalJsonp({acao:'portal_load_part',parte:part},90000);
       if(getSession()?.authToken!==token)return false;
-      if(!res || res.sucesso===false)throw new Error((res&&res.erro)||('Falha ao carregar '+label+'.'));
+      if(!res||res.sucesso===false)throw new Error(res?.erro||res?.error||'A base não confirmou a etapa.');
+      if(!res.dados||typeof res.dados!=='object')throw new Error('A API não retornou os dados desta etapa.');
 
       applyPortalBackendSnapshot(res);
       lastUpdated=res.atualizadoEm||lastUpdated;
@@ -1356,9 +1369,11 @@ async function loadPortalBackend(showMessage,options,load){
     if(showMessage)alert('Base central sincronizada.');
     return true;
   }catch(e){
-    nucleoSetCentralSyncState('error','Falha ao confirmar a base central: '+(e.message||String(e)));
-    updateBackendStatus(false,e.message||String(e));
-    if(showMessage)alert('Não foi possível sincronizar: '+(e.message||e));
+    if(getSession()?.authToken!==token)return false;
+    const detail=stage+' — '+nucleoSyncDetail(e);
+    nucleoSetCentralSyncState('error',detail);
+    updateBackendStatus(false,detail);
+    if(showMessage)alert('Não foi possível sincronizar: '+detail);
     return false;
   }finally{
     if(foreground)hideNucleoLoading(true);
@@ -12060,10 +12075,12 @@ async function nucleoRunFullSync(options={}){
         status.className='statusline';
       }
 
+      if(!navigator.onLine)throw new Error('O dispositivo está sem conexão.');
       if(window.nucleoGlobalApiReady?.then)await window.nucleoGlobalApiReady;
       if(getSession()?.authToken!==token)return false;
 
       let roResult;
+      let roFailure='';
       async function readOfficialRos(){
         if(roResult!==undefined||getSession()?.authToken!==token)return;
         if(!getSession()?.permissions||nucleoPersonCan('ros')){
@@ -12072,14 +12089,16 @@ async function nucleoRunFullSync(options={}){
             status.className='statusline';
           }
           roResult=await refreshLegacyRoCacheFromApi(forceRos);
+          if(roResult===false&&forceRos)roFailure=status?.textContent||'R.O.s e SACs não conferidos com as planilhas centrais.';
         }else{
-          roResult=true;
+          roResult=null;
           if(status)status.textContent='';
         }
       }
 
       // Depois de confirmar a configuração central, prioriza as planilhas.
       let centralOk=false;
+      let centralError='';
       for(let attempt=1;attempt<=3;attempt++){
         if(getSession()?.authToken!==token)return false;
 
@@ -12087,16 +12106,24 @@ async function nucleoRunFullSync(options={}){
           centralOk=await syncPortalBackend(false,{foreground:foreground && attempt===1,afterRoSetup:readOfficialRos});
         }catch(e){
           centralOk=false;
+          centralError=nucleoSyncDetail(e);
           console.warn('[NÚCLEO AUTO SYNC] tentativa central '+attempt+' falhou:',e);
         }
 
+        if(getSession()?.authToken!==token)return false;
         if(centralOk)break;
 
-        if(attempt<3)await new Promise(resolve=>setTimeout(resolve,attempt*500));
+        centralError=nucleoCentralSyncState.status==='error'
+          ? nucleoCentralSyncState.message : centralError;
+        if(!navigator.onLine)break;
+        if(attempt<3){
+          if(status)status.textContent=(centralError||'A base central não confirmou os dados.')+' Nova tentativa em andamento…';
+          await new Promise(resolve=>setTimeout(resolve,attempt*500));
+        }
       }
 
       if(!centralOk){
-        throw new Error('A base central não confirmou os dados.');
+        throw new Error(centralError||'A base central não confirmou os dados.');
       }
 
       if(getSession()?.authToken!==token)return false;
@@ -12104,9 +12131,10 @@ async function nucleoRunFullSync(options={}){
       // Uma sincronização central já no fim pode ter passado da última
       // oportunidade de executar a leitura. Nesse caso, faça-a aqui.
       await readOfficialRos();
-      if(roResult===false&&forceRos){
-        nucleoSetCentralSyncState('error','R.O.s e SACs não conferidos com as planilhas centrais.');
-        return false;
+      if(roFailure)throw new Error(roFailure);
+      if(status?.textContent?.startsWith('Etapa ')){
+        status.textContent=roResult===true?'R.O.s e SACs atualizados pelas planilhas centrais.':'';
+        status.className=roResult===true?'statusline okline':'statusline';
       }
 
       if(getSession()?.authToken!==token)return false;
@@ -12129,13 +12157,12 @@ async function nucleoRunFullSync(options={}){
       return true;
 
     }catch(e){
+      if(getSession()?.authToken!==token)return false;
       console.warn('[NÚCLEO AUTO SYNC] sincronização não concluída:',e);
-      nucleoSetCentralSyncState(
-        'error',
-        'Não foi possível concluir a sincronização: '+(e?.message||e)
-      );
+      const detail='Sincronização não concluída: '+nucleoSyncDetail(e);
+      nucleoSetCentralSyncState('error',detail);
       if(status){
-        status.textContent='Sincronização não concluída: '+(e?.message||e);
+        status.textContent=detail;
         status.className='statusline';
       }
       return false;
@@ -16451,7 +16478,7 @@ try{localStorage.removeItem(IMPORTED_RAW_KEY)}catch(e){}
 ensurePreviewSession();
 initLogin();
 function nucleoStartAuthenticatedSync(){
-  if(!getSession()?.authToken||!navigator.onLine)return;
+  if(!getSession()?.authToken)return;
   void nucleoRunFullSync({source:'startup'}).catch(e=>console.warn('[NÚCLEO] sincronização automática inicial:',e));
 }
 if(document.readyState==='loading'){
