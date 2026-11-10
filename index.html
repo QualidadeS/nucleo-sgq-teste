@@ -1,7 +1,7 @@
 <!doctype html>
 <!-- NUCLEO_PRODUCAO_2026-10-20_CORRECOES_OPERACIONAIS -->
 <html lang="pt-BR"><head>
-<link rel="manifest" href="./manifest.webmanifest">
+<link rel="manifest" href="./manifest.webmanifest?v=2">
 <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/nucleo-180.png">
 <meta name="theme-color" content="#173b67">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
@@ -7359,6 +7359,87 @@ body.nucleo-hide-sac-indicators [data-nucleo-sac-indicator="1"]{
   }
   #sentRows > tr > td:nth-child(4) > .btn{
     font-size:12px;
+  }
+}
+</style>
+
+<style id="nucleo-mobile-fit">
+@media screen and (max-width:760px){
+  .workspace main :is(table.mobile-code-actions,#ncTreatmentList > div > table),
+  #actionsDashboardView table.action-table.mobile-code-actions,
+  #triageView table.action-table.mobile-code-actions{
+    width:100%!important;
+    min-width:0!important;
+    max-width:100%!important;
+  }
+  main div:has(> table.mobile-code-actions),
+  #ncTreatmentList > div:has(> table),
+  #triageView > div:has(> table.mobile-code-actions){
+    min-width:0!important;
+    max-width:100%!important;
+    overflow-x:visible!important;
+  }
+  #roListView #rows td:nth-child(8) > .assigned-operational-icons,
+  #roListView #rows .ro-row-actions,
+  #roListView .assigned-pdca-control,
+  #roListView td.operational-action-col > div:not(.assigned-operational-icons),
+  #triageView .triage-actions{
+    max-width:100%;
+    min-width:0!important;
+    flex-wrap:wrap!important;
+    white-space:normal!important;
+  }
+  .workspace main table.mobile-code-actions :is(th,td),
+  #triageView table.action-table.mobile-code-actions :is(th,td):first-child,
+  #roListView #rows td:nth-child(n){
+    overflow-wrap:anywhere!important;
+    white-space:normal!important;
+  }
+  main table:not(.mobile-code-actions){
+    min-width:0!important;
+    max-width:100%;
+    table-layout:fixed;
+  }
+  main table:not(.mobile-code-actions) :is(th,td),
+  .ro-report-table :is(th,td){
+    min-width:0!important;
+    white-space:normal!important;
+    overflow-wrap:anywhere;
+  }
+  #mySacsCards,
+  #pendingHubDetails > div[style*="grid-template-columns"],
+  #adminModuleContent div[style*="minmax(320px"]{
+    grid-template-columns:minmax(0,1fr)!important;
+  }
+  #pdcaView .stage-tabs{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    white-space:normal;
+    overflow:visible;
+  }
+  #pdcaView .stage-tab{
+    min-width:0;
+    white-space:normal;
+    overflow-wrap:anywhere;
+  }
+  .pdca-presentation-document,
+  .pdca-screen-page{
+    width:100%;
+    max-width:100%;
+    min-width:0;
+  }
+  .pdca-screen-page .pdca-meta-grid{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+  .pdca-screen-page .pdca-quadrants{
+    grid-template-columns:minmax(0,1fr)!important;
+    grid-template-areas:"plan" "do" "check" "act";
+  }
+  .pdca-screen-page :is(.pdca-annex-grid,.pdca-annex-card){
+    grid-template-columns:minmax(0,1fr);
+  }
+  .pdca-screen-page .pdca-annex-imgbox{
+    max-width:100%;
   }
 }
 </style>
