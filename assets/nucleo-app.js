@@ -1333,7 +1333,8 @@ async function loadPortalBackend(showMessage,options,load){
       if(!res.dados||typeof res.dados!=='object')throw new Error('A API não retornou os dados desta etapa.');
 
       applyPortalBackendSnapshot(res);
-      if(part==='core'&&isAdmin()&&res.dados.config?.roSyncPeriod==null){
+      if(part==='core'&&isAdmin()
+        && (res.dados.config?.id!=='config-central'||res.dados.config?.roSyncPeriod==null)){
         try{
           const integration=await readNucleoSavedIntegration();
           if(getSession()?.authToken!==token)return false;

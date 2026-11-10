@@ -256,16 +256,21 @@
         if(window.getSession?.()?.authToken!==token)throw new Error('A sessão mudou. Entre novamente para salvar a integração.');
         return originalPortalJsonp({...params,token},60000,currentBase);
       };
-      const loaded=await request({acao:'portal_load'});
-      if(!loaded?.sucesso)throw new Error(loaded?.erro||'A base central não respondeu à leitura autenticada da configuração.');
-      const loadedConfig=loaded.dados?.config;
-      const centralConfig=loadedConfig&&typeof loadedConfig==='object'
-        ? loadedConfig : await window.readNucleoSavedIntegration(request);
-      if(!centralConfig)throw new Error('A API respondeu sem a configuração administrativa. Entre novamente com o login do SGQ e tente salvar.');
+      let centralConfig=await window.readNucleoSavedIntegration(request);
+      if(!centralConfig){
+        const loaded=await request({acao:'portal_load'});
+        if(!loaded?.sucesso)throw new Error(loaded?.erro||'A base central não respondeu à leitura autenticada da configuração.');
+        centralConfig=loaded.dados?.config;
+      }
+      if(!centralConfig||typeof centralConfig!=='object'||Array.isArray(centralConfig)){
+        throw new Error('A API respondeu sem a configuração administrativa. Entre novamente com o login do SGQ e tente salvar.');
+      }
 
       const nextConfig={
         ...centralConfig,
         ...draft,
+        // A gravação usa esta chave física e a releitura procura o mesmo ID no JSON.
+        id:'config-central',
         apiUrl:candidate,
         __savedAt:new Date().toISOString()
       };
@@ -287,7 +292,7 @@
         if(window.getSession?.()?.authToken!==token)throw new Error('A sessão mudou antes da confirmação da integração.');
         if(String(confirmed?.roSyncPeriod??'')!==draft.roSyncPeriod
           || (draft.roSyncPeriod==='custom'&&String(confirmed?.roSyncDateFrom??'')!==draft.roSyncDateFrom)){
-          throw new Error('A base central ainda não devolveu o período escolhido. Tente salvar novamente.');
+          throw new Error('A API aceitou a gravação, mas a releitura do registro config-central não confirmou o período escolhido.');
         }
         window.applyNucleoCentralConfig(confirmed);
         const formPeriod=document.getElementById('roSyncPeriod')?.value;
