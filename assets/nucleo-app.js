@@ -10387,7 +10387,7 @@ function renderSentPdcas(){
  let data=getSentPdcas();if(!isAdmin()){const email=currentEmail();data=data.filter(p=>String(p.email||'').toLowerCase()===email);}
  const rows=data.map(p=>{const ro=getAllRoRecords().find(r=>String(r.numero||r.id)===String(p.ro)&&(!explicitRecordUnit(p)||explicitRecordUnit(r)===explicitRecordUnit(p))),user=ro?resolveRoClaimant(ro):null;return {p,ro,user,name:p.externalPdf&&p.fileName?p.fileName.replace(/\.pdf$/i,''):p.id};}).filter(({p,ro,user,name})=>[name,p.ro,p.responsavel,p.setor,p.cliente,ro?roRegistrantName(ro):'',user?personDisplayName(user):''].join(' ').toLowerCase().includes(q)&&(sf==='todos'||p.status===sf));
  const body=document.getElementById('sentRows');if(!body)return;
- const lifecycle=isAdmin()?(document.getElementById('sentLifecycleFilter')?.value||'active'):'all';
+ const lifecycle=document.getElementById('sentLifecycleFilter')?.value||(isAdmin()?'active':'all');
  nucleoRenderPdcaLifecycle(data,lifecycle);
  const visibleRows=rows.filter(({p})=>lifecycle==='all'||(lifecycle==='history')===!!nucleoPdcaDelivery(p));
  body.innerHTML=visibleRows.length?visibleRows.map(({p,ro,user,name})=>{
@@ -17286,9 +17286,21 @@ async function nucleoDeleteTriageConfirmed(id){
 
 function nucleoSetPdcaLifecycle(value){document.getElementById('sentLifecycleFilter').value=value;document.getElementById('sentStatusFilter').value='todos';renderSentPdcas();}
 function nucleoRenderPdcaLifecycle(data,lifecycle){
- const tabs=document.getElementById('sentLifecycleTabs');if(tabs)tabs.style.display=isAdmin()?'flex':'none';
- const active=data.filter(p=>!nucleoPdcaDelivery(p)).length,history=data.length-active;
- [['sentActiveTab','active','Pendências e confirmações',active],['sentHistoryTab','history','Histórico — encerradas',history]].forEach(([id,value,label,count])=>{const el=document.getElementById(id);if(el){el.textContent=label+' ('+count+')';el.className='btn '+(lifecycle===value?'primary':'secondary');el.setAttribute('aria-selected',String(lifecycle===value));}});
+ const admin=isAdmin();
+ const tabs=document.getElementById('sentLifecycleTabs');
+ if(tabs)tabs.style.display=admin?'':'none';
+ const active=data.filter(p=>!nucleoPdcaDelivery(p)).length;
+ const history=data.length-active;
+ for(const [id,value,count] of [['sentActiveTab','active',active],['sentHistoryTab','history',history]]){
+   const button=document.getElementById(id);
+   if(!button)continue;
+   const selected=lifecycle===value;
+   const countLabel=button.querySelector('.sent-lifecycle-count');
+   if(countLabel)countLabel.textContent=String(count);
+   button.classList.toggle('primary',selected);
+   button.classList.toggle('secondary',!selected);
+   button.setAttribute('aria-selected',String(selected));
+ }
  const text=document.getElementById('sentLifecycleDescription');if(text)text.textContent=!isAdmin()?'Respostas disponíveis para consulta.':lifecycle==='history'?'Respostas já entregues ao reclamante. Encerradas nesta etapa e mantidas para consulta e indicadores.':'Confirme o reclamante e entregue a resposta. Reclamante já confirmado não exige nova confirmação de identidade.';
 }
 
