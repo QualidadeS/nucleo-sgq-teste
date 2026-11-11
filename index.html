@@ -3345,7 +3345,6 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
 
     <button class="side-item side-independent-module" id="navDocumentRequests" type="button" onclick="showAdminOperationalModule('documents')"><span class="side-num side-icon"><svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6V3Z"/><path d="M14 3v5h5M9 12h6M9 16h6"/></svg></span><span><b>Solicitação de Documentos</b><small>Pedidos de documentos ao SGQ</small></span></button>
 
-    <button class="side-item side-independent-module" id="navMyAccess" type="button" onclick="nucleoShowMyAccess()" hidden><span class="side-num side-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3l8 4v5c0 5-4 8-8 9-4-1-8-4-8-9V7zM8.5 12l2.5 2.5 4.5-5"/></svg></span><span><b>Meus acessos</b></span></button>
     <div id="moduleManagement">
       
       <div>
@@ -3368,6 +3367,7 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
 <div class="sidebar-bottom-icons" aria-label="Ações da conta">
   <button id="navAdmin" class="sidebar-icon-btn" type="button" onclick="openAdmin()" title="Administração" aria-label="Administração">⚙</button>
   <button id="navProfile" class="sidebar-icon-btn" type="button" onclick="showProfile()" title="Meu perfil" aria-label="Meu perfil"><span class="bottom-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.7-4.2 3.1-6.3 7-6.3s6.3 2.1 7 6.3"/></svg></span></button>
+  <button class="sidebar-icon-btn" id="navMyAccess" type="button" onclick="nucleoShowMyAccess()" title="Meus acessos" aria-label="Meus acessos" hidden><span class="bottom-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3l8 4v5c0 5-4 8-8 9-4-1-8-4-8-9V7zM8.5 12l2.5 2.5 4.5-5"/></svg></span></button>
   <button class="sidebar-icon-btn sidebar-icon-logout" type="button" onclick="logoutUser()" title="Sair" aria-label="Sair">↪</button>
 </div>
 </aside>
@@ -6153,7 +6153,7 @@ function renderSupplierIndicatorsWorkspace(){
 <script src="assets/modules-v2/indicators/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/modules-v2/announcements/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/team-load-local-v47.js?v=20261027-team-local-central"></script>
-<script src="assets/nucleo-app.js?v=20261111-catalogo-acessos-v86"></script>
+<script src="assets/nucleo-app.js?v=20261111-acessos-pontuais-v87"></script>
 <script src="assets/api-source-lock-v20.js?v=20261110-periodo-central-v72"></script>
 
 <script id="nucleoModuleMaintenanceGuardV1">
