@@ -28,7 +28,7 @@ function nucleoLoadAdminModule(){
   if(nucleoAdminModulePromise)return nucleoAdminModulePromise;
   nucleoAdminModulePromise=new Promise((resolve,reject)=>{
     const script=document.createElement('script');
-    script.src=new URL('assets/modules/admin-workspaces.js?v=20261111-setores-automaticos-v94',document.baseURI).href;
+    script.src=new URL('assets/modules/admin-workspaces.js?v=20261111-contestacao-destinatario-v95',document.baseURI).href;
     const timer=setTimeout(()=>finish(new Error('Tempo limite ao carregar o módulo.')),20000);
     function finish(error){clearTimeout(timer);script.onload=script.onerror=null;if(error){script.remove();nucleoAdminModulePromise=null;reject(error)}else resolve();}
     script.onload=()=>finish();
@@ -14997,7 +14997,7 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
     let operationalActions='';
     if(!admin){
       const respondDisabled=noPdca||contest||alreadySent;
-      const contestDisabled=noPdca||contest;
+      const canContest=nucleoCanContestRo(r,triageMap,pdcaByRo,tri);
 
       operationalActions=`
         <td class="operational-action-col">
@@ -15009,11 +15009,8 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
             </button>
             ${hasDraft?`<span class="status-badge pending">Rascunho iniciado</span>
               <button class="btn secondary" type="button" onclick="discardAssignedPdcaDraft('${escapeHtml(r.numero)}',this)">Excluir rascunho</button>`:''}`}
-            <button class="btn secondary" type="button"
-              ${contestDisabled?'disabled':''}
-              onclick="contestRoFromList('${escapeHtml(r.numero)}')">
-              ${contest?'Em contestação':'Contestar'}
-            </button>
+            ${canContest?`<button class="btn secondary" type="button"
+              onclick="contestRoFromList('${escapeHtml(r.numero)}','${escapeHtml(responsibleSector)}')">Contestar</button>`:''}
           </div>
         </td>`;
     }else{
@@ -15123,20 +15120,24 @@ function startPdcaFromList(numero){
   openPDCA();
 }
 
-function contestRoFromList(numero){
+function nucleoCanContestRo(ro,triageMap,pdcaByRo,tri=getRoTriageRecord(ro,triageMap)){
+  if(!ro||!nucleoPersonFeatureCan('ros','contest')||tri?.decision!=='directed'||!canViewRO(ro,triageMap))return false;
+  const session=getSession();
+  const author=normalizeAnswer(roRegistrantName(ro)||'');
+  if(wasRoSubmittedByCurrentUser(ro)||(author&&author===normalizeAnswer(session?.name||'')))return false;
+  const recipientEmail=String(tri.responsibleUserEmail||'').trim().toLowerCase();
+  if(recipientEmail?recipientEmail!==String(session?.email||'').trim().toLowerCase():!userMatchesDirectedPerson(tri))return false;
+  if(isAdmin()&&!recipientEmail&&!tri.responsibleUserName)return false;
+  if(/cancel|registro|obsolet|contest|respondid|apresentad|pdca enviado|finalizad|concluid/.test(normalizeAnswer(ro.status||'')))return false;
+  if(pdcaExternalExists(ro,triageMap)||tri.pdcaResponded===true||String(ro.pdca||'')==='Enviado')return false;
+  return !getPdcaReturnForRo({...ro,__assignedSector:'',__triageRecord:null},pdcaByRo);
+}
+
+function contestRoFromList(numero,sector){
   const ro=selectRoForOperationalAction(numero);
   if(!ro)return;
-
-  if(['Cancelada','Somente para registro'].includes(ro.status)){
-    alert('Esta R.O. está encerrada e não pode ser contestada por este fluxo.');
-    return;
-  }
-  if(ro.status==='Em contestação'){
-    alert('Esta R.O. já está em contestação.');
-    return;
-  }
-
-  try{fillDetail()}catch(e){console.warn('Falha ao preparar detalhes antes da contestação.',e)}
+  const tri=sector?getTriageRecordForRoSector(numero,sector)||getRoTriageRecord(ro):getRoTriageRecord(ro);
+  selected={...ro,__assignedSector:sector||tri?.responsibleSector,__triageRecord:tri};
   openContest();
 }
 
@@ -15156,7 +15157,7 @@ function view(id){
   const returnPanel=document.getElementById('complainantReturnPanel');
   if(returnPanel)returnPanel.classList.add('hidden');
   if(pdcaBtn)pdcaBtn.style.display='';
-  if(contestBtn)contestBtn.style.display='';
+  if(contestBtn)contestBtn.style.display='none';
   setTimeout(refreshRoPdfAccess,0);
   const __ro=ros.find(r=>(r.id||r.codigo||r.numero)===n || r.numero===n);
   if(!__ro || !canViewRO(__ro)){alert('R.O. não encontrada ou indisponível.');showList();return;}
@@ -15166,7 +15167,7 @@ function view(id){
   setTimeout(refreshRoPdfAccess,0);
   setNav('ros');
 }function fillDetail(){
-  document.getElementById('submittedRoDecisionInfo')?.remove();dNumero.textContent=selected.numero;dCliente.textContent=selected.cliente;dStatus.textContent=selected.status;dStatus.className=badgeClass(selected.status);dUnidade.textContent=selected.unidade;dSetor.textContent=selected.setor;dData.textContent=selected.data;dPrazo.textContent=selected.prazo;dDescricao.textContent=selected.descricao;const noPDCA=['Cancelada','Somente para registro'].includes(selected.status),contest=selected.status==='Em contestação';const hasResponse=selectedRoHasPdcaResponse(selected);pdcaBtn.hidden=hasResponse;pdcaBtn.disabled=noPDCA||contest||hasResponse;contestBtn.disabled=noPDCA||contest;if(pdcaBtn&&!pdcaBtn.disabled){const roKey=selected.numero||selected.id||selected.codigo||'';pdcaBtn.textContent=isPdcaStarted(roKey)?'Continuar a responder o PDCA':'Responder o PDCA';}dNotice.classList.toggle('hidden',!(noPDCA||contest));dNotice.textContent=contest?'O PDCA está suspenso enquanto a contestação estiver em análise pelo SGQ.':noPDCA?'Esta R.O. não exige PDCA.':'';refreshContestUserStatus();refreshFavoriteButton();renderRoTimeline();renderRoIntelligence()}
+  document.getElementById('submittedRoDecisionInfo')?.remove();dNumero.textContent=selected.numero;dCliente.textContent=selected.cliente;dStatus.textContent=selected.status;dStatus.className=badgeClass(selected.status);dUnidade.textContent=selected.unidade;dSetor.textContent=selected.setor;dData.textContent=selected.data;dPrazo.textContent=selected.prazo;dDescricao.textContent=selected.descricao;const noPDCA=['Cancelada','Somente para registro'].includes(selected.status),contest=selected.status==='Em contestação';const hasResponse=selectedRoHasPdcaResponse(selected);pdcaBtn.hidden=hasResponse;pdcaBtn.disabled=noPDCA||contest||hasResponse;contestBtn.disabled=!nucleoCanContestRo(selected);contestBtn.style.display=contestBtn.disabled||detailReturnView==='mysubmitted'?'none':'';if(pdcaBtn&&!pdcaBtn.disabled){const roKey=selected.numero||selected.id||selected.codigo||'';pdcaBtn.textContent=isPdcaStarted(roKey)?'Continuar a responder o PDCA':'Responder o PDCA';}dNotice.classList.toggle('hidden',!(noPDCA||contest));dNotice.textContent=contest?'O PDCA está suspenso enquanto a contestação estiver em análise pelo SGQ.':noPDCA?'Esta R.O. não exige PDCA.':'';refreshContestUserStatus();refreshFavoriteButton();renderRoTimeline();renderRoIntelligence()}
 function roSummaryData(){
   const source=(typeof ROs!=='undefined' ? ROs : (typeof ros!=='undefined' ? ros : []));
   const triageMap=getSavedTriageMap();
@@ -15565,7 +15566,7 @@ function openSubmittedRoTracking(numero){
   // Tracking is read-only when the current user's sector is not the responsible sector.
   const canTreat=canViewRO(ro);
   if(pdcaBtn)pdcaBtn.style.display=canTreat?'':'none';
-  if(contestBtn)contestBtn.style.display=canTreat?'':'none';
+  if(contestBtn)contestBtn.style.display='none';
 
   view('detailView');
   setNav('mysubmitted');
@@ -16341,7 +16342,7 @@ function goFirstMissingQuestion(){
 }
 
 function changeStage(d){activeStage=Math.max(0,Math.min(stages.length-1,activeStage+d));renderStage();window.scrollTo({top:0,behavior:'smooth'})}function openContest(){
-  if(!nucleoFeatureRequire('ros','contest'))return;
+  if(!nucleoCanContestRo(selected)){alert('A contestação está disponível somente ao destinatário, antes da resposta.');return;}
   const modal=document.getElementById('contestModal');
   if(!modal){
     alert('Não foi possível abrir a contestação.');
@@ -16356,8 +16357,8 @@ function changeStage(d){activeStage=Math.max(0,Math.min(stages.length-1,activeSt
 }function closeContest(){
   const modal=document.getElementById('contestModal');
   if(modal)modal.classList.add('hidden');
-}function submitContest(){
-  if(!nucleoFeatureRequire('ros','contest'))return;
+}async function submitContest(){
+  if(!nucleoCanContestRo(selected)){alert('A contestação está disponível somente ao destinatário, antes da resposta.');return;}
   const textEl=document.getElementById('contestText');
   const sectorEl=document.getElementById('contestSector');
   const reason=String(textEl?.value||'').trim();
@@ -16392,7 +16393,7 @@ function changeStage(d){activeStage=Math.max(0,Math.min(stages.length-1,activeSt
   }
 
   const baseRo=getAllRoRecords().find(r=>String(r.numero||r.id||r.codigo||'').trim()===roNumber);
-  const tri=baseRo?getRoTriageRecord(baseRo):null;
+  const tri=getRoTriageRecord(selected)||(baseRo?getRoTriageRecord(baseRo):null);
   const currentResponsibleSector=String(
     tri?.responsibleSector ||
     selected.setorResponsavel ||
@@ -16414,8 +16415,15 @@ function changeStage(d){activeStage=Math.max(0,Math.min(stages.length-1,activeSt
     createdAt:new Date().toISOString()
   };
 
-  list.unshift(record);
-  saveContestations(list);
+  const submitButton=document.querySelector('#contestModal button[onclick*="submitContest"]');
+  if(submitButton?.disabled)return;
+  if(submitButton)submitButton.disabled=true;
+  try{
+    const result=await portalJsonp({acao:'portal_save',colecao:'contestations',id:record.id,dados:JSON.stringify(record)},60000);
+    if(!result?.sucesso)throw Error(result?.erro||'A base central não confirmou a contestação.');
+    localStorage.setItem(CONTEST_KEY,JSON.stringify([record,...getContestations()]));
+  }catch(error){alert(error.message);return;}
+  finally{if(submitButton)submitButton.disabled=false;}
 
   if(getRuleYes('ruleContestSuspends')){
     selected.status='Em contestação';
