@@ -28,7 +28,7 @@ function nucleoLoadAdminModule(){
   if(nucleoAdminModulePromise)return nucleoAdminModulePromise;
   nucleoAdminModulePromise=new Promise((resolve,reject)=>{
     const script=document.createElement('script');
-    script.src=new URL('assets/modules/admin-workspaces.js?v=20261111-meus-setores-v92',document.baseURI).href;
+    script.src=new URL('assets/modules/admin-workspaces.js?v=20261111-equipe-cadastro-v93',document.baseURI).href;
     const timer=setTimeout(()=>finish(new Error('Tempo limite ao carregar o módulo.')),20000);
     function finish(error){clearTimeout(timer);script.onload=script.onerror=null;if(error){script.remove();nucleoAdminModulePromise=null;reject(error)}else resolve();}
     script.onload=()=>finish();
@@ -1263,6 +1263,7 @@ function applyPortalBackendSnapshot(snapshot){
   if(Array.isArray(data.users)){
     const filteredUsers=data.users.filter(u=>!isDeletedUserRecord(u));
     localStorage.setItem(USERS_KEY,JSON.stringify(filteredUsers));
+    if(nucleoInlineTeamData?.length&&document.getElementById('overviewTeamPeople'))nucleoRenderInlineTeam(nucleoInlineTeamExpanded);
   }
   if(Array.isArray(data.announcements)){
     const localAnnouncements=data.announcements.map(a=>{
@@ -17792,11 +17793,12 @@ async function nucleoRenderMySectorPreferences(host){
 var nucleoMyTeamData=[];
 async function nucleoOpenMyTeam(){
  const old=document.getElementById('myTeamOverlay');old?.remove();const overlay=document.createElement('div');overlay.id='myTeamOverlay';overlay.style.cssText='position:fixed;inset:0;background:#0008;z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px';overlay.innerHTML='<div style="background:white;padding:24px;border-radius:16px;width:min(850px,96vw);max-height:85vh;overflow:auto"><div style="display:flex;justify-content:space-between;align-items:center"><h3>Minha equipe</h3><button class="btn secondary" onclick="document.getElementById(\'myTeamOverlay\').remove()">Fechar</button></div><p class="small">Gestores e colegas com cadastro aprovado e ativo nos seus setores.</p><div id="myTeamFilters"></div><div id="myTeamContents" role="status">Carregando equipes da base central…</div></div>';document.body.appendChild(overlay);
- try{const result=await portalJsonp({acao:'portal_my_team'},60000);if(!result?.sucesso)throw new Error(result?.erro||'Não foi possível carregar a equipe.');if(!overlay.isConnected)return;nucleoMyTeamData=result.teams||[];document.getElementById('myTeamFilters').innerHTML='<div class="actions"><label>Setor <select id="myTeamSector"><option value="all">Todos os meus setores</option>'+[...new Set(nucleoMyTeamData.map(t=>t.sector))].map(s=>'<option value="'+escapeHtml(s)+'">'+escapeHtml(s)+'</option>').join('')+'</select></label><label>Unidade <select id="myTeamUnit"><option value="all">Todas as minhas unidades</option>'+[...new Set(nucleoMyTeamData.map(t=>t.unit))].map(u=>'<option value="'+escapeHtml(u)+'">'+(u==='filial'?'Filial — Linhares':'Matriz')+'</option>').join('')+'</select></label></div>';['myTeamSector','myTeamUnit'].forEach(id=>document.getElementById(id).onchange=nucleoRenderMyTeam);nucleoRenderMyTeam();}catch(err){if(overlay.isConnected)document.getElementById('myTeamContents').textContent='Não foi possível consultar: '+err.message;}
+ try{const result=await nucleoLoadTeamProfiles();if(!result?.sucesso)throw new Error(result?.erro||'Não foi possível carregar a equipe.');if(!overlay.isConnected)return;nucleoMyTeamData=result.teams||[];document.getElementById('myTeamFilters').innerHTML='<div class="actions"><label>Setor <select id="myTeamSector"><option value="all">Todos os meus setores</option>'+[...new Set(nucleoMyTeamData.map(t=>t.sector))].map(s=>'<option value="'+escapeHtml(s)+'">'+escapeHtml(s)+'</option>').join('')+'</select></label><label>Unidade <select id="myTeamUnit"><option value="all">Todas as minhas unidades</option>'+[...new Set(nucleoMyTeamData.map(t=>t.unit))].map(u=>'<option value="'+escapeHtml(u)+'">'+(u==='filial'?'Filial — Linhares':'Matriz')+'</option>').join('')+'</select></label></div>';['myTeamSector','myTeamUnit'].forEach(id=>document.getElementById(id).onchange=nucleoRenderMyTeam);nucleoRenderMyTeam();}catch(err){if(overlay.isConnected)document.getElementById('myTeamContents').textContent='Não foi possível consultar: '+err.message;}
 }
 function nucleoRenderMyTeam(){
  const host=document.getElementById('myTeamContents');if(!host)return;const sector=document.getElementById('myTeamSector')?.value||'all',unit=document.getElementById('myTeamUnit')?.value||'all',teams=nucleoMyTeamData.filter(t=>(sector==='all'||t.sector===sector)&&(unit==='all'||t.unit===unit));
- host.innerHTML=teams.map(t=>'<section style="border:1px solid #dce5ee;border-radius:12px;padding:18px;margin-top:16px"><h3 style="margin:0">'+escapeHtml(t.sector)+'</h3><p class="small">'+(t.unit==='filial'?'Filial — Linhares':'Matriz')+' · '+t.people.length+' pessoa(s)</p>'+(!t.people.some(p=>p.manager)?'<p class="small">Nenhum gestor cadastrado para esta equipe.</p>':'')+'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">'+t.people.map(nucleoTeamPersonCard).join('')+'</div></section>').join('')||'<p>Nenhuma equipe disponível para esta seleção.</p>';
+ const directory=nucleoTeamDirectoryById();
+ host.innerHTML=teams.map(t=>'<section style="border:1px solid #dce5ee;border-radius:12px;padding:18px;margin-top:16px"><h3 style="margin:0">'+escapeHtml(t.sector)+'</h3><p class="small">'+(t.unit==='filial'?'Filial — Linhares':'Matriz')+' · '+t.people.length+' pessoa(s)</p>'+(!t.people.some(p=>p.manager)?'<p class="small">Nenhum gestor cadastrado para esta equipe.</p>':'')+'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">'+t.people.map(person=>nucleoTeamPersonCard(person,directory)).join('')+'</div></section>').join('')||'<p>Nenhuma equipe disponível para esta seleção.</p>';
 }
 
 var nucleoAiScoreState;
@@ -17903,14 +17905,14 @@ async function finalizeAndSendSac(id){
  }catch(e){status.textContent=e.message;}
 }
 
-var nucleoInlineTeamKey='',nucleoInlineTeamPromise=null,nucleoInlineTeamAt=0,nucleoInlineTeamData=[];
+var nucleoInlineTeamExpanded=false,nucleoInlineTeamKey='',nucleoInlineTeamPromise=null,nucleoInlineTeamAt=0,nucleoInlineTeamData=[];
 async function nucleoEnsureInlineTeam(){
  const page=document.getElementById('listView');if(!page)return;
  let box=document.getElementById('overviewTeam');if(!box){box=document.createElement('section');box.id='overviewTeam';box.className='overview-panel';box.style.marginTop='16px';box.innerHTML='<h3 style="margin:0 0 10px">Minha equipe</h3><div id="overviewTeamFilters" class="actions" style="align-items:center"></div><div id="overviewTeamPeople" role="status">Carregando equipe…</div>';page.appendChild(box);}
- const key=JSON.stringify([getSession()?.email,getSession()?.personId,getSession()?.name,getSession()?.token]);
+ const key=JSON.stringify([getSession()?.email,getSession()?.personId,getSession()?.name,getSession()?.authToken]);
  if(key===nucleoInlineTeamKey&&(nucleoInlineTeamPromise||Date.now()-nucleoInlineTeamAt<60000))return;
  nucleoInlineTeamKey=key;nucleoInlineTeamAt=0;document.getElementById('overviewTeamPeople').textContent='Carregando equipe…';
- const request=portalJsonp({acao:'portal_my_team'},60000);nucleoInlineTeamPromise=request;
+ const request=nucleoLoadTeamProfiles();nucleoInlineTeamPromise=request;
  try{const result=await request;if(key!==nucleoInlineTeamKey)return;if(!result?.sucesso)throw Error(result?.erro||'Consulta não concluída.');nucleoInlineTeamData=result.teams||[];nucleoInlineTeamAt=Date.now();
  document.getElementById('overviewTeamFilters').innerHTML='<label>Setor <select id="overviewTeamSector" onchange="nucleoRenderInlineTeam(false)"><option value="all">Todos os meus setores</option>'+[...new Set(nucleoInlineTeamData.map(t=>t.sector))].map(t=>'<option value="'+escapeHtml(t)+'">'+escapeHtml(t)+'</option>').join('')+'</select></label><label>Unidade <select id="overviewTeamUnit" onchange="nucleoRenderInlineTeam(false)"><option value="all">Todas as minhas unidades</option>'+[...new Set(nucleoInlineTeamData.map(t=>t.unit))].map(t=>'<option value="'+escapeHtml(t)+'">'+(t==='filial'?'Filial — Linhares':'Matriz')+'</option>').join('')+'</select></label>';nucleoRenderInlineTeam(false);
  }catch(e){if(key===nucleoInlineTeamKey)document.getElementById('overviewTeamPeople').textContent='Não foi possível carregar a equipe. Clique em Atualizar para tentar novamente.';}finally{if(nucleoInlineTeamPromise===request)nucleoInlineTeamPromise=null;}
@@ -17928,21 +17930,51 @@ function nucleoUniqueTeamPeople(teams,sector,unit){
  });
  return [...people.values()];
 }
-function nucleoTeamPersonCard(person){
+async function nucleoLoadTeamProfiles(){
+ const token=getSession()?.authToken;
+ const result=await portalJsonp({acao:'portal_my_team'},60000);
+ if(getSession()?.authToken!==token)throw Error('A sessão mudou durante a consulta.');
+ return result;
+}
+
+function nucleoTeamRegisteredUnits(user){
+ if(!user)return [];
+ const units=(Array.isArray(user.accessUnits)?user.accessUnits:[]).map(value=>normalizeAnswer(value)==='todas'?'todas':explicitPortalUnit(value)).filter(Boolean);
+ if(units.includes('todas'))return ['matriz','filial'];
+ if(units.length)return units;
+ if(user.role==='admin'||normalizeAnswer(user.unit)==='todas')return ['matriz','filial'];
+ const unit=explicitPortalUnit(user.unit)||(user.role==='quality'?'filial':'');
+ return unit?[unit]:[];
+}
+
+function nucleoTeamDirectoryById(){
+ let users=[];
+ try{const stored=JSON.parse(localStorage.getItem(USERS_KEY)||'[]');if(Array.isArray(stored))users=stored;}catch(_){}
+ const session=getSession();
+ const byId=new Map(users.filter(user=>user?.personId).map(user=>[String(user.personId),user]));
+ if(session?.personId)byId.set(String(session.personId),session);
+ return byId;
+}
+
+function nucleoTeamPersonCard(person,directory=new Map()){
+ const registered=directory.get(String(person.personId||person.personKey||''))||(person.self?getSession():null);
+
  const {name}=splitPersonNameDescription(person.name,person.description||undefined);
- const units=Array.isArray(person.accessUnits)?person.accessUnits:[];
+ const units=person.accessUnits?.length?person.accessUnits:nucleoTeamRegisteredUnits(registered);
  const matriz=units.includes('matriz'),filial=units.includes('filial');
  const unitLabel=matriz&&filial?'Matriz e Filial':matriz?'Matriz':filial?'Filial':'Unidade não informada';
  return '<div class="inline-team-person" style="background:'+(person.manager?'#eef4ff':'#f6f8fa')+'">'+nucleoAvatarHtml(person.avatar)+
-  '<div><strong>'+escapeHtml(name)+'</strong><div class="small">'+escapeHtml(person.primarySector||'Setor não informado')+
+  '<div><strong>'+escapeHtml(name)+'</strong><div class="small">'+escapeHtml(person.primarySector||registered?.sector||'Setor não informado')+
   '</div><div class="small">'+escapeHtml(unitLabel)+'</div></div></div>';
 }
 function nucleoRenderInlineTeam(expanded){
+ nucleoInlineTeamExpanded=expanded;
  const host=document.getElementById('overviewTeamPeople');if(!host)return;
  const sector=document.getElementById('overviewTeamSector')?.value||'all',unit=document.getElementById('overviewTeamUnit')?.value||'all';
  const people=nucleoUniqueTeamPeople(nucleoInlineTeamData,sector,unit);
  const width=host.clientWidth||window.innerWidth,columns=width<520?1:width<850?2:4,limit=columns*2;
- host.innerHTML='<div class="inline-team-grid">'+people.slice(0,expanded?people.length:limit).map(nucleoTeamPersonCard).join('')+'</div>'+(people.length>limit?'<button class="btn secondary" style="margin-top:12px" onclick="nucleoRenderInlineTeam('+(!expanded)+')">'+(expanded?'Ver menos':'Ver mais')+'</button>':'')+(!people.length?'<p class="small">Nenhuma equipe disponível para esta seleção.</p>':'');
+ const directory=nucleoTeamDirectoryById();
+ host.innerHTML='<div class="inline-team-grid">'+people.slice(0,expanded?people.length:limit).map(person=>nucleoTeamPersonCard(person,directory)).join('')+'</div>'+(people.length>limit?'<button class="btn secondary" style="margin-top:12px" onclick="nucleoRenderInlineTeam('+(!expanded)+')">'+(expanded?'Ver menos':'Ver mais')+'</button>':'')+(!people.length?'<p class="small">Nenhuma equipe disponível para esta seleção.</p>':'');
  const grid=host.querySelector('.inline-team-grid');grid.style.gridTemplateColumns='repeat('+columns+',minmax(0,1fr))';
 }
 window.addEventListener('resize',()=>{clearTimeout(window.nucleoTeamResizeTimer);window.nucleoTeamResizeTimer=setTimeout(()=>{if(document.getElementById('overviewTeamPeople'))nucleoRenderInlineTeam(false);},150);});
