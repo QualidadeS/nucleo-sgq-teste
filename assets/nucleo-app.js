@@ -6,6 +6,12 @@ if(new URLSearchParams(location.search).get('recuperar')==='1'){
 const NUCLEO_DEFAULT_DECISIONS=[{"id":"directed","label":"Direcionar para tratativa","behavior":"directed","active":true,"requireSector":true,"requireReason":true,"pdcaRequired":true,"deadlineDays":null,"color":"#eef4ff"},{"id":"record","label":"Somente para registro","behavior":"record","active":true,"requireSector":false,"requireReason":true,"pdcaRequired":false,"deadlineDays":null,"color":"#fff9e5"},{"id":"cancelled","label":"Cancelar R.O.","behavior":"cancelled","active":true,"requireSector":false,"requireReason":true,"pdcaRequired":false,"deadlineDays":null,"color":"#fff0f0"},{"id":"obsolete","label":"Obsoleta","behavior":"obsolete","active":true,"requireSector":false,"requireReason":true,"pdcaRequired":false,"deadlineDays":null,"color":"#f0f1f3"},{"id":"falta_caixa","label":"Falta de caixa","behavior":"record","active":true,"requireSector":false,"requireReason":false,"pdcaRequired":false,"deadlineDays":null,"color":"#fff9e5"}];
 const NUCLEO_FEATURE_BUTTONS={"showList":["ros","consult"],"showAssignedRos":["ros","assigned"],"showMySubmittedRos":["ros","submitted"],"showTriage":["ros","triage"],"openTriageRecord":["ros","triage"],"saveTriageRecord":["ros","triage"],"showContestations":["ros","reviewContests"],"reviewContestation":["ros","reviewContests"],"submitContest":["ros","contest"],"openContest":["ros","contest"],"startPdcaFromList":["pdca","respond"],"openPDCA":["pdca","respond"],"finishPDCA":["pdca","respond"],"showSentPdcas":["pdca","received"],"showActionsDashboard":["pdca","actions"],"showPendingActions":["pdca","reviewActions"],"confirmActionCompletion":["pdca","reviewActions"],"markActionCompleted":["pdca","reviewActions"],"registerActionEvidence":["pdca","completeAction"],"presentPdca":["pdca","present"],"presentCurrentPdca":["pdca","present"],"savePdcaPresentationRecord":["pdca","present"],"finalizeAndSendSac":["sac","finalize"],"saveSacEditForm":["sac","edit"],"saveExternalRoControl":["sac","edit"],"saveSacDecisionLocally":["sac","edit"],"publishAnnouncement":["announcements","publish"],"openStandardDocumentCreate":["documents","standards"],"saveStandardDocument":["documents","standards"],"toggleStandardDocument":["documents","standards"],"deleteStandardDocument":["documents","standards"],"addOperationalUser":["users","create"],"approvePortalUser":["users","approve"],"rejectPortalUser":["users","approve"],"openUserRegistrationEditor":["users","edit"],"saveUserRegistrationEditor":["users","edit"],"removeOperationalUserByKey":["users","delete"],"saveSectorConfiguration":["sectors","edit"],"saveFixedEmailCopies":["sectors","emails"],"saveRncProcessTemplateFromForm":["processes","templates"],"deleteAssignedDirection":["ros","triage"],"openAssignedSectorEdit":["ros","triage"],"endAnnouncement":["announcements","publish"],"openUnitUserAccess":["users","permissions"],"showAnnouncementsAdmin":["announcements","publish"],"openAdminResetPassword":["users","edit"]};
 const NUCLEO_PERSON_FEATURES={"ros":{"consult":["Consultar R.O.s disponíveis",false,"view"],"submitted":["R.O.s cadastradas por mim",false,"view"],"assigned":["R.O.s atribuídas",false,"view"],"triage":["Triar, classificar e direcionar",true,"manage"],"contest":["Criar contestações",true,"view"],"reviewContests":["Analisar contestações",true,"manage"],"claimant":["Alterar e confirmar reclamante",true,"manage"]},"pdca":{"received":["Consultar PDCAs recebidos",false,"view"],"respond":["Responder e continuar PDCA",true,"view"],"actions":["Consultar ações",false,"view"],"completeAction":["Registrar conclusão e evidências",true,"view"],"reviewActions":["Conferir e aprovar ações",true,"manage"],"import":["Importar e vincular respostas",true,"manage"],"present":["Registrar apresentação",true,"manage"],"dispatch":["Despachar resposta ao reclamante",true,"manage"]},"sac":{"consult":["Consultar SACs",false,"view"],"edit":["Classificar e editar SACs",true,"manage"],"finalize":["Finalizar e enviar SAC",true,"manage"]},"documents":{"consult":["Consultar documentos e solicitações",false,"view"],"request":["Criar solicitação de documento",true,"view"],"standards":["Cadastrar e alterar documentos padrão",true,"manage"],"prepare":["Preencher e armazenar documento solicitado",true,"manage"],"deliver":["Enviar e entregar documentos",true,"manage"],"history":["Consultar histórico de entregas",false,"manage"]},"indicators":{"consult":["Consultar indicadores",false,"view"]},"announcements":{"consult":["Consultar comunicados",false,"view"],"publish":["Emitir, alterar e encerrar comunicados",true,"manage"]},"equipment":{"consult":["Consultar equipamentos",false,"view"],"pending":["Consultar calibrações pendentes",false,"view"],"history":["Consultar histórico metrológico",false,"view"],"edit":["Cadastrar e alterar equipamentos",true,"manage"],"delete":["Excluir equipamentos",true,"manage"]},"training":{"consult":["Consultar treinamentos",false,"view"],"pending":["Consultar reciclagens pendentes",false,"view"],"history":["Consultar histórico de competências",false,"view"],"edit":["Cadastrar e alterar treinamentos",true,"manage"],"delete":["Excluir treinamentos",true,"manage"]},"nc":{"consult":["Consultar RNCs e tratamento",false,"view"],"edit":["Cadastrar e alterar RNCs",true,"manage"],"send":["Enviar RNC e anexar fotos",true,"manage"],"delete":["Excluir RNCs",true,"manage"]},"processes":{"consult":["Consultar documentos vigentes",false,"view"],"review":["Consultar documentos em revisão",false,"view"],"history":["Consultar histórico documental",false,"view"],"edit":["Cadastrar e alterar documentos internos",true,"manage"],"templates":["Alterar modelos e estrutura dos formulários",true,"manage"],"delete":["Excluir documentos internos",true,"manage"]},"users":{"consult":["Consultar cadastros",false,"manage"],"create":["Cadastrar pessoas",true,"manage"],"edit":["Editar nomes, dados e setores",true,"manage"],"approve":["Aprovar e bloquear cadastros",true,"manage"],"permissions":["Definir permissões de outras pessoas",true,"manage"],"delete":["Excluir usuários",true,"manage"]},"sectors":{"decisions":["Editar decisões e regras de R.O.",true,"manage"],"consult":["Consultar configurações da unidade",false,"manage"],"edit":["Cadastrar e alterar setores",true,"manage"],"emails":["Alterar destinatários e cópias padrão",true,"manage"],"folders":["Alterar e validar pastas do Drive",true,"manage"],"documentTypes":["Editar tipos de documentos",true,"manage"]}};
+const NUCLEO_PERMISSION_MODULE_KEYS={
+ documents:'documentos',indicators:'indicadores',announcements:'comunicados',
+ equipment:'equipamentos',training:'treinamentos',nc:'rnc',
+ processes:'gestao-processos',users:'usuarios-acessos'
+};
+const nucleoPermissionCache=new WeakMap();
 const NUCLEO_PERSON_MODULES={"ros": "R.O.s", "pdca": "PDCAs e ações", "sac": "SACs", "documents": "Documentos", "indicators": "Indicadores", "announcements": "Comunicados", "equipment": "Equipamentos", "training": "Treinamentos", "nc": "RNCs", "processes": "Gestão de processos", "users": "Usuários e acessos", "sectors": "Setores da unidade"};
 // Telas administrativas carregadas somente quando solicitadas.
 let nucleoAdminModulePromise=null;
@@ -14,7 +20,7 @@ function nucleoLoadAdminModule(){
   if(nucleoAdminModulePromise)return nucleoAdminModulePromise;
   nucleoAdminModulePromise=new Promise((resolve,reject)=>{
     const script=document.createElement('script');
-    script.src=new URL('assets/modules/admin-workspaces.js?v=20261111-acessos-pessoa-v82',document.baseURI).href;
+    script.src=new URL('assets/modules/admin-workspaces.js?v=20261111-acessos-integrados-v83',document.baseURI).href;
     const timer=setTimeout(()=>finish(new Error('Tempo limite ao carregar o módulo.')),20000);
     function finish(error){clearTimeout(timer);script.onload=script.onerror=null;if(error){script.remove();nucleoAdminModulePromise=null;reject(error)}else resolve();}
     script.onload=()=>finish();
@@ -9345,7 +9351,7 @@ function renderSgqCharts(d){
 }
 
 function renderSgqIndicators(){
-  if(!isAdmin()){showList();return}
+  if(!nucleoPersonFeatureCan('indicators','consult'))return;
   nucleoRefreshIndicatorDecisions();
   nucleoRefreshIndicatorClassificationOptions();
   const d=sgqIndicatorData();
@@ -9405,7 +9411,6 @@ function renderSgqIndicators(){
 }
 async function showSgqIndicators(){
  if(!nucleoFeatureRequire('indicators','consult'))return;
-  if(!isAdmin()){showList();return}
   view('sgqIndicatorsView');
   setNav('indicators');
   populateSgqIndicatorUnits();
@@ -17137,7 +17142,20 @@ async function nucleoSyncAfterLogin(token){
 }
 
 function nucleoPersonPermissions(user){
- if(user.permissions?.version===1)return user.permissions;
+ if(user.permissions?.version===1){
+  const saved=user.permissions;
+  if(nucleoPermissionCache.has(saved))return nucleoPermissionCache.get(saved);
+  const normalized={...saved,modules:{},features:{}};
+  for(const module of Object.keys(NUCLEO_PERSON_MODULES)){
+   const key=NUCLEO_PERMISSION_MODULE_KEYS[module]||module;
+   for(const group of ['modules','features']){
+    const value=saved[group]?.[key]??saved[group]?.[module];
+    if(value)normalized[group][module]=value;
+   }
+  }
+  nucleoPermissionCache.set(saved,normalized);
+  return normalized;
+ }
  const elevated=['admin','quality'].includes(user.role),modules={};Object.keys(NUCLEO_PERSON_MODULES).forEach(k=>modules[k]={view:elevated||['ros','pdca','sac'].includes(k),manage:elevated});
  if(!elevated)modules.documents.view=['comercial interno','comercial externo','diretoria','sgq'].includes(normalizeAnswer(user.sector||''));
  return {version:1,modules,registerRo:user.role!=='admin',registerExternal:user.role==='quality'||['comercial interno','comercial externo','diretoria','processos','sgq'].includes(normalizeAnswer(user.sector||'')),sgq:user.role==='admin'};
