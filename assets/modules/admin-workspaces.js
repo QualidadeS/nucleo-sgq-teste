@@ -65,6 +65,7 @@ function nucleoEquipmentScheduleSummary(r){
   return `Agendada para ${date}${r.scheduledCalibrationCompany?' · '+escapeHtml(r.scheduledCalibrationCompany):''}`;
 }
 function nucleoEquipmentOpenSchedule(id){
+  if(!nucleoFeatureRequire('equipment','edit'))return;
   const r=nucleoEquipmentRows().find(x=>String(x.id)===String(id));if(!r)return;
   let ov=document.getElementById('equipmentScheduleOverlay');if(ov)ov.remove();
   ov=document.createElement('div');ov.id='equipmentScheduleOverlay';ov.className='modal';ov.style.zIndex='100410';
@@ -72,6 +73,7 @@ function nucleoEquipmentOpenSchedule(id){
   document.body.appendChild(ov);
 }
 function nucleoEquipmentSaveSchedule(id){
+  if(!nucleoFeatureRequire('equipment','edit'))return;
   const r=nucleoEquipmentRows().find(x=>String(x.id)===String(id));if(!r)return;
   const date=String(document.getElementById('eqScheduleDate')?.value||'').trim();if(!date)return alert('Informe a data agendada.');
   const company=String(document.getElementById('eqScheduleCompany')?.value||'').trim(),notes=String(document.getElementById('eqScheduleNotes')?.value||'').trim();
@@ -80,6 +82,7 @@ function nucleoEquipmentSaveSchedule(id){
   const all=getAdminModuleRecords(),ix=all.findIndex(x=>String(x.id)===String(id));if(ix>=0)all[ix]=updated;saveAdminModuleRecords(all);portalBackendSave('admin_modules',id,updated);try{nucleoClearEquipmentNotifications(id)}catch(e){}document.getElementById('equipmentScheduleOverlay')?.remove();renderEquipmentControlWorkspace('active');try{nucleoRefreshMetrologyAlertsForCurrentUser()}catch(e){}
 }
 function nucleoEquipmentCancelSchedule(id){
+  if(!nucleoFeatureRequire('equipment','edit'))return;
   const r=nucleoEquipmentRows().find(x=>String(x.id)===String(id));if(!r||!confirm('Cancelar o agendamento desta calibração?'))return;
   const event={id:'MET-SCH-CANCEL-'+Date.now(),type:'schedule_cancelled',typeLabel:'Agendamento cancelado',date:new Date().toISOString().slice(0,10),responsible:getSession()?.name||'SGQ',actor:getSession()?.name||'SGQ',at:new Date().toISOString()};
   const updated={...r,calibrationScheduled:false,scheduledCalibrationDate:'',scheduledCalibrationCompany:'',scheduledCalibrationNotes:'',metrologyHistory:[...(Array.isArray(r.metrologyHistory)?r.metrologyHistory:[]),event],updatedAt:new Date().toISOString(),updatedBy:getSession()?.name||'SGQ'};
@@ -577,28 +580,41 @@ function nucleoEquipmentRows(){
   return getAdminModuleRecords().filter(r=>r.module==='equipment'&&nucleoManagerScopeAllows(r)).slice().sort((a,b)=>String(a.title||'').localeCompare(String(b.title||''),'pt-BR'));
 }
 function renderEquipmentHomeOverview(){
+  if(!nucleoPersonFeatureCan('equipment','consult'))return;
   const host=document.getElementById('adminModuleContent');if(!host)return;
   const records=nucleoEquipmentRows();
   const overdue=records.filter(r=>['overdue','today'].includes(nucleoEquipmentCalibrationState(r).key)).length;
   const warning=records.filter(r=>nucleoEquipmentCalibrationState(r).key==='warning').length;
   const panel=document.createElement('div');panel.style.cssText='grid-column:1/-1;margin-top:16px';panel.innerHTML=`
     <div class="card" style="padding:18px">
-      <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap"><div><b>Visão dos equipamentos</b><div class="small" style="margin-top:4px">Veja o cadastro, a situação metrológica e teste o alerta de calibração.</div></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn secondary" type="button" onclick="nucleoOpenMetrologyAlertPreferences()">Meus alertas</button><button class="btn secondary" type="button" onclick="nucleoEquipmentOpenAlertTester()">Testar alerta de calibração</button><button class="btn primary" type="button" onclick="renderEquipmentControlWorkspace('active')">Ver lista completa</button></div></div>
+      <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap"><div><b>Visão dos equipamentos</b><div class="small" style="margin-top:4px">Veja o cadastro, a situação metrológica e teste o alerta de calibração.</div></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn secondary" type="button" onclick="nucleoOpenMetrologyAlertPreferences()">Meus alertas</button>${nucleoPersonFeatureCan('equipment','edit')?`<button class="btn secondary" type="button" onclick="nucleoEquipmentOpenAlertTester()">Testar alerta de calibração</button>`:''}<button class="btn primary" type="button" onclick="renderEquipmentControlWorkspace('active')">Ver lista completa</button></div></div>
       <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:14px"><div style="padding:12px;border:1px solid #e4e7ec;border-radius:10px"><span class="small">EQUIPAMENTOS</span><div style="font-size:22px;font-weight:700">${records.length}</div></div><div style="padding:12px;border:1px solid #e4e7ec;border-radius:10px"><span class="small">VENCIDOS / HOJE</span><div style="font-size:22px;font-weight:700;color:#b42318">${overdue}</div></div><div style="padding:12px;border:1px solid #e4e7ec;border-radius:10px"><span class="small">EM ALERTA</span><div style="font-size:22px;font-weight:700;color:#8a6100">${warning}</div></div></div>
       <div style="overflow:auto;margin-top:14px">${nucleoEquipmentTableHtml(records.slice(0,8),false)}</div>
     </div>`;
   host.appendChild(panel);
 }
+function nucleoEquipmentOpenRecord(id){
+  if(!nucleoFeatureRequire('equipment','consult'))return;
+  const record=nucleoEquipmentRows().find(r=>String(r.id)===String(id));
+  if(!record)return;
+  if(nucleoPersonFeatureCan('equipment','edit'))return editAdminOperationalRecord(id);
+  const host=document.getElementById('adminModuleContent');
+  if(!host)return;
+  const fields=[['Código',record.code],['Tipo',record.equipmentType],['Série',record.serialNumber],['Local',record.location],['Responsável',record.responsible],['Última calibração',adminModuleDate(record.lastCalibration)],['Próxima calibração',adminModuleDate(record.dueDate)],['Laboratório',record.lastCalibrationCompany]];
+  host.innerHTML=`<div style="grid-column:1/-1"><button class="btn secondary" type="button" onclick="renderEquipmentControlWorkspace('active')">← Voltar à lista</button><section class="card" style="margin-top:12px"><h3>${escapeHtml(record.title||'Equipamento')}</h3><dl>${fields.filter(([,value])=>value).map(([label,value])=>'<dt><b>'+escapeHtml(label)+'</b></dt><dd>'+escapeHtml(value)+'</dd>').join('')}</dl>${nucleoPersonFeatureCan('equipment','history')?nucleoEquipmentHistoryHtml([record]):''}</section></div>`;
+}
 function nucleoEquipmentTableHtml(records,historyMode){
+  const canEdit=nucleoPersonFeatureCan('equipment','edit');
   if(!records.length)return '<div style="padding:22px"><b>Nenhum equipamento cadastrado.</b><div class="small" style="margin-top:5px">Cadastre o primeiro equipamento para iniciar o controle metrológico.</div></div>';
-  return `<table style="width:100%;min-width:980px"><thead><tr><th>Equipamento</th><th>Local / responsável</th><th>Última calibração</th><th>Próxima calibração</th><th>Situação</th><th>Cadastro</th><th>Ações</th></tr></thead><tbody>${records.map(r=>{const completeness=nucleoEquipmentRecordCompleteness(r);return `<tr><td><b>${escapeHtml(r.title||'Sem nome')}</b><div class="small">${escapeHtml([r.code,r.equipmentType,r.serialNumber].filter(Boolean).join(' · ')||'Sem identificação complementar')}</div></td><td>${escapeHtml(r.location||'—')}<div class="small">${escapeHtml(r.responsible||'Sem responsável')}</div></td><td>${escapeHtml(adminModuleDate(r.lastCalibration)||'—')}<div class="small">${escapeHtml(r.lastCalibrationCompany||'Empresa não informada')}</div></td><td>${escapeHtml(adminModuleDate(r.dueDate)||'—')}${r.calibrationScheduled?`<div class="small" style="margin-top:4px;color:#3538cd"><b>Agendada:</b> ${escapeHtml(adminModuleDate(r.scheduledCalibrationDate)||'data não informada')}${r.scheduledCalibrationCompany?' · '+escapeHtml(r.scheduledCalibrationCompany):''}</div>`:''}</td><td>${nucleoEquipmentStatusPill(r)}</td><td><b>${completeness}%</b><div class="small">${completeness>=75?'Cadastro bom':completeness>=50?'Cadastro parcial':'Cadastro incompleto'}</div></td><td><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn secondary" type="button" onclick="editAdminOperationalRecord('${escapeHtml(r.id)}')">Abrir</button><button class="btn secondary" type="button" onclick="nucleoEquipmentOpenSchedule('${escapeHtml(r.id)}')">${r.calibrationScheduled?'Editar agendamento':'Agendar calibração'}</button><button class="btn secondary" type="button" onclick="nucleoEquipmentOpenCalibrationRecord('${escapeHtml(r.id)}')">Registrar calibração</button><button class="btn secondary" type="button" onclick="nucleoEquipmentTestAlert('${escapeHtml(r.id)}')">Testar alerta</button></div></td></tr>`}).join('')}</tbody></table>`;
+  return `<table style="width:100%;min-width:980px"><thead><tr><th>Equipamento</th><th>Local / responsável</th><th>Última calibração</th><th>Próxima calibração</th><th>Situação</th><th>Cadastro</th><th>Ações</th></tr></thead><tbody>${records.map(r=>{const completeness=nucleoEquipmentRecordCompleteness(r);return `<tr><td><b>${escapeHtml(r.title||'Sem nome')}</b><div class="small">${escapeHtml([r.code,r.equipmentType,r.serialNumber].filter(Boolean).join(' · ')||'Sem identificação complementar')}</div></td><td>${escapeHtml(r.location||'—')}<div class="small">${escapeHtml(r.responsible||'Sem responsável')}</div></td><td>${escapeHtml(adminModuleDate(r.lastCalibration)||'—')}<div class="small">${escapeHtml(r.lastCalibrationCompany||'Empresa não informada')}</div></td><td>${escapeHtml(adminModuleDate(r.dueDate)||'—')}${r.calibrationScheduled?`<div class="small" style="margin-top:4px;color:#3538cd"><b>Agendada:</b> ${escapeHtml(adminModuleDate(r.scheduledCalibrationDate)||'data não informada')}${r.scheduledCalibrationCompany?' · '+escapeHtml(r.scheduledCalibrationCompany):''}</div>`:''}</td><td>${nucleoEquipmentStatusPill(r)}</td><td><b>${completeness}%</b><div class="small">${completeness>=75?'Cadastro bom':completeness>=50?'Cadastro parcial':'Cadastro incompleto'}</div></td><td><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn secondary" type="button" onclick="nucleoEquipmentOpenRecord('${escapeHtml(r.id)}')">Abrir</button>${canEdit?`<button class="btn secondary" type="button" onclick="nucleoEquipmentOpenSchedule('${escapeHtml(r.id)}')">${r.calibrationScheduled?'Editar agendamento':'Agendar calibração'}</button><button class="btn secondary" type="button" onclick="nucleoEquipmentOpenCalibrationRecord('${escapeHtml(r.id)}')">Registrar calibração</button><button class="btn secondary" type="button" onclick="nucleoEquipmentTestAlert('${escapeHtml(r.id)}')">Testar alerta</button>`:''}</div></td></tr>`}).join('')}</tbody></table>`;
 }
 function renderEquipmentControlWorkspace(mode='active'){
+  if(!nucleoFeatureRequire('equipment',mode==='pending'?'pending':mode==='history'?'history':'consult'))return;
   const host=document.getElementById('adminModuleContent');if(!host)return;
   let records=nucleoEquipmentRows();
   if(mode==='pending')records=records.filter(r=>['overdue','today','warning','no_date','scheduled_today','scheduled_pending'].includes(nucleoEquipmentCalibrationState(r).key));
   const title=mode==='pending'?'Calibrações pendentes':mode==='history'?'Histórico metrológico':'Lista de equipamentos';
-  host.innerHTML=`<div style="grid-column:1/-1"><button class="btn secondary" type="button" onclick="showAdminOperationalModule('equipment')">← Voltar ao módulo</button><div class="card" style="margin-top:14px;padding:18px"><div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap"><div><h3 style="margin:0">${title}</h3><div class="small" style="margin-top:4px">${mode==='pending'?'Equipamentos vencidos, próximos do vencimento ou sem data de calibração.':mode==='history'?'Consulte o histórico de calibrações registradas por equipamento.':'Situação atual do cadastro e da calibração de cada equipamento.'}</div></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn secondary" type="button" onclick="nucleoOpenMetrologyAlertPreferences()">Meus alertas</button><button class="btn secondary" type="button" onclick="nucleoEquipmentOpenAlertTester()">Testar alerta</button><button class="btn primary" type="button" onclick="openAdminOperationalWorkspace('equipment',0)">＋ Novo equipamento</button></div></div>${mode==='history'?nucleoEquipmentHistoryHtml(records):`<div style="overflow:auto;margin-top:16px">${nucleoEquipmentTableHtml(records,false)}</div>`}</div></div>`;
+  host.innerHTML=`<div style="grid-column:1/-1"><button class="btn secondary" type="button" onclick="showAdminOperationalModule('equipment')">← Voltar ao módulo</button><div class="card" style="margin-top:14px;padding:18px"><div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap"><div><h3 style="margin:0">${title}</h3><div class="small" style="margin-top:4px">${mode==='pending'?'Equipamentos vencidos, próximos do vencimento ou sem data de calibração.':mode==='history'?'Consulte o histórico de calibrações registradas por equipamento.':'Situação atual do cadastro e da calibração de cada equipamento.'}</div></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn secondary" type="button" onclick="nucleoOpenMetrologyAlertPreferences()">Meus alertas</button>${nucleoPersonFeatureCan('equipment','edit')?`<button class="btn secondary" type="button" onclick="nucleoEquipmentOpenAlertTester()">Testar alerta</button><button class="btn primary" type="button" onclick="openAdminOperationalWorkspace('equipment',0)">＋ Novo equipamento</button>`:''}</div></div>${mode==='history'?nucleoEquipmentHistoryHtml(records):`<div style="overflow:auto;margin-top:16px">${nucleoEquipmentTableHtml(records,false)}</div>`}</div></div>`;
 }
 function nucleoEquipmentHistoryHtml(records){
   const events=[];
@@ -608,11 +624,13 @@ function nucleoEquipmentHistoryHtml(records){
   return `<div style="overflow:auto;margin-top:16px"><table style="width:100%;min-width:900px"><thead><tr><th>Data</th><th>Equipamento</th><th>Evento</th><th>Resultado</th><th>Próxima calibração</th><th>Empresa / laboratório</th><th>Responsável</th></tr></thead><tbody>${events.map(e=>`<tr><td>${escapeHtml(adminModuleDate(e.date)||adminModuleDate(String(e.at||'').slice(0,10))||'—')}</td><td><b>${escapeHtml(e.equipmentTitle||'—')}</b><div class="small">${escapeHtml(e.code||'')}</div></td><td>${escapeHtml(e.typeLabel||e.type||'Calibração')}</td><td>${escapeHtml(e.result||'—')}</td><td>${escapeHtml(adminModuleDate(e.nextDue)||'—')}</td><td>${escapeHtml(e.company||'—')}</td><td>${escapeHtml(e.responsible||e.actor||'—')}</td></tr>`).join('')}</tbody></table></div>`;
 }
 function nucleoEquipmentOpenCalibrationRecord(id){
+  if(!nucleoFeatureRequire('equipment','edit'))return;
   const r=adminModuleRecord(id);if(!r)return;
   let ov=document.getElementById('equipmentCalibrationOverlay');if(ov)ov.remove();
   ov=document.createElement('div');ov.id='equipmentCalibrationOverlay';ov.className='modal';ov.style.zIndex='100400';ov.innerHTML=`<div class="modal-box" style="width:min(720px,96vw)"><div style="display:flex;justify-content:space-between;gap:12px"><div><h3 style="margin:0">Registrar calibração</h3><div class="small" style="margin-top:4px">${escapeHtml(r.title||'Equipamento')}</div></div><button class="btn secondary" type="button" onclick="document.getElementById('equipmentCalibrationOverlay')?.remove()">Fechar</button></div><div class="grid" style="grid-template-columns:1fr 1fr;gap:12px;margin-top:16px"><label><span class="small">Data da calibração</span><input id="eqCalDate" type="date" value="${new Date().toISOString().slice(0,10)}"></label><label><span class="small">Resultado</span><select id="eqCalResult"><option value="Aprovado">Aprovado</option><option value="Aprovado com restrição">Aprovado com restrição</option><option value="Reprovado">Reprovado</option></select></label><label><span class="small">Próxima calibração</span><input id="eqCalNext" type="date" value="${escapeHtml(r.dueDate||'')}"></label><label><span class="small">Empresa / laboratório que realizou</span><input id="eqCalCompany" value="${escapeHtml(r.lastCalibrationCompany||'')}" placeholder="Nome da empresa / laboratório"></label><label><span class="small">Responsável pelo registro</span><input id="eqCalResponsible" value="${escapeHtml(getSession()?.name||r.responsible||'')}"></label><label style="grid-column:1/-1"><span class="small">Observações</span><textarea id="eqCalNotes" placeholder="Certificado, condição encontrada, ajuste realizado..."></textarea></label></div><div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px"><button class="btn primary" type="button" onclick="nucleoEquipmentSaveCalibration('${escapeHtml(id)}')">Salvar calibração</button></div></div>`;document.body.appendChild(ov);
 }
 function nucleoEquipmentSaveCalibration(id){
+  if(!nucleoFeatureRequire('equipment','edit'))return;
   const r=adminModuleRecord(id);if(!r)return;
   const date=String(document.getElementById('eqCalDate')?.value||'').trim();if(!date)return alert('Informe a data da calibração.');
   const nextDue=String(document.getElementById('eqCalNext')?.value||'').trim();
@@ -622,6 +640,7 @@ function nucleoEquipmentSaveCalibration(id){
   const all=getAdminModuleRecords();const ix=all.findIndex(x=>String(x.id)===String(id));if(ix>=0)all[ix]=updated;saveAdminModuleRecords(all);portalBackendSave('admin_modules',id,updated);try{nucleoClearEquipmentNotifications(id)}catch(e){}document.getElementById('equipmentCalibrationOverlay')?.remove();alert('Calibração registrada.');renderEquipmentControlWorkspace('active');
 }
 function nucleoEquipmentOpenAlertTester(){
+  if(!nucleoFeatureRequire('equipment','edit'))return;
   const records=nucleoEquipmentRows();if(!records.length)return alert('Cadastre um equipamento primeiro.');
   let ov=document.getElementById('equipmentAlertTesterOverlay');if(ov)ov.remove();
   ov=document.createElement('div');ov.id='equipmentAlertTesterOverlay';ov.className='modal';ov.style.zIndex='100420';ov.innerHTML=`<div class="modal-box" style="width:min(650px,96vw)"><div style="display:flex;justify-content:space-between;gap:12px"><div><h3 style="margin:0">Testar alerta de calibração</h3><div class="small" style="margin-top:4px">O teste não altera a data real do equipamento. Ao executar, ele também testa o envio por e-mail se sua preferência estiver ativada.</div></div><button class="btn secondary" type="button" onclick="document.getElementById('equipmentAlertTesterOverlay')?.remove()">Fechar</button></div><div class="grid" style="grid-template-columns:1fr 1fr;gap:12px;margin-top:16px"><label><span class="small">Equipamento</span><select id="eqAlertEquipment" onchange="nucleoEquipmentRenderAlertTestPreview()">${records.map(r=>`<option value="${escapeHtml(r.id)}">${escapeHtml(r.title||r.code||r.id)}</option>`).join('')}</select></label><label><span class="small">Simular situação</span><select id="eqAlertScenario" onchange="nucleoEquipmentRenderAlertTestPreview()"><option value="real">Usar data real</option><option value="overdue">Vencido há 1 dia</option><option value="today">Vence hoje</option><option value="7">Vence em 7 dias</option><option value="30">Vence em 30 dias</option><option value="90">Vence em 90 dias</option></select></label></div><div id="eqAlertPreview" style="margin-top:16px"></div><div id="eqAlertEmailTestStatus" class="small" style="margin-top:10px"></div><div style="display:flex;justify-content:flex-end;margin-top:14px"><button id="eqAlertRunBtn" class="btn primary" type="button" onclick="nucleoEquipmentRunAlertTest()">Executar teste</button></div></div>`;document.body.appendChild(ov);nucleoEquipmentRenderAlertTestPreview();
@@ -639,6 +658,7 @@ function nucleoEquipmentRenderAlertTestPreview(){
   const status=document.getElementById('eqAlertEmailTestStatus');if(status)status.textContent='';
 }
 async function nucleoEquipmentRunAlertTest(){
+  if(!nucleoFeatureRequire('equipment','edit'))return;
   const ctx=nucleoEquipmentBuildAlertTest();if(!ctx)return;const {id,scenario,st}=ctx;nucleoEquipmentRenderAlertTestPreview();
   const status=document.getElementById('eqAlertEmailTestStatus'),btn=document.getElementById('eqAlertRunBtn');if(status)status.textContent='Testando alerta e envio por e-mail...';if(btn)btn.disabled=true;
   const alertWouldFire=['overdue','today','warning','scheduled_today'].includes(st.key);
@@ -747,7 +767,8 @@ function editAdminOperationalRecord(id){
   if(!isAdmin()){
     const podeDocumento=key==='documents'&&normalizeAnswer(r.createdBy||'')===normalizeAnswer(getSession()?.name||'');
     const podeRnc=key==='nccapa'&&canOperateNcCapa();
-    if(!podeDocumento&&!podeRnc)return;
+    const podeEquipamento=key==='equipment'&&nucleoPersonFeatureCan('equipment','edit');
+    if(!podeDocumento&&!podeRnc&&!podeEquipamento)return;
   }
   view('adminModuleView');
   const title=document.getElementById('adminModuleTitle'), sub=document.getElementById('adminModuleSubtitle'), list=document.getElementById('adminModuleContent'), eyebrow=document.getElementById('adminModuleEyebrow');
@@ -791,7 +812,7 @@ function editAdminOperationalRecord(id){
 }
 
 const ndOriginalShowAdmin=showAdminOperationalModule;
-showAdminOperationalModule=function(key){const result=ndOriginalShowAdmin(key);const host=document.getElementById('adminModuleContent');if(host&&(key==='documents'||key==='processes'&&['consult','review','history'].some(feature=>nucleoPersonFeatureCan('processes',feature)))){const btn=document.createElement('button');btn.className='btn primary';btn.style.margin='12px 0';btn.textContent=key==='processes'?'Lista Mestra':'Preencher e gerar documento solicitado';btn.onclick=()=>key==='processes'?renderProcessMasterWorkspace(false):nucleoDriveOpen('requests');host.prepend(btn);}return result;};
+showAdminOperationalModule=function(key){const result=ndOriginalShowAdmin(key);const host=document.getElementById('adminModuleContent');if(host&&(key==='documents'&&nucleoPersonFeatureCan('documents','prepare')||key==='processes'&&['consult','review','history'].some(feature=>nucleoPersonFeatureCan('processes',feature)))){const btn=document.createElement('button');btn.className='btn primary';btn.style.margin='12px 0';btn.textContent=key==='processes'?'Lista Mestra':'Preencher e gerar documento solicitado';btn.onclick=()=>key==='processes'?renderProcessMasterWorkspace(false):nucleoDriveOpen('requests');host.prepend(btn);}return result;};
 const ndOriginalAdminFields=adminModuleFields;
 adminModuleFields=function(key){let html=ndOriginalAdminFields(key);if(key==='documents'){const unit=getSession()?.role==='quality'?'filial':explicitPortalUnit(getSession()?.unit)||'matriz';html='<label>Unidade da solicitação<select id="ndRequestUnit" onchange="document.getElementById(\'admModCode\').innerHTML=documentTypeOptions(this.value)" '+(getSession()?.role==='quality'?'disabled':'')+'><option value="matriz" '+(unit==='matriz'?'selected':'')+'>SETA SC — Matriz</option><option value="filial" '+(unit==='filial'?'selected':'')+'>SETA ES — Unidade Linhares</option></select></label>'+html;}return html;};
 
