@@ -402,7 +402,8 @@ function showAdminOperationalModule(key){
   const documentsUserAccess=key==='documents' && canRequestDocuments();
   const ncCapaAccess=key==='nccapa' && canOperateNcCapa();
   const processAccess=key==='processes'&&['consult','review','history','edit','templates'].some(feature=>nucleoPersonFeatureCan('processes',feature));
-  if(!isAdmin()&&!documentsUserAccess&&!ncCapaAccess&&!processAccess){
+  const operationalAccess=['equipment','training','nccapa'].includes(key)&&nucleoPersonCan(permissionModule);
+  if(!isAdmin()&&!documentsUserAccess&&!ncCapaAccess&&!processAccess&&!operationalAccess){
     alert(key==='documents'?'Solicitação de Documentos não está disponível para este setor.':'Este módulo está disponível para o SGQ.');
     return;
   }
@@ -452,7 +453,7 @@ function openAdminOperationalWorkspace(key,index){
     isAdmin() ||
     (key==='documents' && canRequestDocuments()) ||
     (key==='nccapa' && canOperateNcCapa()) ||
-    (key==='processes' && nucleoPersonCan('processes'));
+    (['processes','equipment','training','nccapa'].includes(key) && nucleoPersonCan(key==='nccapa'?'nc':key));
   if(!canOpen)return;
   const m=ADMIN_OPERATIONAL_MODULES[key], c=m?.cards?.[index]; if(!c)return;
   if(!isAdmin()&&key==='documents'&&index>1)return;
