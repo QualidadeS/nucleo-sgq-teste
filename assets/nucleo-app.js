@@ -167,7 +167,7 @@ function getPdcaDraftForRo(ro){
   const drafts=getPdcaDrafts();
   const userKey=pdcaDraftUserKey();
   const exact=drafts[key+'@@'+userKey];
-  if(exact)return exact;
+  if(exact)return exact.discardedAt?null:exact;
 
   const target=normalizeAnswer(key).replace(/[^a-z0-9]/g,'');
   const sessionName=normalizeAnswer(getSession()?.name||'');
@@ -222,7 +222,11 @@ function clearPdcaStarted(ro){
 }
 function isPdcaStarted(ro){
   const map=getStartedPdcas();
-  return Boolean(map[pdcaStartedKey(ro)]) || Boolean(getPdcaDraftForRo(ro));
+  const key=pdcaStartedKey(ro);
+  const discardedAt=getPdcaDrafts()[key]?.discardedAt;
+  const started=map[key];
+  return Boolean(started&&(!discardedAt||String(started.startedAt||'')>discardedAt))
+    || Boolean(getPdcaDraftForRo(ro));
 }
 function buildCurrentPdcaDraft(){
   if(!selected)return null;
@@ -281,6 +285,40 @@ function clearPdcaDraft(ro){
   clearPdcaStarted(ro);
   if(d?.id)portalBackendDelete('pdca_drafts',d.id);
   portalBackendDelete('pdca_drafts',ro);
+}
+
+async function discardAssignedPdcaDraft(ro,button){
+  if(button.disabled||!nucleoFeatureRequire('pdca','respond')||!isPdcaStarted(ro))return;
+  const session=getSession();
+  if(!session?.authToken)return;
+  if(!confirm('Excluir o rascunho de PDCA da '+ro+'? As respostas e ações salvas no rascunho serão descartadas.'))return;
+
+  const userKey=pdcaDraftUserKey();
+  const key=pdcaDraftStorageKey(ro);
+  const discardedAt=new Date().toISOString();
+  // Mantém a exclusão sincronizável pela mesma operação de gravação do rascunho.
+  const discarded={
+    id:'DRAFT-'+ro+'-'+userKey,
+    ro,userKey,discardedAt,updatedAt:discardedAt,updatedBy:session.name||''
+  };
+  button.disabled=true;
+  try{
+    if(triageBaseRoNumber(selected)===ro)clearTimeout(pdcaDraftSaveTimer);
+    await portalBackendSaveConfirmed('pdca_drafts',discarded.id,discarded);
+    if(getSession()?.authToken!==session.authToken)return;
+
+    const drafts=getPdcaDrafts();
+    if(String(drafts[key]?.updatedAt||'')<=discardedAt){
+      drafts[key]=discarded;
+      safeStorageSet(PDCA_DRAFTS_KEY,JSON.stringify(drafts));
+      clearPdcaStarted(ro);
+    }
+    render();
+  }catch(error){
+    alert('Não foi possível confirmar a exclusão do rascunho. '+(error.message||error));
+  }finally{
+    button.disabled=false;
+  }
 }
 
 function parseResponsibleSectors(value){
@@ -14868,6 +14906,7 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
     const pdcaSituation=pdcaSituationLabel(r,triageMap);
     const displayStatus=assignedRoStatus(r,triageMap,pdcaByRo,presentationMap);
     const hasResponse=assignedRoHasResponse(displayStatus);
+    const hasDraft=!admin&&!hasResponse&&!alreadySent&&isPdcaStarted(r.numero);
     const displayDecisionLabel=nucleoAssignedDecisionLabel(r,tri,displayStatus);
 
     let operationalActions='';
@@ -14883,7 +14922,8 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
               onclick="startPdcaFromList('${escapeHtml(r.numero)}')">
               ${alreadySent?'PDCA enviado':pdcaActionLabel(r.numero)}
             </button>
-            ${(!alreadySent&&isPdcaStarted(r.numero))?'<span class="status-badge pending" style="align-self:center">Rascunho iniciado</span>':''}`}
+            ${hasDraft?`<span class="status-badge pending">Rascunho iniciado</span>
+              <button class="btn secondary" type="button" onclick="discardAssignedPdcaDraft('${escapeHtml(r.numero)}',this)">Excluir rascunho</button>`:''}`}
             <button class="btn secondary" type="button"
               ${contestDisabled?'disabled':''}
               onclick="contestRoFromList('${escapeHtml(r.numero)}')">
