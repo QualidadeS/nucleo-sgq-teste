@@ -310,7 +310,13 @@ function nucleoProcessGenerateCode(){
   const code=nucleoProcessNextCode(type,unit,area);const el=document.getElementById('procAdoptCode');if(el&&code)el.value=code;
 }
 function renderProcessMasterWorkspace(historyOnly=false){
-  const host=document.getElementById('adminModuleContent');if(!host)return;const docs=nucleoProcessControlledDocuments();
+  const host=document.getElementById('adminModuleContent');if(!host)return;
+  const canEdit=nucleoPersonFeatureCan('processes','edit');
+  const docs=nucleoProcessControlledDocuments().filter(record=>{
+    const status=record.status||'published';
+    const feature=['review','approval'].includes(status)?'review':['obsolete','cancelled','expired'].includes(status)?'history':'consult';
+    return nucleoPersonFeatureCan('processes',feature);
+  });
   const q=normalizeAnswer(document.getElementById('processMasterSearch')?.value||'');const type=document.getElementById('processMasterType')?.value||'all';const status=document.getElementById('processMasterStatus')?.value||'all';
   let rows=docs.filter(r=>historyOnly?['obsolete','cancelled','expired'].includes(r.status):true);
   if(q)rows=rows.filter(r=>normalizeAnswer([r.code,r.title,r.docType,r.documentUnitCode,r.areaCode,r.sector,r.responsible].join(' ')).includes(q));
@@ -323,10 +329,11 @@ function renderProcessMasterWorkspace(historyOnly=false){
     <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-top:14px"><div><h3 style="margin:0">${historyOnly?'Histórico / obsoletos':'Lista Mestra'}</h3><div class="small" style="margin-top:4px">${historyOnly?'Versões retiradas, canceladas e vencidas.':'Controle central dos documentos já existentes e dos novos documentos do SGQ.'}</div></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn secondary" onclick="renderProcessImportWorkspace()">Importar existentes</button><button class="btn primary" onclick="renderProcessAdoptWorkspace()">＋ Adicionar documento existente</button></div></div>
     <div style="display:grid;grid-template-columns:repeat(5,minmax(120px,1fr));gap:10px;margin-top:14px"><div class="card" style="padding:12px"><span class="small">TOTAL</span><b style="font-size:22px;display:block">${counts.total}</b></div><div class="card" style="padding:12px"><span class="small">VIGENTES</span><b style="font-size:22px;display:block">${counts.published}</b></div><div class="card" style="padding:12px"><span class="small">EM FLUXO</span><b style="font-size:22px;display:block">${counts.review}</b></div><div class="card" style="padding:12px"><span class="small">VENCIDOS</span><b style="font-size:22px;display:block">${counts.expired}</b></div><div class="card" style="padding:12px"><span class="small">OBSOLETOS</span><b style="font-size:22px;display:block">${counts.obsolete}</b></div></div>
     <div class="card" style="padding:14px;margin-top:12px"><div style="display:grid;grid-template-columns:minmax(220px,1.5fr) repeat(2,minmax(150px,.6fr));gap:10px"><input id="processMasterSearch" placeholder="Pesquisar código, título, área..." value="${nucleoProcessEscapeAttr(document.getElementById('processMasterSearch')?.value||'')}" oninput="renderProcessMasterWorkspace(${historyOnly?'true':'false'})"><select id="processMasterType" onchange="renderProcessMasterWorkspace(${historyOnly?'true':'false'})"><option value="all">Todos os tipos</option>${nom.types.map(x=>`<option value="${escapeHtml(x.code)}" ${type===x.code?'selected':''}>${escapeHtml(x.code)}</option>`).join('')}</select><select id="processMasterStatus" onchange="renderProcessMasterWorkspace(${historyOnly?'true':'false'})"><option value="all">Todas as situações</option>${['published','review','approval','expired','provisional','obsolete','cancelled'].map(x=>`<option value="${x}" ${status===x?'selected':''}>${nucleoProcessStatusLabel(x)}</option>`).join('')}</select></div></div>
-    <div class="card" style="padding:0;overflow:auto;margin-top:12px"><table style="width:100%;min-width:1120px"><thead><tr><th>Código</th><th>Documento</th><th>Tipo</th><th>Unidade / área</th><th>Revisão</th><th>Data</th><th>Situação</th><th>Arquivo</th><th>Ações</th></tr></thead><tbody>${rows.length?rows.map(r=>{const pc=nucleoProcessParseCode(r.code);return `<tr><td><b>${escapeHtml(r.code||'—')}</b></td><td><b>${escapeHtml(r.title||'Sem título')}</b><div class="small">${escapeHtml(r.description||'')}</div></td><td>${escapeHtml(r.docType||pc.type||'—')}</td><td>${escapeHtml(r.documentUnitCode||pc.unitCode||'—')} · ${escapeHtml(r.areaCode||pc.areaCode||r.sector||'—')}</td><td>${escapeHtml(r.revision||'—')}</td><td>${escapeHtml(adminModuleDate(r.eventDate)||'—')}</td><td><span class="pill">${escapeHtml(nucleoProcessStatusLabel(r.status||'published'))}</span></td><td>${r.link?`<a class="btn secondary" href="${nucleoProcessEscapeAttr(r.link)}" target="_blank" rel="noopener">Abrir arquivo</a>`:'<span class="small">Sem link</span>'}</td><td><button class="btn secondary" onclick="renderProcessAdoptWorkspace('${nucleoProcessEscapeAttr(r.id)}')">Editar controle</button></td></tr>`}).join(''):`<tr><td colspan="9" style="padding:28px;text-align:center"><b>Nenhum documento encontrado.</b><div class="small" style="margin-top:5px">Você pode adotar um documento existente ou importar sua Lista Mestra atual.</div></td></tr>`}</tbody></table></div>
+    <div class="card" style="padding:0;overflow:auto;margin-top:12px"><table style="width:100%;min-width:1120px"><thead><tr><th>Código</th><th>Documento</th><th>Tipo</th><th>Unidade / área</th><th>Revisão</th><th>Data</th><th>Situação</th><th>Arquivo</th><th>Ações</th></tr></thead><tbody>${rows.length?rows.map(r=>{const pc=nucleoProcessParseCode(r.code);return `<tr><td><b>${escapeHtml(r.code||'—')}</b></td><td><b>${escapeHtml(r.title||'Sem título')}</b><div class="small">${escapeHtml(r.description||'')}</div></td><td>${escapeHtml(r.docType||pc.type||'—')}</td><td>${escapeHtml(r.documentUnitCode||pc.unitCode||'—')} · ${escapeHtml(r.areaCode||pc.areaCode||r.sector||'—')}</td><td>${escapeHtml(r.revision||'—')}</td><td>${escapeHtml(adminModuleDate(r.eventDate)||'—')}</td><td><span class="pill">${escapeHtml(nucleoProcessStatusLabel(r.status||'published'))}</span></td><td>${r.link?`<a class="btn secondary" href="${nucleoProcessEscapeAttr(r.link)}" target="_blank" rel="noopener">Abrir arquivo</a>`:'<span class="small">Sem link</span>'}</td><td>${canEdit?`<button class="btn secondary" onclick="renderProcessAdoptWorkspace('${nucleoProcessEscapeAttr(r.id)}')">Editar controle</button>`:'—'}</td></tr>`}).join(''):`<tr><td colspan="9" style="padding:28px;text-align:center"><b>Nenhum documento encontrado.</b><div class="small" style="margin-top:5px">Você pode adotar um documento existente ou importar sua Lista Mestra atual.</div></td></tr>`}</tbody></table></div>
   </div>`;
 }
 function renderProcessAdoptWorkspace(id=''){
+  if(!nucleoFeatureRequire('processes','edit'))return;
   const host=document.getElementById('adminModuleContent');if(!host)return;const existing=id?adminModuleRecord(id):null;const nom=nucleoProcessNomenclature();const pc=nucleoProcessParseCode(existing?.code||'');
   const sysUnit=explicitRecordUnit(existing)||nucleoProcessCurrentSystemUnit();
   host.innerHTML=`<div style="grid-column:1/-1"><button class="btn secondary" onclick="renderProcessMasterWorkspace(false)">← Voltar à Lista Mestra</button><div class="card" style="padding:20px;margin-top:14px"><div><h3 style="margin:0">${existing?'Editar controle documental':'Adotar documento existente'}</h3><div class="small" style="margin-top:4px">O arquivo não será recriado. O Núcleo passa a controlar código, revisão, situação e o link do documento que já existe.</div></div><div class="grid" style="grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:18px">
@@ -394,7 +401,8 @@ function showAdminOperationalModule(key){
 
   const documentsUserAccess=key==='documents' && canRequestDocuments();
   const ncCapaAccess=key==='nccapa' && canOperateNcCapa();
-  if(!isAdmin()&&!documentsUserAccess&&!ncCapaAccess){
+  const processAccess=key==='processes'&&['consult','review','history','edit','templates'].some(feature=>nucleoPersonFeatureCan('processes',feature));
+  if(!isAdmin()&&!documentsUserAccess&&!ncCapaAccess&&!processAccess){
     alert(key==='documents'?'Solicitação de Documentos não está disponível para este setor.':'Este módulo está disponível para o SGQ.');
     return;
   }
@@ -443,7 +451,8 @@ function openAdminOperationalWorkspace(key,index){
   const canOpen =
     isAdmin() ||
     (key==='documents' && canRequestDocuments()) ||
-    (key==='nccapa' && canOperateNcCapa());
+    (key==='nccapa' && canOperateNcCapa()) ||
+    (key==='processes' && nucleoPersonCan('processes'));
   if(!canOpen)return;
   const m=ADMIN_OPERATIONAL_MODULES[key], c=m?.cards?.[index]; if(!c)return;
   if(!isAdmin()&&key==='documents'&&index>1)return;
@@ -781,7 +790,7 @@ function editAdminOperationalRecord(id){
 }
 
 const ndOriginalShowAdmin=showAdminOperationalModule;
-showAdminOperationalModule=function(key){const result=ndOriginalShowAdmin(key);const host=document.getElementById('adminModuleContent');if(host&&['documents','processes'].includes(key)){const btn=document.createElement('button');btn.className='btn primary';btn.style.margin='12px 0';btn.textContent=key==='processes'?'Lista Mestra':'Preencher e gerar documento solicitado';btn.onclick=()=>key==='processes'?renderProcessMasterWorkspace(false):nucleoDriveOpen('requests');host.prepend(btn);}return result;};
+showAdminOperationalModule=function(key){const result=ndOriginalShowAdmin(key);const host=document.getElementById('adminModuleContent');if(host&&(key==='documents'||key==='processes'&&['consult','review','history'].some(feature=>nucleoPersonFeatureCan('processes',feature)))){const btn=document.createElement('button');btn.className='btn primary';btn.style.margin='12px 0';btn.textContent=key==='processes'?'Lista Mestra':'Preencher e gerar documento solicitado';btn.onclick=()=>key==='processes'?renderProcessMasterWorkspace(false):nucleoDriveOpen('requests');host.prepend(btn);}return result;};
 const ndOriginalAdminFields=adminModuleFields;
 adminModuleFields=function(key){let html=ndOriginalAdminFields(key);if(key==='documents'){const unit=getSession()?.role==='quality'?'filial':explicitPortalUnit(getSession()?.unit)||'matriz';html='<label>Unidade da solicitação<select id="ndRequestUnit" onchange="document.getElementById(\'admModCode\').innerHTML=documentTypeOptions(this.value)" '+(getSession()?.role==='quality'?'disabled':'')+'><option value="matriz" '+(unit==='matriz'?'selected':'')+'>SETA SC — Matriz</option><option value="filial" '+(unit==='filial'?'selected':'')+'>SETA ES — Unidade Linhares</option></select></label>'+html;}return html;};
 
