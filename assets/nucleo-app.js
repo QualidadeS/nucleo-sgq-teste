@@ -6678,10 +6678,14 @@ function saveSacEditForm(){
 }
 
 let currentSacPreviewId='';
-function openSacOfficialFormPreview(id){
-  currentSacPreviewId=String(id||'');
+function openSacOfficialFormPreview(id, consultation=false){
+  if(consultation&&!nucleoFeatureRequire('sac','consult'))return;
   const r=getExternalRoControls().find(x=>String(x.id)===String(id));
-  if(!r){alert('Controle de SAC não encontrado.');return}
+  if(!r||(consultation&&(!sacIsRealSac(r)||!nucleoPersonUnits(getSession()).includes(explicitRecordUnit(r))))){
+    alert('SAC não encontrado nas unidades autorizadas.');
+    return;
+  }
+  currentSacPreviewId=String(id||'');
   const f=r.officialForm||{};
   const yesno=v=>v==='yes'?'Sim':v==='no'?'Não':v==='na'?'Não se aplica':v==='analysis'?'Em análise':'—';
   const dev=({informative:'Informativo',billing:'Faturamento',quality:'Qualidade'})[f.deviationType]||'—';
@@ -6696,6 +6700,11 @@ function openSacOfficialFormPreview(id){
   if(!overlay||!content){alert('Não foi possível abrir a ficha SAC.');return}
   if(title)title.textContent='Ficha SAC · R.O. '+(r.ro||'');
 
+  overlay.querySelector('#sacPreviewEdit').hidden=consultation||!isAdmin()||!nucleoPersonFeatureCan('sac','edit');
+  overlay.querySelector('#sacPreviewPrint').hidden=consultation;
+  const pdfButton=overlay.querySelector('#sacPreviewConsultPdf');
+  pdfButton.hidden=!consultation;
+  pdfButton.dataset.sacConsultPdf=currentSacPreviewId;
   content.innerHTML=`
     <div style="border:1px solid #cfd8df;border-radius:12px;overflow:hidden;background:#fff">
       <div style="padding:16px 18px;background:#f8fafc;border-bottom:1px solid #cfd8df;display:flex;justify-content:space-between;gap:16px;align-items:flex-start">
@@ -6707,7 +6716,8 @@ function openSacOfficialFormPreview(id){
           cell('R.O.',r.ro||'—'),
           cell('Cliente',r.client||'—'),
           cell('Data da reclamação',f.complaintDate?formatDateBR(f.complaintDate):'—'),
-          cell('Representante',f.representative||r.representative||'—')
+          cell('Representante',f.representative||r.representative||'—'),
+          cell('Unidade',r.unit||r.unidade||'—')
         ])}
         ${section('Entrada fiscal',[
           cell('Baixa de títulos',yesno(f.titleWriteoff)),
@@ -6721,7 +6731,7 @@ function openSacOfficialFormPreview(id){
         ${section('Referência fiscal',[
           cell('Nota Fiscal',f.fiscalInvoice||'—'),
           cell('Pedido',f.fiscalOrder||r.order||'—'),
-          cell('Código do produto',f.fiscalProductCode||r.product||'—'),
+          cell('Código do produto',f.fiscalProductCode||f.deviationProductCode||r.product||'—'),
           cell('Qtd. não conforme',f.nonconformingQty||'—'),
           cell('Retirada?',yesno(f.pickup)),
           cell('Data de envio',f.sentDate?formatDateBR(f.sentDate):'—')
@@ -6747,8 +6757,17 @@ function openSacOfficialFormPreview(id){
         <div><span class="small">Tratativa</span><br><b>${escapeHtml(externalTreatmentLabel(r.treatmentType))}</b></div>
         <div><span class="small">Prazo vigente</span><br><b>${escapeHtml(r.treatmentDeadline?formatDateBR(r.treatmentDeadline):'—')}</b></div>
         <div><span class="small">Setor responsável</span><br><b>${escapeHtml(r.responsibleSector||'—')}</b></div>
-        <div><span class="small">PDCA</span><br><b>${r.pdcaRequired===false?'Dispensado':'Obrigatório'}</b></div>
+        <div><span class="small">PDCA</span><br><b>${r.pdcaRequired===false?'Dispensado':consultation&&r.pdcaRequired!==true?'—':'Obrigatório'}</b></div>
       </div>
+      ${consultation?section('Acompanhamento',[
+        cell('Situação',externalTreatmentStatusLabel(r.treatmentStatus)),
+        cell('Prazo do PDCA',r.pdcaDeadline?formatDateBR(r.pdcaDeadline):'—'),
+        cell('Orientação da Qualidade',r.qualityNote||'—',2),
+        cell('Detalhes da tratativa',r.treatmentDescription||'—',2),
+        cell('Decisão da Diretoria',r.directorDecision||'—',2)
+      ]):''}
+      ${consultation&&r.deadlineHistory?.length?section('Histórico de prazos',r.deadlineHistory.map(h=>cell('Prazo',[h.oldDeadline,h.newDeadline].filter(Boolean).map(date=>formatDateBR(date)).join(' → ')+(h.reason?' · '+h.reason:''),2))):''}
+      ${consultation&&r.sacSendHistory?.length?section('Histórico de envios',r.sacSendHistory.map(h=>cell('Envio',[h.sentAt&&formatDateTimeBR(h.sentAt),h.sentBy,h.to||h.directorEmail].filter(Boolean).join(' · '),2))):''}
     </div>`;
   overlay.classList.add('open');
   document.body.style.overflow='hidden';
@@ -17324,7 +17343,10 @@ function nucleoOpenAccessConsultation(module){
    let items;
    if(module==='sac'){
      const records=getExternalRoControls().filter(r=>inUnit(r)&&sacIsRealSac(r));
-     host.innerHTML=records.length?records.map(nucleoSacConsultationCard).join(''):'<p>Nenhum SAC disponível para consulta.</p>';
+     host.innerHTML=records.length?'<div class="sac-consult-grid">'+records.map(nucleoSacConsultationCard).join('')+'</div>':'<p>Nenhum SAC disponível para consulta.</p>';
+     host.querySelectorAll('[data-sac-consult-open]').forEach(button=>{
+       button.addEventListener('click',()=>openSacOfficialFormPreview(button.dataset.sacConsultOpen,true));
+     });
      host.querySelectorAll('[data-sac-consult-pdf]').forEach(button=>{
        button.addEventListener('click',()=>nucleoGenerateSacConsultPdf(button));
      });
@@ -17343,22 +17365,28 @@ function nucleoOpenAccessConsultation(module){
 }
 
 function nucleoSacConsultationCard(sac){
- const f=sac.officialForm||{};
- const display=value=>({yes:'Sim',no:'Não',pending:'Pendente',informative:'Informativo',billing:'Faturamento',quality:'Qualidade'}[value]||value);
- const groups=[
-  ['Identificação',[['Cliente',sac.client||sac.cliente],['Unidade',sac.unit||sac.unidade],['Data da reclamação',f.complaintDate],['Representante',sac.representative||f.representative],['Produto',sac.product||f.fiscalProductCode],['Pedido',f.fiscalOrder||sac.order]]],
-  ['Entrada fiscal',[['Baixa de títulos',f.titleWriteoff],['Desconto financeiro',f.financialDiscount],['Valor do desconto',f.financialDiscountValue],['Nota de devolução / remessa',f.returnInvoiceIssued],['Número da nota',f.returnInvoiceNumber],['Pedido de reposição emitido',f.replacementOrderIssued],['Número do pedido de reposição',f.replacementOrderNumber],['Nota fiscal',f.fiscalInvoice]]],
-  ['Desvio e reconhecimento',[['Código do produto',f.fiscalProductCode||f.deviationProductCode],['Descrição',f.deviationDescription],['Tipo de desvio',f.deviationType],['Quantidade não conforme',f.nonconformingQty],['Retirada',f.pickup],['Data do envio',f.sentDate],['Procedente',f.founded],['Nº da RNC',f.rncNumber],['Tamanho do lote',f.lotSize],['Valor da reclamação',f.claimValue],['% de B.O.',f.boPercent],['Reconhecido por',f.recognitionArea],['Anexos / links',f.attachments]]],
-  ['Tratativa',[['Tipo de tratativa',sac.treatmentType],['Situação',sac.treatmentStatus],['Prazo vigente',sac.treatmentDeadline],['Setor responsável',sac.responsibleSector],['PDCA',sac.pdcaRequired===false?'Dispensado':sac.pdcaRequired===true?'Obrigatório':''],['Prazo do PDCA',sac.pdcaDeadline],['Orientação da Qualidade',sac.qualityNote],['Detalhes da tratativa',sac.treatmentDescription],['Decisão da Diretoria',sac.directorDecision]]],
-  ['Histórico de prazos',(sac.deadlineHistory||[]).map(h=>['Prazo', [h.oldDeadline,h.newDeadline].filter(Boolean).join(' → ')+(h.reason?' · '+h.reason:'')])],
-  ['Histórico de envios',(sac.sacSendHistory||[]).map(h=>['Envio',[h.sentAt,h.sentBy,h.to||h.directorEmail].filter(Boolean).join(' · ')])]
- ];
- const details=groups.map(([title,fields])=>{
-  const filled=fields.filter(([,v])=>v!=null&&String(v).trim()!=='');
-  return filled.length?'<section><h4>'+escapeHtml(title)+'</h4><dl>'+filled.map(([label,value])=>'<dt><b>'+escapeHtml(label)+'</b></dt><dd style="white-space:pre-wrap;overflow-wrap:anywhere">'+escapeHtml(String(display(value)))+'</dd>').join('')+'</dl></section>':'';
- }).join('');
- return '<article class="card"><details><summary><b>'+escapeHtml(sac.ro||'SAC')+'</b> · '+escapeHtml(sac.client||sac.cliente||'')+'</summary>'+details+'</details>'+
-  '<button type="button" class="btn secondary" style="margin-top:8px" data-sac-consult-pdf="'+escapeHtml(String(sac.id||''))+'">Gerar PDF</button></article>';
+ const form=sac.officialForm||{};
+ const hasAnswers=Object.values(form).some(value=>value!=null&&value!==0&&String(value).trim()!=='');
+ const complete=sacHasFilledForm(sac);
+ const status=complete?'Ficha preenchida totalmente':hasAnswers?'Ficha preenchida parcialmente':'Ficha sem preenchimento';
+ const id=escapeHtml(String(sac.id||''));
+ return `<article class="card sac-consult-card">
+   <div class="sac-consult-header">
+     <div><b>${escapeHtml(sac.ro||'SAC')}</b><div class="small">${escapeHtml(sac.client||sac.cliente||'—')}</div></div>
+     <span class="status-badge ${complete?'approved':hasAnswers?'pending':''}">${status}</span>
+   </div>
+   <div class="small">Direcionado para: ${escapeHtml(sacDirectedSector(sac))}</div>
+   <div class="sac-consult-summary">
+     <div><div class="small">Tratativa</div><b>${escapeHtml(externalTreatmentLabel(sac.treatmentType))}</b></div>
+     <div><div class="small">Prazo</div><b>${escapeHtml(sac.treatmentDeadline?formatDateBR(sac.treatmentDeadline):'—')}</b></div>
+     <div><div class="small">Setor</div><b>${escapeHtml(sac.responsibleSector||'—')}</b></div>
+     <div><div class="small">Última atualização</div><b>${escapeHtml(sac.updatedAt?formatDateTimeBR(sac.updatedAt):'—')}</b></div>
+   </div>
+   <div class="sac-consult-actions">
+     <button type="button" class="btn primary" data-sac-consult-open="${id}">Consultar</button>
+     <button type="button" class="btn secondary" data-sac-consult-pdf="${id}">Gerar PDF</button>
+   </div>
+ </article>`;
 }
 
 async function nucleoGenerateSacConsultPdf(button){
@@ -17369,27 +17397,7 @@ async function nucleoGenerateSacConsultPdf(button){
   const result=await portalJsonp({acao:'portal_sac_consult_pdf',id:button.dataset.sacConsultPdf},90000);
   if(token!==getSession()?.authToken)return;
   if(!result?.sucesso)throw Error(result?.erro||'Não foi possível gerar o PDF do SAC.');
-  if(!result.base64){
-   if(Array.isArray(result.dados)&&result.abas?.externa){
-    const details=button.closest('article')?.querySelector('details');
-    if(!details)throw Error('Abra o SAC novamente para gerar o PDF.');
-    const title=details.querySelector('summary')?.textContent||'SAC';
-    const sections=[...details.querySelectorAll('section')].map(section=>section.outerHTML).join('');
-    const frame=document.createElement('iframe');
-    frame.title='Impressão da consulta de SAC';
-    frame.style.cssText='position:fixed;left:-10000px;top:0;width:210mm;height:297mm;border:0';
-    frame.onload=()=>{
-     if(token!==getSession()?.authToken){frame.remove();return;}
-     frame.contentWindow.addEventListener('afterprint',()=>frame.remove(),{once:true});
-     frame.contentWindow.focus();
-     frame.contentWindow.print();
-    };
-    frame.srcdoc=`<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>@page{size:A4;margin:16mm}body{font:13px Arial;color:#182432}h1{font-size:20px}h4{font-size:14px;border-bottom:1px solid #aaa;padding-bottom:5px}dt{margin-top:8px;break-after:avoid}dd{margin:3px 0;overflow-wrap:anywhere}</style><h1>Consulta de SAC</h1><p>${escapeHtml(title)}</p>${sections}</html>`;
-    document.body.appendChild(frame);
-    return;
-   }
-   throw Error('O Apps Script não retornou o PDF do SAC. Confira a versão publicada e a URL da integração.');
-  }
+  if(!result.base64)throw Error('A integração não retornou a ficha SAC. Confira se o Apps Script atualizado está publicado na URL usada pelo Núcleo.');
   const raw=atob(result.base64);
   if(!raw.startsWith('%PDF-'))throw Error('O arquivo retornado não é um PDF válido.');
   showPdfBlob(new Blob([Uint8Array.from(raw,c=>c.charCodeAt(0))],{type:'application/pdf'}),result.fileName||'SAC.pdf');
