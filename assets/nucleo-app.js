@@ -28,7 +28,7 @@ function nucleoLoadAdminModule(){
   if(nucleoAdminModulePromise)return nucleoAdminModulePromise;
   nucleoAdminModulePromise=new Promise((resolve,reject)=>{
     const script=document.createElement('script');
-    script.src=new URL('assets/modules/admin-workspaces.js?v=20261111-equipe-cadastro-v93',document.baseURI).href;
+    script.src=new URL('assets/modules/admin-workspaces.js?v=20261111-setores-automaticos-v94',document.baseURI).href;
     const timer=setTimeout(()=>finish(new Error('Tempo limite ao carregar o módulo.')),20000);
     function finish(error){clearTimeout(timer);script.onload=script.onerror=null;if(error){script.remove();nucleoAdminModulePromise=null;reject(error)}else resolve();}
     script.onload=()=>finish();
@@ -10638,7 +10638,7 @@ function refreshManagerSectorsVisibility(){
 function closeManagerSectorsEditor(){
   document.getElementById('managerSectorsOverlay')?.classList.remove('open');document.body.style.overflow='';
 }
-function saveManagerSectorsEditor(){
+async function saveManagerSectorsEditor(){
  if(!nucleoFeatureRequire('users','edit'))return;
   if(!isAdmin())return;
   const key=document.getElementById('managerSectorsUserKey')?.value||'';
@@ -10646,6 +10646,18 @@ function saveManagerSectorsEditor(){
   const managed=role==='manager'?[...(document.getElementById('managerSectorsSelect')?.selectedOptions||[])].map(o=>o.value):[];
   if(role==='manager'&&!managed.length){alert('Selecione pelo menos um setor sob gestão.');return}
   const users=getOperationalUsers();const i=users.findIndex(u=>String(u.email||u.name)===String(key));if(i<0)return;
+  if(nucleoPersonPermissions(getSession()).sgq){
+    try{
+      const person=String(users[i].personId||users[i].email||users[i].name);
+      const result=await portalJsonp({acao:'portal_set_user_access',person,management:JSON.stringify({role,sectors:managed})},60000);
+      if(!result?.sucesso)throw Error(result?.erro||'A base central não confirmou os setores.');
+      closeManagerSectorsEditor();
+      await syncPortalBackend(false);
+      renderOperationalUsers();
+      alert('Setores atualizados na base central.');
+    }catch(error){alert(error.message);}
+    return;
+  }
   users[i]={...users[i],role:users[i].role==='admin'?'admin':role,managedSectors:managed,updatedAt:new Date().toISOString(),updatedBy:getSession()?.name||'SGQ'};
   localStorage.setItem(USERS_KEY,JSON.stringify(users));
   portalBackendSave('users',users[i].email||users[i].name,users[i]);
@@ -16902,8 +16914,20 @@ function openUnitUserAccess(encoded){
  const parent=nucleoPersonPermissions(getSession()),perms=nucleoPersonPermissions(user),units=nucleoPersonUnits(user),allowed=nucleoPersonUnits(getSession());
  if(!parent.sgq&&(user.role==='admin'||units.some(u=>!allowed.includes(u)))){alert('Este cadastro é administrado pelo SGQ.');return;}
  let overlay=document.getElementById('unitUserAccess');overlay?.remove();overlay=document.createElement('div');overlay.id='unitUserAccess';overlay.style.cssText='position:fixed;inset:0;background:#0008;z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px';
- overlay.innerHTML='<div style="background:white;padding:24px;border-radius:12px;max-width:760px;width:100%;max-height:90vh;overflow:auto"><h3>Editar acesso — '+escapeHtml(user.name)+'</h3><p>Escolha as unidades e marque somente as funções permitidas dentro de cada área.</p><div id="personAccessUnits">'+['matriz','filial'].map(u=>'<label style="display:inline-flex;gap:8px;margin:10px"><input type="checkbox" value="'+u+'" '+(units.includes(u)?'checked':'')+' '+(!allowed.includes(u)?'disabled':'')+' style="width:20px;height:20px">'+(u==='matriz'?'SETA SC — Matriz':'SETA ES — Linhares')+'</label>').join('')+'</div>'+nucleoFeatureEditor(user,getSession())+'<p><label><input id="personRegisterRo" type="checkbox" '+(perms.registerRo?'checked':'')+' '+(!parent.sgq&&!parent.registerRo?'disabled':'')+' style="width:20px;height:20px"> Cadastrar R.O. interna</label></p><p><label><input id="personRegisterExternal" type="checkbox" '+(perms.registerExternal?'checked':'')+' '+(!parent.sgq&&!parent.registerExternal?'disabled':'')+' style="width:20px;height:20px"> Cadastrar R.O. externa / SAC</label></p>'+(parent.sgq?'<p><label><input id="personSgq" type="checkbox" '+(perms.sgq?'checked':'')+' style="width:20px;height:20px"> Administração geral SGQ — todas as permissões, integração e configurações globais</label></p><details><summary>Setores unificados</summary><p class="small">Um vínculo por linha: matriz | PCP ou filial | PCP.</p><textarea id="unitAccessMemberships" rows="4"></textarea></details>':'')+'<p class="small">O cadastro e o e-mail continuam únicos. A alteração exige novo login da pessoa para atualizar seu acesso.</p><button class="btn primary" id="unitAccessSave">Salvar permissões</button> <button class="btn secondary" id="unitAccessClose">Fechar</button><p id="unitAccessStatus" role="status"></p></div>';
- document.body.appendChild(overlay);if(parent.sgq)document.getElementById('unitAccessMemberships').value=(user.sectorMemberships||[]).map(m=>m.unit+' | '+m.sector).join('\n');document.getElementById('unitAccessClose').onclick=()=>overlay.remove();
+ overlay.innerHTML='<div style="background:white;padding:24px;border-radius:12px;max-width:760px;width:100%;max-height:90vh;overflow:auto"><h3>Editar acesso — '+escapeHtml(user.name)+'</h3><p>Escolha as unidades e marque somente as funções permitidas dentro de cada área.</p><div id="personAccessUnits">'+['matriz','filial'].map(u=>'<label style="display:inline-flex;gap:8px;margin:10px"><input type="checkbox" value="'+u+'" '+(units.includes(u)?'checked':'')+' '+(!allowed.includes(u)?'disabled':'')+' style="width:20px;height:20px">'+(u==='matriz'?'SETA SC — Matriz':'SETA ES — Linhares')+'</label>').join('')+'</div>'+nucleoFeatureEditor(user,getSession())+'<p><label><input id="personRegisterRo" type="checkbox" '+(perms.registerRo?'checked':'')+' '+(!parent.sgq&&!parent.registerRo?'disabled':'')+' style="width:20px;height:20px"> Cadastrar R.O. interna</label></p><p><label><input id="personRegisterExternal" type="checkbox" '+(perms.registerExternal?'checked':'')+' '+(!parent.sgq&&!parent.registerExternal?'disabled':'')+' style="width:20px;height:20px"> Cadastrar R.O. externa / SAC</label></p>'+(parent.sgq?'<p><label><input id="personSgq" type="checkbox" '+(perms.sgq?'checked':'')+' style="width:20px;height:20px"> Administração geral SGQ — todas as permissões, integração e configurações globais</label></p><div class="small" id="unitAccessSectorPreview" aria-live="polite"></div>':'')+'<p class="small">O cadastro e o e-mail continuam únicos. A alteração exige novo login da pessoa para atualizar seu acesso.</p><button class="btn primary" id="unitAccessSave">Salvar permissões</button> <button class="btn secondary" id="unitAccessClose">Fechar</button><p id="unitAccessStatus" role="status"></p></div>';
+ document.body.appendChild(overlay);
+ document.getElementById('unitAccessClose').onclick=()=>overlay.remove();
+ const selectedUnits=()=>[...overlay.querySelectorAll('#personAccessUnits input:checked')].map(input=>input.value);
+ const preview=overlay.querySelector('#unitAccessSectorPreview');
+ if(preview){
+  const sectors=[...new Set([user.sector,...(user.managedSectors||[])].map(value=>String(value||'').trim()).filter(Boolean))];
+  const refresh=()=>{
+   const unitLabels=selectedUnits().map(unit=>unit==='matriz'?'Matriz':'Filial');
+   preview.textContent=unitLabels.length&&sectors.length?'Vínculos automáticos em '+unitLabels.join(' e ')+': '+sectors.join(', ')+'.':'Selecione as unidades para vincular os setores do cadastro.';
+  };
+  overlay.querySelector('#personAccessUnits').addEventListener('change',refresh);
+  refresh();
+ }
  overlay.querySelectorAll('[data-mode="manage"]').forEach(input=>input.onchange=()=>{if(input.checked)input.closest('tr').querySelector('[data-mode="view"]').checked=true;});
  document.getElementById('unitAccessSave').onclick=async()=>{
   const btn=document.getElementById('unitAccessSave'),status=document.getElementById('unitAccessStatus');btn.disabled=true;status.textContent='Salvando permissões na base central…';
@@ -16911,16 +16935,17 @@ function openUnitUserAccess(encoded){
    const next={version:1,modules:{},registerRo:document.getElementById('personRegisterRo').checked,registerExternal:document.getElementById('personRegisterExternal').checked,sgq:!!document.getElementById('personSgq')?.checked};
    next.detailVersion=1;next.features={};
    Object.keys(NUCLEO_PERSON_FEATURES).forEach(module=>{next.features[module]={};overlay.querySelectorAll('[data-feature-module="'+module+'"]').forEach(input=>next.features[module][input.dataset.feature]=input.checked);const entries=Object.entries(next.features[module]).filter(([,enabled])=>enabled);next.modules[module]={view:entries.length>0,manage:entries.some(([key])=>NUCLEO_PERSON_FEATURES[module][key][1])};});
-   const accessUnits=[...overlay.querySelectorAll('#personAccessUnits input:checked')].map(x=>x.value);if(!accessUnits.length)throw new Error('Selecione ao menos uma unidade.');
-   let memberships=user.sectorMemberships||[];
-   if(parent.sgq)memberships=document.getElementById('unitAccessMemberships').value.split('\n').filter(x=>x.trim()).map(line=>{const parts=line.split('|');if(parts.length!==2)throw new Error('Informe unidade | setor em cada vínculo.');return {unit:parts[0].trim().toLowerCase(),sector:parts[1].trim()};});
+   const accessUnits=selectedUnits();if(!accessUnits.length)throw new Error('Selecione ao menos uma unidade.');
    const payload={...next,modules:{...next.modules},features:{...next.features}};
    for(const [key,canonical] of Object.entries(NUCLEO_PERMISSION_MODULE_KEYS)){
     payload.modules[canonical]=next.modules[key];
     payload.features[canonical]=next.features[key];
    }
-   const result=await portalJsonp({acao:'portal_set_user_access',person:id,permissions:JSON.stringify(payload),accessUnits:JSON.stringify(accessUnits),memberships:JSON.stringify(memberships)},60000);
+   const result=await portalJsonp({acao:'portal_set_user_access',person:id,permissions:JSON.stringify(payload),accessUnits:JSON.stringify(accessUnits),...(parent.sgq?{automaticMemberships:'1'}:{})},60000);
    if(!result?.sucesso)throw new Error(result?.erro||'A base central não confirmou a alteração.');
+   if(parent.sgq&&result.user?.permissions&&result.user.automaticSectorMemberships!==true){
+    throw new Error('A base não confirmou os vínculos automáticos. Publique o Codigo.gs atualizado na implantação usada pelo Núcleo.');
+   }
    const confirmed=result.user?.permissions;
    if(!confirmed||confirmed.detailVersion!==1)throw new Error('A API não devolveu as permissões detalhadas. Confira a implantação usada pelo Núcleo.');
    const differences=[];
