@@ -5540,6 +5540,15 @@ Cancelada</textarea></label>
   </div>
 </div>
 
+<style>
+.sac-consult-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:12px}
+.sac-consult-card{padding:16px;min-width:0;display:flex;flex-direction:column;gap:8px;overflow-wrap:anywhere}
+.sac-consult-header,.sac-consult-actions{display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap}
+.sac-consult-header{justify-content:space-between}
+.sac-consult-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:4px 0 8px}
+.sac-consult-actions{margin-top:auto}
+#sacPreviewOverlay button[hidden]{display:none!important}
+</style>
 <div id="sacPreviewOverlay" class="triage-modal-overlay" onclick="if(event.target===this)closeSacPreview()">
   <div class="triage-modal-card" style="max-width:1180px;width:min(96vw,1180px);max-height:92vh;overflow:auto">
     <div class="triage-modal-header">
@@ -5551,8 +5560,9 @@ Cancelada</textarea></label>
     </div>
     <div id="sacPreviewContent" style="padding:4px 0 0"></div>
     <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">
-      <button class="btn secondary" type="button" onclick="openSacEditModal(currentSacPreviewId)">Preencher ficha SAC</button>
-      <button class="btn secondary" type="button" onclick="printSacPreview()">Imprimir</button>
+      <button id="sacPreviewEdit" class="btn secondary" type="button" onclick="openSacEditModal(currentSacPreviewId)">Preencher ficha SAC</button>
+      <button id="sacPreviewPrint" class="btn secondary" type="button" onclick="printSacPreview()">Imprimir</button>
+      <button id="sacPreviewConsultPdf" class="btn secondary" type="button" onclick="nucleoGenerateSacConsultPdf(this)" hidden>Gerar PDF</button>
       <button class="btn primary" type="button" onclick="closeSacPreview()">Concluir visualização</button>
     </div>
   </div>
@@ -6149,7 +6159,7 @@ function renderSupplierIndicatorsWorkspace(){
 <script src="assets/modules-v2/indicators/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/modules-v2/announcements/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/team-load-local-v47.js?v=20261027-team-local-central"></script>
-<script src="assets/nucleo-app.js?v=20261111-login-e-pdf-sac-v97"></script>
+<script src="assets/nucleo-app.js?v=20261111-ficha-sac-consulta-v98"></script>
 <script src="assets/api-source-lock-v20.js?v=20261110-periodo-central-v72"></script>
 
 <script id="nucleoModuleMaintenanceGuardV1">
