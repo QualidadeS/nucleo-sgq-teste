@@ -456,6 +456,14 @@ function showAdminOperationalModule(key){
         </div>`}
   </div>`;
 
+  if(key==='documents'&&getSession()?.permissions&&!isAdmin()&&nucleoPersonFeatureCan('documents','consult')){
+    const consult=document.createElement('button');
+    consult.type='button';
+    consult.className='btn secondary';
+    consult.textContent='Consultar documentos e solicitações';
+    consult.addEventListener('click',()=>nucleoOpenAccessConsultation('documents'));
+    list.prepend(consult);
+  }
   if(key==='nccapa')renderNcCapaHomeOverview();
   if(key==='equipment')renderEquipmentHomeOverview();
 }
