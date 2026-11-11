@@ -28,7 +28,7 @@ function nucleoLoadAdminModule(){
   if(nucleoAdminModulePromise)return nucleoAdminModulePromise;
   nucleoAdminModulePromise=new Promise((resolve,reject)=>{
     const script=document.createElement('script');
-    script.src=new URL('assets/modules/admin-workspaces.js?v=20261111-menu-unificado-v90',document.baseURI).href;
+    script.src=new URL('assets/modules/admin-workspaces.js?v=20261111-meus-setores-v92',document.baseURI).href;
     const timer=setTimeout(()=>finish(new Error('Tempo limite ao carregar o módulo.')),20000);
     function finish(error){clearTimeout(timer);script.onload=script.onerror=null;if(error){script.remove();nucleoAdminModulePromise=null;reject(error)}else resolve();}
     script.onload=()=>finish();
@@ -1225,7 +1225,8 @@ function applyPortalBackendSnapshot(snapshot){
       throw new Error('A base central retornou dados de outra sessão.');
     }
     setSession({...currentSession,...received,authToken,sessionExpiresAt,sessionExpiryClockVersion,
-      ...(data.overviewIndicators!==undefined?{overviewIndicators:data.overviewIndicators}:{})});
+      ...(data.overviewIndicators!==undefined?{overviewIndicators:data.overviewIndicators}:{}),
+      ...(data.sectorNucleusPreferences!==undefined?{sectorNucleusPreferences:data.sectorNucleusPreferences}:{})});
     if(Object.prototype.hasOwnProperty.call(received,'permissions'))enforceAdminVisibility();
   }
 
@@ -1688,9 +1689,16 @@ function getNotificationReadMap(){
   try{return JSON.parse(localStorage.getItem(NOTIFICATION_READ_KEY)||'{}')||{}}
   catch(e){return {}}
 }
+function nucleoSectorNucleusAllowed(notification,preferences){
+  if(notification.type!=='ro'||!notification.sector||!['sector','user'].includes(notification.audience))return true;
+  const unit=explicitPortalUnit(notification.unidade);
+  if(!unit)return true;
+  const sector=String(notification.sector).trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ');
+  return preferences?.[unit+'::'+sector]!==false;
+}
 function isNotificationForCurrentUser(n){
   const s=getSession();
-  if(!s)return false;
+  if(!s||!nucleoSectorNucleusAllowed(n,s.sectorNucleusPreferences))return false;
   if(['admin','quality'].includes(s.role))return n.audience==='admin'||n.audience==='all';
   if(n.audience==='all')return true;
   if(n.audience==='user' && n.userKey===notificationUserKey())return true;
@@ -17208,7 +17216,7 @@ function nucleoPersonUnits(user){return Array.isArray(user.accessUnits)?user.acc
 function nucleoApplyPersonAccess(){
  const user=getSession();
  const catalog=document.getElementById('navMyAccess');
- if(catalog)catalog.hidden=!user?.permissions||nucleoPersonPermissions(user).sgq===true;
+ if(catalog)catalog.hidden=!user||(!user.permissions&&!user.managedSectors?.length)||(nucleoPersonPermissions(user).sgq===true&&!user.managedSectors?.length);
  nucleoRefreshAuditMenu(user);
  if(!user?.permissions){
   for(const id of ['moduleRo','modulePersonal']){
@@ -17273,9 +17281,9 @@ function nucleoRefreshAccessConsultations(user){
  module.style.display=visible?'':'none';
 }
 
-function nucleoShowMyAccess(){
+function nucleoShowMyAccess(tab='permissions'){
  const user=getSession();
- if(!user?.permissions)return;
+ if(!user||(!user.permissions&&!user.managedSectors?.length))return;
  const host=document.getElementById('adminModuleContent');
  if(!host)return;
  const navigation={
@@ -17290,6 +17298,12 @@ function nucleoShowMyAccess(){
  document.getElementById('adminModuleTitle').textContent='Meus acessos';
  document.getElementById('adminModuleSubtitle').textContent='Permissões confirmadas no seu login.';
  document.getElementById('adminModuleEyebrow').textContent='';
+ const tabs='<div class="actions" style="grid-column:1/-1"><button type="button" class="btn '+(tab==='permissions'?'primary':'secondary')+'" onclick="nucleoShowMyAccess()">Permissões</button><button type="button" class="btn '+(tab==='sectors'?'primary':'secondary')+'" onclick="nucleoShowMyAccess(\'sectors\')">Meus setores</button></div>';
+ if(tab==='sectors'){
+  host.innerHTML=tabs+'<section class="card" id="mySectorPreferences" style="grid-column:1/-1"><p role="status">Carregando setores…</p></section>';
+  nucleoRenderMySectorPreferences(document.getElementById('mySectorPreferences'));
+  return;
+ }
  const modules=Object.entries(NUCLEO_PERSON_FEATURES).map(([key,features])=>{
    const allowed=Object.entries(features).filter(([feature])=>nucleoPersonFeatureAllowed(user,key,feature));
    if(!allowed.length)return null;
@@ -17299,11 +17313,11 @@ function nucleoShowMyAccess(){
      .filter(el=>el&&!el.hidden&&(el.dataset.accessCatalogOnly!==undefined||getComputedStyle(el).display!=='none'&&!el.classList.contains('hidden')));
    return {title:NUCLEO_PERSON_MODULES[key],allowed,actions};
  }).filter(Boolean);
- host.innerHTML=modules.length?modules.map(({title,allowed,actions})=>
+ host.innerHTML=tabs+(modules.length?modules.map(({title,allowed,actions})=>
    '<section class="card"><h3>'+escapeHtml(title)+'</h3><ul>'+allowed.map(([,definition])=>'<li>'+escapeHtml(definition[0])+'</li>').join('')+
    '</ul><div class="actions">'+actions.map(el=>'<button type="button" class="btn secondary" data-access-target="'+escapeHtml(el.id)+'">'+escapeHtml(el.querySelector('b')?.textContent||'Abrir')+'</button>').join('')+
    '</div>'+(!actions.length?'<p class="small">Permissão confirmada. Este módulo ainda não tem uma entrada de menu para este perfil.</p>':'')+'</section>'
- ).join(''):'<p>Nenhuma função personalizada foi confirmada neste login.</p>';
+ ).join(''):'<p>Nenhuma função personalizada foi confirmada neste login.</p>');
  host.querySelectorAll('[data-access-target]').forEach(button=>{
   button.addEventListener('click',()=>document.getElementById(button.dataset.accessTarget)?.click());
  });
@@ -17698,7 +17712,7 @@ function nucleoManagerScopeControl(){
  let host=document.getElementById('managerGlobalScope');if(!host){host=document.createElement('div');host.id='managerGlobalScope';host.style.cssText='display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:12px 16px;margin:10px 0;background:#eef4ff;border:1px solid #d9e5f5;border-radius:12px';const top=document.querySelector('.workspace > .topbar')||document.getElementById('listView')?.parentElement;if(!top)return;if(top.tagName==='HEADER')top.after(host);else top.prepend(host);}
  host.hidden=!nucleoHasManagedScope();host.style.display=nucleoHasManagedScope()?'flex':'none';if(!nucleoHasManagedScope())return;
  const state=nucleoManagerScopeState(),sectors=nucleoVisibleManagerSectors(true,managedSectorsForCurrentUser(),[]),units=nucleoPersonUnits(getSession());if(!sectors.includes(state.sector))state.sector='all';if(!units.includes(state.unit))state.unit='all';
- host.innerHTML='<b>Visualizar:</b><label>Setor <select id="managerGlobalSector" aria-label="Setor em todas as áreas"><option value="all">Todos os meus setores</option>'+sectors.map(s=>'<option value="'+escapeHtml(s)+'">'+escapeHtml(s)+'</option>').join('')+'</select></label><label>Unidade <select id="managerGlobalUnit" aria-label="Unidade em todas as áreas"><option value="all">Todas as unidades permitidas</option>'+units.map(u=>'<option value="'+escapeHtml(u)+'">'+(u==='filial'?'Filial — Linhares':'Matriz')+'</option>').join('')+'</select></label><span class="small">Filtro geral de consulta</span><button class="btn secondary" type="button" onclick="nucleoOpenManagerEmails()">Recebimento de e-mails</button>';
+ host.innerHTML='<b>Visualizar:</b><label>Setor <select id="managerGlobalSector" aria-label="Setor em todas as áreas"><option value="all">Todos os meus setores</option>'+sectors.map(s=>'<option value="'+escapeHtml(s)+'">'+escapeHtml(s)+'</option>').join('')+'</select></label><label>Unidade <select id="managerGlobalUnit" aria-label="Unidade em todas as áreas"><option value="all">Todas as unidades permitidas</option>'+units.map(u=>'<option value="'+escapeHtml(u)+'">'+(u==='filial'?'Filial — Linhares':'Matriz')+'</option>').join('')+'</select></label><span class="small">Filtro geral de consulta</span><button class="btn secondary" type="button" onclick="nucleoOpenManagerEmails()">Meus setores</button>';
  document.getElementById('managerGlobalSector').value=state.sector;document.getElementById('managerGlobalUnit').value=state.unit;
  ['managerGlobalSector','managerGlobalUnit'].forEach(id=>document.getElementById(id).onchange=nucleoManagerChangeScope);
  nucleoManagerInstallReadScopes();nucleoManagerInstallRenderScopes();
@@ -17733,10 +17747,47 @@ function nucleoToggleKpi(id,checked){nucleoKpiDraft=nucleoKpiDraft.filter(x=>x!=
 function nucleoMoveKpi(id,delta){const i=nucleoKpiDraft.indexOf(id),j=i+delta;if(i<0||j<0||j>=nucleoKpiDraft.length)return;[nucleoKpiDraft[i],nucleoKpiDraft[j]]=[nucleoKpiDraft[j],nucleoKpiDraft[i]];nucleoRenderKpiEditor();}
 async function nucleoSaveKpis(){const button=document.getElementById('overviewIndicatorSave'),status=document.getElementById('overviewIndicatorSaveStatus');button.disabled=true;status.textContent='Salvando na base central…';try{const result=await portalJsonp({acao:'portal_save_overview_preferences',indicators:JSON.stringify(nucleoKpiDraft)},60000);if(!result?.sucesso)throw new Error(result?.erro||'A base central não confirmou a preferência.');setSession({...getSession(),overviewIndicators:result.indicators});document.getElementById('overviewIndicatorEditor').remove();renderCurrentOverview();alert('Indicadores salvos para seu login.');}catch(e){status.textContent='Não foi possível salvar: '+e.message;}finally{button.disabled=false;}}
 
-async function nucleoOpenManagerEmails(){
- try{const result=await portalJsonp({acao:'portal_manager_email_preferences'},60000);if(!result?.sucesso)throw new Error(result?.erro||'Não foi possível carregar.');const old=document.getElementById('managerEmailEditor');old?.remove();const box=document.createElement('div');box.id='managerEmailEditor';box.style.cssText='position:fixed;inset:0;background:#0008;z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px';box.innerHTML='<div style="background:white;padding:24px;border-radius:12px;max-width:650px;max-height:85vh;overflow:auto"><h3>Recebimento de e-mails por setor</h3><p>Avisos de triagem como gestor. As notificações no Núcleo continuam disponíveis.</p>'+result.scopes.map(m=>{const key=m.key;return '<label style="display:block;padding:12px"><input type="checkbox" data-manager-email="'+escapeHtml(key)+'" style="width:22px;height:22px" '+(result.preferences[key]!==false?'checked':'')+'> '+escapeHtml(m.sector)+' · '+(m.unit==='filial'?'Filial — Linhares':'Matriz')+'</label>';}).join('')+'<p role="status" id="managerEmailStatus"></p><button class="btn primary" onclick="nucleoSaveManagerEmails(this)">Salvar</button> <button class="btn secondary" onclick="document.getElementById(\'managerEmailEditor\').remove()">Cancelar</button></div>';document.body.appendChild(box);}catch(err){alert(err.message);}
+function nucleoOpenManagerEmails(){nucleoShowMyAccess('sectors');}
+
+async function nucleoRenderMySectorPreferences(host){
+ if(!host)return;
+ const token=getSession()?.authToken;
+ const current=()=>host.isConnected&&getSession()?.authToken===token;
+ try{
+  const result=await portalJsonp({acao:'portal_manager_email_preferences'},60000);
+  if(!current())return;
+  if(!result?.sucesso)throw Error(result?.erro||'Não foi possível carregar os setores.');
+  const scopes=result.scopes||[];
+  if(!scopes.length){host.textContent='Nenhum setor acompanhado no seu cadastro.';return;}
+  const sectors=[...new Set(scopes.map(scope=>scope.sector))];
+  host.innerHTML='<h3>Meus setores</h3><p>Você acompanha '+escapeHtml(sectors.join(', '))+'.</p>'+
+   '<p>Escolha como receber avisos de direcionamento de R.O. em cada setor. A opção de e-mail controla as cópias de acompanhamento do gestor.</p>'+
+   '<form><div style="display:grid;gap:8px">'+scopes.map(scope=>{
+     const label=scope.sector+' · '+(scope.unit==='filial'?'Filial':'Matriz');
+     return '<fieldset style="display:flex;flex-wrap:wrap;gap:12px;border:1px solid #dce5ee;border-radius:8px"><legend>'+escapeHtml(label)+'</legend>'+
+       '<label><input type="checkbox" data-sector-email="'+escapeHtml(scope.key)+'" '+(result.preferences?.[scope.key]!==false?'checked':'')+'> Receber e-mail</label>'+
+       '<label><input type="checkbox" data-sector-nucleus="'+escapeHtml(scope.key)+'" '+(result.nucleusPreferences?.[scope.key]!==false?'checked':'')+'> Notificar no Núcleo</label></fieldset>';
+    }).join('')+'</div><p role="status"></p><button class="btn primary" type="submit">Salvar preferências</button></form>';
+  host.querySelector('form').addEventListener('submit',async event=>{
+   event.preventDefault();
+   const form=event.currentTarget,button=form.querySelector('button'),status=form.querySelector('[role="status"]');
+   const read=(selector,key)=>Object.fromEntries([...form.querySelectorAll(selector)].map(input=>[input.dataset[key],input.checked]));
+   const data=read('[data-sector-email]','sectorEmail'),nucleusData=read('[data-sector-nucleus]','sectorNucleus');
+   button.disabled=true;
+   status.textContent='Salvando preferências…';
+   try{
+    const saved=await portalJsonp({acao:'portal_manager_email_preferences',data:JSON.stringify(data),nucleusData:JSON.stringify(nucleusData)},60000);
+    if(!current())return;
+    if(!saved?.sucesso||!saved.nucleusPreferences)throw Error(saved?.erro||'A base não confirmou as preferências dos dois canais.');
+    setSession({...getSession(),sectorNucleusPreferences:saved.nucleusPreferences});
+    refreshNotificationBell();
+    renderNotificationPanel();
+    status.textContent='Preferências salvas.';
+   }catch(error){status.textContent=error.message;}
+   finally{button.disabled=false;}
+  });
+ }catch(error){if(current())host.textContent=error.message;}
 }
-async function nucleoSaveManagerEmails(button){button.disabled=true;const status=document.getElementById('managerEmailStatus');status.textContent='Salvando na base central…';try{const data={};document.querySelectorAll('[data-manager-email]').forEach(el=>data[el.dataset.managerEmail]=el.checked);const result=await portalJsonp({acao:'portal_manager_email_preferences',data:JSON.stringify(data)},60000);if(!result?.sucesso)throw new Error(result?.erro||'Salvamento não confirmado.');status.textContent='Preferências salvas na base central.';}catch(err){status.textContent=err.message;}finally{button.disabled=false;}}
 
 var nucleoMyTeamData=[];
 async function nucleoOpenMyTeam(){
@@ -17745,7 +17796,7 @@ async function nucleoOpenMyTeam(){
 }
 function nucleoRenderMyTeam(){
  const host=document.getElementById('myTeamContents');if(!host)return;const sector=document.getElementById('myTeamSector')?.value||'all',unit=document.getElementById('myTeamUnit')?.value||'all',teams=nucleoMyTeamData.filter(t=>(sector==='all'||t.sector===sector)&&(unit==='all'||t.unit===unit));
- host.innerHTML=teams.map(t=>'<section style="border:1px solid #dce5ee;border-radius:12px;padding:18px;margin-top:16px"><h3 style="margin:0">'+escapeHtml(t.sector)+'</h3><p class="small">'+(t.unit==='filial'?'Filial — Linhares':'Matriz')+' · '+t.people.length+' pessoa(s)</p>'+(!t.people.some(p=>p.manager)?'<p class="small">Nenhum gestor cadastrado para esta equipe.</p>':'')+'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">'+t.people.map(p=>{const parts=splitPersonNameDescription(p.name,p.description||undefined);return '<div style="padding:14px;border-radius:10px;background:'+(p.manager?'#eef4ff':'#f6f8fa')+'">'+nucleoAvatarHtml(p.avatar)+'<strong>'+escapeHtml(parts.name)+'</strong>'+(p.self?' <span class="small">(você)</span>':'')+'<div class="small">'+(p.manager?'Gestor':escapeHtml(p.jobTitle||p.functionLabel||'Integrante da equipe'))+'</div>'+(p.jobTitle&&p.manager?'<div class="small">'+escapeHtml(p.jobTitle)+'</div>':'')+(p.workDescription?'<div class="small">'+escapeHtml(p.workDescription)+'</div>':'')+(parts.description?'<div class="small">'+escapeHtml(parts.description)+'</div>':'')+'</div>';}).join('')+'</div></section>').join('')||'<p>Nenhuma equipe disponível para esta seleção.</p>';
+ host.innerHTML=teams.map(t=>'<section style="border:1px solid #dce5ee;border-radius:12px;padding:18px;margin-top:16px"><h3 style="margin:0">'+escapeHtml(t.sector)+'</h3><p class="small">'+(t.unit==='filial'?'Filial — Linhares':'Matriz')+' · '+t.people.length+' pessoa(s)</p>'+(!t.people.some(p=>p.manager)?'<p class="small">Nenhum gestor cadastrado para esta equipe.</p>':'')+'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">'+t.people.map(nucleoTeamPersonCard).join('')+'</div></section>').join('')||'<p>Nenhuma equipe disponível para esta seleção.</p>';
 }
 
 var nucleoAiScoreState;
@@ -17877,12 +17928,21 @@ function nucleoUniqueTeamPeople(teams,sector,unit){
  });
  return [...people.values()];
 }
+function nucleoTeamPersonCard(person){
+ const {name}=splitPersonNameDescription(person.name,person.description||undefined);
+ const units=Array.isArray(person.accessUnits)?person.accessUnits:[];
+ const matriz=units.includes('matriz'),filial=units.includes('filial');
+ const unitLabel=matriz&&filial?'Matriz e Filial':matriz?'Matriz':filial?'Filial':'Unidade não informada';
+ return '<div class="inline-team-person" style="background:'+(person.manager?'#eef4ff':'#f6f8fa')+'">'+nucleoAvatarHtml(person.avatar)+
+  '<div><strong>'+escapeHtml(name)+'</strong><div class="small">'+escapeHtml(person.primarySector||'Setor não informado')+
+  '</div><div class="small">'+escapeHtml(unitLabel)+'</div></div></div>';
+}
 function nucleoRenderInlineTeam(expanded){
  const host=document.getElementById('overviewTeamPeople');if(!host)return;
  const sector=document.getElementById('overviewTeamSector')?.value||'all',unit=document.getElementById('overviewTeamUnit')?.value||'all';
  const people=nucleoUniqueTeamPeople(nucleoInlineTeamData,sector,unit);
  const width=host.clientWidth||window.innerWidth,columns=width<520?1:width<850?2:4,limit=columns*2;
- host.innerHTML='<div class="inline-team-grid">'+people.slice(0,expanded?people.length:limit).map(p=>{const parts=splitPersonNameDescription(p.name,p.description||undefined);return '<div class="inline-team-person" style="background:'+(p.manager?'#eef4ff':'#f6f8fa')+'">'+nucleoAvatarHtml(p.avatar)+'<div><strong>'+escapeHtml(parts.name)+'</strong>'+(p.self?' <span class="small">(você)</span>':'')+'<div class="small">'+(p.manager?'Gestor':escapeHtml(p.jobTitle||p.functionLabel||'Integrante'))+'</div><div class="small">'+escapeHtml(p.teamMemberships.map(m=>m.sector+' · '+(m.unit==='filial'?'Filial':'Matriz')).join(' / '))+'</div>'+(p.jobTitle&&p.manager?'<div class="small">'+escapeHtml(p.jobTitle)+'</div>':'')+(p.workDescription?'<div class="small">'+escapeHtml(p.workDescription)+'</div>':'')+(parts.description?'<div class="small">'+escapeHtml(parts.description)+'</div>':'')+'</div></div>';}).join('')+'</div>'+(people.length>limit?'<button class="btn secondary" style="margin-top:12px" onclick="nucleoRenderInlineTeam('+(!expanded)+')">'+(expanded?'Ver menos':'Ver mais')+'</button>':'')+(!people.length?'<p class="small">Nenhuma equipe disponível para esta seleção.</p>':'');
+ host.innerHTML='<div class="inline-team-grid">'+people.slice(0,expanded?people.length:limit).map(nucleoTeamPersonCard).join('')+'</div>'+(people.length>limit?'<button class="btn secondary" style="margin-top:12px" onclick="nucleoRenderInlineTeam('+(!expanded)+')">'+(expanded?'Ver menos':'Ver mais')+'</button>':'')+(!people.length?'<p class="small">Nenhuma equipe disponível para esta seleção.</p>':'');
  const grid=host.querySelector('.inline-team-grid');grid.style.gridTemplateColumns='repeat('+columns+',minmax(0,1fr))';
 }
 window.addEventListener('resize',()=>{clearTimeout(window.nucleoTeamResizeTimer);window.nucleoTeamResizeTimer=setTimeout(()=>{if(document.getElementById('overviewTeamPeople'))nucleoRenderInlineTeam(false);},150);});
