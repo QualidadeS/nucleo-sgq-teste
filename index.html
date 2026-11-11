@@ -3445,11 +3445,22 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
   </div>
   <div class="assigned-filter-row">
     <input id="search" placeholder="Buscar por número ou cliente" oninput="nucleoScheduleRoSearch()" onkeydown="if(event.key==='Enter'){event.preventDefault();nucleoRunRoSearch()}">
+    <button id="assignedFilterButton" class="btn secondary" type="button" aria-haspopup="dialog" onclick="openAssignedFilters()">Filtros</button>
     <select id="assignedSectorFilter" aria-label="Setor responsável" onchange="render()"><option value="all">Todos os setores</option></select>
     <select id="assignedOriginFilter" onchange="render()"><option value="all">Todas as origens</option><option value="Interna">Interna</option><option value="Externa">Externa</option></select>
     <select id="assignedUnitFilter" onchange="render()"><option value="all">Todas as unidades</option></select>
     <select id="filter" onchange="render()"><option value="todas">Todas as situações</option><option value="precisa_resposta">Precisa de resposta</option><option value="ja_respondeu">Já tem resposta</option><option value="cancelada">Cancelada</option><option value="registro">Registro</option><option value="obsoleto">Obsoleto</option></select>
   </div>
+  <dialog id="assignedFilterDialog" aria-labelledby="assignedFilterTitle">
+    <form onsubmit="applyAssignedFilters(event)">
+      <h3 id="assignedFilterTitle">Filtros das R.O.s</h3>
+      <div id="assignedFilterFields"></div>
+      <div class="assigned-filter-dialog-actions">
+        <button class="btn secondary" type="button" onclick="this.closest('dialog').close()">Cancelar</button>
+        <button class="btn primary" type="submit">Aplicar</button>
+      </div>
+    </form>
+  </dialog>
   <div class="ro-control-table-wrap"><table class="mobile-code-actions ro-control-table"><thead><tr>
 <th>R.O.</th>
 <th>Unidade</th>
@@ -6134,7 +6145,7 @@ function renderSupplierIndicatorsWorkspace(){
 <script src="assets/modules-v2/indicators/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/modules-v2/announcements/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/team-load-local-v47.js?v=20261027-team-local-central"></script>
-<script src="assets/nucleo-app.js?v=20261111-pdca-mobile-v77"></script>
+<script src="assets/nucleo-app.js?v=20261111-listas-filtros-v79"></script>
 <script src="assets/api-source-lock-v20.js?v=20261110-periodo-central-v72"></script>
 
 <script id="nucleoModuleMaintenanceGuardV1">
@@ -7199,6 +7210,30 @@ body.nucleo-hide-sac-indicators [data-nucleo-sac-indicator="1"]{
     text-align:left;
     overflow-wrap:anywhere;
   }
+}
+</style>
+
+<style id="assigned-mobile-filters">
+#assignedFilterButton{display:none}
+#assignedFilterDialog{
+  width:min(360px,calc(100% - 32px));
+  max-height:calc(100dvh - 32px);
+  overflow:auto;
+  border:1px solid #dfe7e4;
+  border-radius:16px;
+  padding:16px;
+  color:#172033;
+}
+#assignedFilterDialog::backdrop{background:rgba(15,23,42,.45)}
+#assignedFilterTitle{margin:0 0 12px}
+#assignedFilterFields{display:grid;gap:8px}
+#assignedFilterFields label{display:grid;gap:4px;font-size:13px;font-weight:600}
+.assigned-filter-dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
+@media (max-width:760px){
+  #roListView .assigned-filter-row{grid-template-columns:minmax(0,1fr) auto!important}
+  #roListView .assigned-filter-row #search{grid-column:auto}
+  #roListView .assigned-filter-row>select{display:none}
+  #assignedFilterButton{display:inline-flex;align-items:center;justify-content:center}
 }
 </style>
 
