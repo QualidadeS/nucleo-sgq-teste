@@ -12242,14 +12242,33 @@ async function nucleoRunFullSync(options={}){
 }
 
 window.nucleoRunFullSync=nucleoRunFullSync;
+async function resolveRoSyncSettings(token){
+  const base=nucleoSessionApiBase(token)||portalApiBase();
+  const result=await portalJsonp({acao:'portal_public_config'},20000,base);
+  if(getSession()?.authToken!==token)return null;
+  if(!result?.sucesso)throw new Error(result?.erro||'Não foi possível consultar o período de sincronização na base central.');
+
+  const roSyncPeriod=String(result.config?.roSyncPeriod??'');
+  const roSyncDateFrom=roSyncPeriod==='custom'?String(result.config?.roSyncDateFrom??''):'';
+  if(!['all','30','90','180','365','custom'].includes(roSyncPeriod)){
+    throw new Error('A API de teste ainda não informa o período de sincronização. Atualize o Apps Script de teste.');
+  }
+  if(roSyncPeriod==='custom'&&!/^\d{4}-\d{2}-\d{2}$/.test(roSyncDateFrom)){
+    throw new Error('A base central não informou a data inicial do período personalizado.');
+  }
+  applyNucleoCentralConfig({...getAdminConfig(),roSyncPeriod,roSyncDateFrom,roSyncDateTo:''});
+  return getSavedIntegrationSettings();
+}
+
 async function refreshRosFromOfficialSheets(force=false){
-  const splitNow=force?{internas:[],externas:[]}:readImportedRosByOrigin();
   const token=getSession()?.authToken;
-  const s=getSavedIntegrationSettings();
-  const periodFiltered=String(s.roSyncPeriod||'all')!=='all';
-  const missingOrigin=!periodFiltered && (!splitNow.internas.length || !splitNow.externas.length);
-  if(!force && !importedRoCacheNeedsRefresh && ros.length && !missingOrigin)return false;
   try{
+    const s=await resolveRoSyncSettings(token);
+    if(!s||getSession()?.authToken!==token)return false;
+    const splitNow=force?{internas:[],externas:[]}:readImportedRosByOrigin();
+    const periodFiltered=String(s.roSyncPeriod||'all')!=='all';
+    const missingOrigin=!periodFiltered&&(!splitNow.internas.length||!splitNow.externas.length);
+    if(!force&&!importedRoCacheNeedsRefresh&&ros.length&&!missingOrigin)return false;
     if(!s?.apiUrl)throw new Error('A URL da API central não está disponível.');
     const data=await loadOfficialRosPaged(s,(loaded,total,message)=>{
       const status=document.getElementById('syncMsg');
@@ -16528,7 +16547,8 @@ async function syncNow(){
   syncNow.inProgress=true;
   nucleoSetCentralSyncState('syncing','Sincronização manual em andamento. Os dados locais ainda não estão confirmados.');
   const syncMsg=document.getElementById('syncMsg');
-  const s=getSavedIntegrationSettings();
+  const token=getSession()?.authToken;
+  let s=getSavedIntegrationSettings();
   await showNucleoLoading('Buscando '+integrationPeriodLabel(s)+' nas abas Interna e Externa...','Sincronizando com a planilha');
 
   if(!s.apiUrl){
@@ -16561,11 +16581,17 @@ async function syncNow(){
       syncMsg.textContent='Executando uma leitura manual da base central...';
       updateNucleoLoading('Executando uma leitura manual da base central...');
     }
+    s=await resolveRoSyncSettings(token);
+    if(!s||getSession()?.authToken!==token)return;
     const data=await loadOfficialRosPaged(s,(loaded,total,message)=>{
       updateNucleoLoading(message);
       syncMsg.textContent=message;
     });
 
+    if(getSession()?.authToken!==token)return;
+    if(currentRoSyncPeriodSignature(s)!==currentRoSyncPeriodSignature()){
+      throw new Error('O período de busca mudou durante a leitura. Clique em Sincronizar novamente.');
+    }
     if(data?.sucesso===false) throw new Error(data.erro||'Falha informada pelo Apps Script.');
     if(!Array.isArray(data?.dados)) throw new Error('Resposta sem a lista "dados".');
 
