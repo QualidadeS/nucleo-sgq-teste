@@ -27,7 +27,7 @@ function nucleoLoadAdminModule(){
   if(nucleoAdminModulePromise)return nucleoAdminModulePromise;
   nucleoAdminModulePromise=new Promise((resolve,reject)=>{
     const script=document.createElement('script');
-    script.src=new URL('assets/modules/admin-workspaces.js?v=20261111-catalogo-acessos-v86',document.baseURI).href;
+    script.src=new URL('assets/modules/admin-workspaces.js?v=20261111-acessos-pontuais-v87',document.baseURI).href;
     const timer=setTimeout(()=>finish(new Error('Tempo limite ao carregar o módulo.')),20000);
     function finish(error){clearTimeout(timer);script.onload=script.onerror=null;if(error){script.remove();nucleoAdminModulePromise=null;reject(error)}else resolve();}
     script.onload=()=>finish();
@@ -16942,7 +16942,14 @@ function explicitRecordUnit(record){
   const values=[record?.unidade,record?.unit,record?.roUnit,record?.raw?.__unidade,record?.__unidade,record?.raw?.Unidade,record?.raw?.['Unidade produtiva'],record?.raw?.['Em qual unidade produtiva ocorreu o problema?']];
   const units=[...new Set(values.map(explicitPortalUnit).filter(Boolean))];return units.length===1?units[0]:'';
 }
-function qualityRecordAllowed(record){const s=getSession()||{};if(Array.isArray(s.accessUnits))return s.accessUnits.includes(explicitRecordUnit(record));return s.role!=='quality'||explicitRecordUnit(record)==='filial';}
+function qualityRecordAllowed(record){const s=getSession()||{};if(Array.isArray(s.accessUnits)){
+ const unit=explicitRecordUnit(record);
+ if(record?.module==='equipment'&&!unit&&nucleoPersonFeatureCan('equipment','consult')){
+  const unassigned=!String(record.unit||record.unidade||'').trim();
+  if(unassigned&&s.accessUnits.includes('matriz')&&s.accessUnits.includes('filial'))return true;
+ }
+ return s.accessUnits.includes(unit);
+}return s.role!=='quality'||explicitRecordUnit(record)==='filial';}
 
 function applySettingsUnitSelection(){
   const unit=document.getElementById('qualityConfigUnit')?.value||'matriz';
@@ -16954,7 +16961,7 @@ function applySettingsUnitSelection(){
 // Módulo de arquivos carregado sob demanda.
 let nucleoDriveModulePromise=null;
 function nucleoDriveLoad(){if(typeof nucleoDriveShow==='function')return Promise.resolve();if(!nucleoDriveModulePromise)nucleoDriveModulePromise=new Promise((resolve,reject)=>{const script=document.createElement('script');script.src=new URL('assets/modules/drive-documents.js?v=20261009-mutation-fix1',document.baseURI).href;const timer=setTimeout(()=>finish(new Error('Tempo limite ao carregar o módulo de arquivos. Tente novamente.')),20000);function finish(error){clearTimeout(timer);script.onload=script.onerror=null;if(error){script.remove();nucleoDriveModulePromise=null;reject(error);}else resolve();}script.onload=()=>finish();script.onerror=()=>finish(new Error('Não foi possível carregar o módulo de arquivos.'));document.head.appendChild(script);});return nucleoDriveModulePromise;}
-async function nucleoDriveOpen(tab){try{await nucleoDriveLoad();await nucleoDriveShow(tab);}catch(e){alert(e.message);}}
+async function nucleoDriveOpen(tab){if(tab==='requests'&&!nucleoFeatureRequire('documents','prepare'))return;try{await nucleoDriveLoad();await nucleoDriveShow(tab);}catch(e){alert(e.message);}}
 function nucleoDriveSettingsShortcut(){
  const box=document.getElementById('unitQualitySettings');if(!box)return;
  box.style.display='block';
@@ -17586,8 +17593,8 @@ function nucleoManagerQuery(){
 function nucleoManagerMatchQuery(record,context){
  if(!context.active)return true;
  const state=context.state,unit=state.unit==='all'?'':explicitRecordUnit(record);
- if(unit&&unit!==state.unit)return false;
- if(state.sector==='all')return true;
+ if(state.unit!=='all'&&(unit||record.module==='equipment')&&unit!==state.unit)return false;
+ if(state.sector==='all'||record.module==='equipment')return true;
  const own=[record.responsibleSector,record.decisionSector,record.setor,record.sector,record.__assignedSector,...(Array.isArray(record.responsibleSectors)?record.responsibleSectors:[])].filter(Boolean);
  const ro=String(record.roNumber||record.ro||record.roKey||record.numero||record.roId||'').split('::')[0],linked=context.roSectors.get(ro),selected=normalizeAnswer(state.sector);
  return own.some(s=>normalizeAnswer(s)===selected)||!!linked?.has(selected)||(!own.length&&!linked?.size);
