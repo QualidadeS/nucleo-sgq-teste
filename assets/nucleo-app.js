@@ -4,8 +4,8 @@ if(new URLSearchParams(location.search).get('recuperar')==='1'){
   try{sessionStorage.removeItem('ro-pdca-session-v63')}catch(e){}
 }
 const NUCLEO_DEFAULT_DECISIONS=[{"id":"directed","label":"Direcionar para tratativa","behavior":"directed","active":true,"requireSector":true,"requireReason":true,"pdcaRequired":true,"deadlineDays":null,"color":"#eef4ff"},{"id":"record","label":"Somente para registro","behavior":"record","active":true,"requireSector":false,"requireReason":true,"pdcaRequired":false,"deadlineDays":null,"color":"#fff9e5"},{"id":"cancelled","label":"Cancelar R.O.","behavior":"cancelled","active":true,"requireSector":false,"requireReason":true,"pdcaRequired":false,"deadlineDays":null,"color":"#fff0f0"},{"id":"obsolete","label":"Obsoleta","behavior":"obsolete","active":true,"requireSector":false,"requireReason":true,"pdcaRequired":false,"deadlineDays":null,"color":"#f0f1f3"},{"id":"falta_caixa","label":"Falta de caixa","behavior":"record","active":true,"requireSector":false,"requireReason":false,"pdcaRequired":false,"deadlineDays":null,"color":"#fff9e5"}];
-const NUCLEO_FEATURE_BUTTONS={"showList":["ros","consult"],"showAssignedRos":["ros","assigned"],"showMySubmittedRos":["ros","submitted"],"showTriage":["ros","triage"],"openTriageRecord":["ros","triage"],"saveTriageRecord":["ros","triage"],"showContestations":["ros","reviewContests"],"reviewContestation":["ros","reviewContests"],"submitContest":["ros","contest"],"openContest":["ros","contest"],"startPdcaFromList":["pdca","respond"],"openPDCA":["pdca","respond"],"finishPDCA":["pdca","respond"],"showSentPdcas":["pdca","received"],"showActionsDashboard":["pdca","actions"],"showPendingActions":["pdca","reviewActions"],"confirmActionCompletion":["pdca","reviewActions"],"markActionCompleted":["pdca","reviewActions"],"registerActionEvidence":["pdca","completeAction"],"presentPdca":["pdca","present"],"presentCurrentPdca":["pdca","present"],"savePdcaPresentationRecord":["pdca","present"],"finalizeAndSendSac":["sac","finalize"],"saveSacEditForm":["sac","edit"],"saveExternalRoControl":["sac","edit"],"saveSacDecisionLocally":["sac","edit"],"publishAnnouncement":["announcements","publish"],"openStandardDocumentCreate":["documents","standards"],"saveStandardDocument":["documents","standards"],"toggleStandardDocument":["documents","standards"],"deleteStandardDocument":["documents","standards"],"addOperationalUser":["users","create"],"approvePortalUser":["users","approve"],"rejectPortalUser":["users","approve"],"openUserRegistrationEditor":["users","edit"],"saveUserRegistrationEditor":["users","edit"],"removeOperationalUserByKey":["users","delete"],"saveSectorConfiguration":["sectors","edit"],"saveFixedEmailCopies":["sectors","emails"],"saveRncProcessTemplateFromForm":["processes","templates"],"deleteAssignedDirection":["ros","triage"],"openAssignedSectorEdit":["ros","triage"],"endAnnouncement":["announcements","publish"],"openUnitUserAccess":["users","permissions"],"showAnnouncementsAdmin":["announcements","publish"],"openAdminResetPassword":["users","edit"]};
-const NUCLEO_PERSON_FEATURES={"ros":{"consult":["Consultar R.O.s disponíveis",false,"view"],"submitted":["R.O.s cadastradas por mim",false,"view"],"assigned":["R.O.s atribuídas",false,"view"],"triage":["Triar, classificar e direcionar",true,"manage"],"contest":["Criar contestações",true,"view"],"reviewContests":["Analisar contestações",true,"manage"],"claimant":["Alterar e confirmar reclamante",true,"manage"]},"pdca":{"received":["Consultar PDCAs recebidos",false,"view"],"respond":["Responder e continuar PDCA",true,"view"],"actions":["Consultar ações",false,"view"],"completeAction":["Registrar conclusão e evidências",true,"view"],"reviewActions":["Conferir e aprovar ações",true,"manage"],"import":["Importar e vincular respostas",true,"manage"],"present":["Registrar apresentação",true,"manage"],"dispatch":["Despachar resposta ao reclamante",true,"manage"]},"sac":{"consult":["Consultar SACs",false,"view"],"edit":["Classificar e editar SACs",true,"manage"],"finalize":["Finalizar e enviar SAC",true,"manage"]},"documents":{"consult":["Consultar documentos e solicitações",false,"view"],"request":["Criar solicitação de documento",true,"view"],"standards":["Cadastrar e alterar documentos padrão",true,"manage"],"prepare":["Preencher e armazenar documento solicitado",true,"manage"],"deliver":["Enviar e entregar documentos",true,"manage"],"history":["Consultar histórico de entregas",false,"manage"]},"indicators":{"consult":["Consultar indicadores",false,"view"]},"announcements":{"consult":["Consultar comunicados",false,"view"],"publish":["Emitir, alterar e encerrar comunicados",true,"manage"]},"equipment":{"consult":["Consultar equipamentos",false,"view"],"pending":["Consultar calibrações pendentes",false,"view"],"history":["Consultar histórico metrológico",false,"view"],"edit":["Cadastrar e alterar equipamentos",true,"manage"],"delete":["Excluir equipamentos",true,"manage"]},"training":{"consult":["Consultar treinamentos",false,"view"],"pending":["Consultar reciclagens pendentes",false,"view"],"history":["Consultar histórico de competências",false,"view"],"edit":["Cadastrar e alterar treinamentos",true,"manage"],"delete":["Excluir treinamentos",true,"manage"]},"nc":{"consult":["Consultar RNCs e tratamento",false,"view"],"edit":["Cadastrar e alterar RNCs",true,"manage"],"send":["Enviar RNC e anexar fotos",true,"manage"],"delete":["Excluir RNCs",true,"manage"]},"processes":{"consult":["Consultar documentos vigentes",false,"view"],"review":["Consultar documentos em revisão",false,"view"],"history":["Consultar histórico documental",false,"view"],"edit":["Cadastrar e alterar documentos internos",true,"manage"],"templates":["Alterar modelos e estrutura dos formulários",true,"manage"],"delete":["Excluir documentos internos",true,"manage"]},"users":{"consult":["Consultar cadastros",false,"manage"],"create":["Cadastrar pessoas",true,"manage"],"edit":["Editar nomes, dados e setores",true,"manage"],"approve":["Aprovar e bloquear cadastros",true,"manage"],"permissions":["Definir permissões de outras pessoas",true,"manage"],"delete":["Excluir usuários",true,"manage"]},"sectors":{"decisions":["Editar decisões e regras de R.O.",true,"manage"],"consult":["Consultar configurações da unidade",false,"manage"],"edit":["Cadastrar e alterar setores",true,"manage"],"emails":["Alterar destinatários e cópias padrão",true,"manage"],"folders":["Alterar e validar pastas do Drive",true,"manage"],"documentTypes":["Editar tipos de documentos",true,"manage"]}};
+const NUCLEO_FEATURE_BUTTONS={"showList":["ros","consult"],"showAssignedRos":["ros","assigned"],"showMySubmittedRos":["ros","submitted"],"showTriage":["ros","triage"],"openTriageRecord":["ros","triage"],"saveTriageRecord":["ros","triage"],"showContestations":["ros","reviewContests"],"reviewContestation":["ros","reviewContests"],"submitContest":["ros","contest"],"openContest":["ros","contest"],"startPdcaFromList":["pdca","respond"],"openPDCA":["pdca","respond"],"finishPDCA":["pdca","respond"],"showSentPdcas":["pdca","received"],"showActionsDashboard":["pdca","actions"],"showPendingActions":["pdca","reviewActions"],"confirmActionCompletion":["pdca","reviewActions"],"markActionCompleted":["pdca","reviewActions"],"registerActionEvidence":["pdca","completeAction"],"presentPdca":["pdca","present"],"presentCurrentPdca":["pdca","present"],"savePdcaPresentationRecord":["pdca","present"],"finalizeAndSendSac":["sac","finalize"],"saveSacEditForm":["sac","edit"],"saveExternalRoControl":["sac","edit"],"saveSacDecisionLocally":["sac","edit"],"publishAnnouncement":["announcements","publish"],"openStandardDocumentCreate":["documents","standards"],"saveStandardDocument":["documents","standards"],"toggleStandardDocument":["documents","standards"],"deleteStandardDocument":["documents","standards"],"addOperationalUser":["users","create"],"approvePortalUser":["users","approve"],"rejectPortalUser":["users","approve"],"openUserRegistrationEditor":["users","edit"],"saveUserRegistrationEditor":["users","edit"],"saveSectorConfiguration":["sectors","edit"],"saveFixedEmailCopies":["sectors","emails"],"saveRncProcessTemplateFromForm":["processes","templates"],"deleteAssignedDirection":["ros","triage"],"openAssignedSectorEdit":["ros","triage"],"endAnnouncement":["announcements","publish"],"openUnitUserAccess":["users","permissions"],"showAnnouncementsAdmin":["announcements","publish"],"openAdminResetPassword":["users","edit"]};
+const NUCLEO_PERSON_FEATURES={"ros":{"consult":["Consultar R.O.s disponíveis",false,"view"],"submitted":["R.O.s cadastradas por mim",false,"view"],"assigned":["R.O.s atribuídas",false,"view"],"triage":["Triar, classificar e direcionar",true,"manage"],"contest":["Criar contestações",true,"view"],"reviewContests":["Analisar contestações",true,"manage"],"claimant":["Alterar e confirmar reclamante",true,"manage"]},"pdca":{"received":["Consultar PDCAs recebidos",false,"view"],"respond":["Responder e continuar PDCA",true,"view"],"actions":["Consultar ações",false,"view"],"completeAction":["Registrar conclusão e evidências",true,"view"],"reviewActions":["Conferir e aprovar ações",true,"manage"],"import":["Importar e vincular respostas",true,"manage"],"present":["Registrar apresentação",true,"manage"],"dispatch":["Despachar resposta ao reclamante",true,"manage"]},"sac":{"consult":["Consultar SACs",false,"view"],"edit":["Classificar e editar SACs",true,"manage"],"finalize":["Finalizar e enviar SAC",true,"manage"]},"documents":{"consult":["Consultar documentos e solicitações",false,"view"],"request":["Criar solicitação de documento",true,"view"],"standards":["Cadastrar e alterar documentos padrão",true,"manage"],"prepare":["Preencher e armazenar documento solicitado",true,"manage"],"deliver":["Enviar e entregar documentos",true,"manage"],"history":["Consultar histórico de entregas",false,"manage"]},"indicators":{"consult":["Consultar indicadores",false,"view"]},"announcements":{"consult":["Consultar comunicados",false,"view"],"publish":["Emitir, alterar e encerrar comunicados",true,"manage"]},"equipment":{"consult":["Consultar equipamentos",false,"view"],"pending":["Consultar calibrações pendentes",false,"view"],"history":["Consultar histórico metrológico",false,"view"],"edit":["Cadastrar e alterar equipamentos",true,"manage"],"delete":["Excluir equipamentos",true,"manage"]},"training":{"consult":["Consultar treinamentos",false,"view"],"pending":["Consultar reciclagens pendentes",false,"view"],"history":["Consultar histórico de competências",false,"view"],"edit":["Cadastrar e alterar treinamentos",true,"manage"],"delete":["Excluir treinamentos",true,"manage"]},"nc":{"consult":["Consultar RNCs e tratamento",false,"view"],"edit":["Cadastrar e alterar RNCs",true,"manage"],"send":["Enviar RNC e anexar fotos",true,"manage"],"delete":["Excluir RNCs",true,"manage"]},"processes":{"consult":["Consultar documentos vigentes",false,"view"],"review":["Consultar documentos em revisão",false,"view"],"history":["Consultar histórico documental",false,"view"],"edit":["Cadastrar e alterar documentos internos",true,"manage"],"templates":["Alterar modelos e estrutura dos formulários",true,"manage"],"delete":["Excluir documentos internos",true,"manage"]},"users":{"consult":["Consultar cadastros",false,"manage"],"create":["Cadastrar pessoas",true,"manage"],"edit":["Editar nomes, dados e setores",true,"manage"],"approve":["Aprovar e bloquear cadastros",true,"manage"],"permissions":["Definir permissões de outras pessoas",true,"manage"]},"sectors":{"decisions":["Editar decisões e regras de R.O.",true,"manage"],"consult":["Consultar configurações da unidade",false,"manage"],"edit":["Cadastrar e alterar setores",true,"manage"],"emails":["Alterar destinatários e cópias padrão",true,"manage"],"folders":["Alterar e validar pastas do Drive",true,"manage"],"documentTypes":["Editar tipos de documentos",true,"manage"]}};
 let nucleoSidebarAuditAccess=null;
 const NUCLEO_ACCESS_CONSULTATIONS={
  users:['navUsersConsult','Consultar cadastros'],
@@ -3534,10 +3534,6 @@ function saveOwnProfile(){
   };
   users[idx]=updatedUser;
 
-  if(previous.email && norm(previous.email)!==norm(email)){
-    portalBackendDelete('users',previous.email);
-  }
-
   localStorage.setItem(USERS_KEY,JSON.stringify(users));
   portalBackendSave('users',email||name,updatedUser);
 
@@ -4177,7 +4173,7 @@ function renderOperationalUsers(){
         <button class="btn secondary" type="button" onclick="openManagerSectorsEditor('${escapeHtml(u.email||u.name)}')">Editar gestão</button>
         <button class="btn secondary" type="button" onclick="openUserRegistrationEditor('${escapeHtml(u.email||u.name)}')">Editar cadastro</button>
         <button class="btn secondary" type="button" onclick="openAdminResetPassword('${escapeHtml(u.email||u.name)}')">Redefinir senha</button>
-        <button class="remove-admin" type="button" onclick="removeOperationalUserByKey('${escapeHtml(u.email||u.name)}')">Excluir login</button>
+        ${nucleoLoginStatusButton(u)}
       </div>
     </div>`).join(''):'';
 
@@ -4270,35 +4266,40 @@ async function rejectPortalUser(key){
   renderOperationalUsers();
   addPortalAuditEvent('recusar_usuario',users[idx].email||users[idx].name,{name:users[idx].name,sector:users[idx].sector});
 }
-function removeOperationalUserByKey(key){
-  if(!nucleoFeatureRequire('users','delete'))return;
-  if(!isAdmin())return;
-  const users=getOperationalUsers();
-  const normalized=String(key||'').trim().toLowerCase();
-  const u=users.find(x=>
-    String(x.email||'').trim().toLowerCase()===normalized ||
-    String(x.name||'').trim().toLowerCase()===normalized
-  );
-  if(!u)return;
-  if(u.role==='admin'){if(!nucleoPersonPermissions(getSession()).sgq)return;return deleteAdminAccountByEmail(u.email);}
-
-  const label=u.name||u.email||'este usuário';
-  if(!confirm('Apagar definitivamente o cadastro de '+label+'?'))return;
-
-  const deleteKey=String(u.email||u.name||key).trim();
-  rememberDeletedUser(deleteKey);
-  if(u.name)rememberDeletedUser(u.name);
-
-  const filtered=users.filter(x=>x!==u && !isDeletedUserRecord(x));
-  localStorage.setItem(USERS_KEY,JSON.stringify(filtered));
-
-  portalBackendDelete('users',deleteKey);
-  addPortalAuditEvent('apagar_usuario',deleteKey,{name:u.name,sector:u.sector,email:u.email});
-
-  renderOperationalUsers();
-  try{refreshNewUserManagerFields()}catch(e){}
-  alert('Usuário apagado.');
+function nucleoCanChangeLogin(user){
+ const session=getSession();
+ if(!isAdmin()||!nucleoPersonFeatureCan('users','approve')||!user||!session)return false;
+ const mail=String(user.email||'').trim().toLowerCase();
+ if((user.personId&&user.personId===session.personId)||(mail&&mail===String(session.email||'').trim().toLowerCase())||mail==='sgq@empresa.com')return false;
+ const units=nucleoPersonUnits(user);
+ return session.role!=='quality'||(user.role!=='admin'&&!nucleoPersonPermissions(user).sgq&&units.length>0&&units.every(unit=>unit==='filial'));
 }
+function nucleoLoginStatusButton(user){
+ if(!nucleoCanChangeLogin(user))return '';
+ const status=user.approvalStatus||'approved';
+ if(!['approved','inactive','disabled'].includes(status))return '';
+ const enable=status!=='approved';
+ const id=encodeURIComponent(String(user.personId||user.storageId||user.email||''));
+ if(!id)return '';
+ return `<button class="btn secondary" type="button" data-login-id="${escapeHtml(id)}" onclick="nucleoSetLoginEnabled(this,${enable})">${enable?'Reativar login':'Desativar login'}</button>`;
+}
+async function nucleoSetLoginEnabled(button,enabled){
+ const id=decodeURIComponent(button.dataset.loginId);
+ const user=getOperationalUsers().find(item=>String(item.personId||item.storageId||item.email||'')===id);
+ if(!nucleoCanChangeLogin(user))return;
+ if(!confirm((enabled?'Reativar':'Desativar')+' o login de '+(user.name||user.email)+'?'))return;
+ button.disabled=true;
+ try{
+  const result=await portalJsonp({acao:'portal_set_login_enabled',person:id,enabled:String(enabled)},25000);
+  if(!result?.sucesso||result.confirmado!==true||result.active!==enabled)throw Error(result?.erro||'A base central não confirmou o status.');
+  const users=getOperationalUsers().map(item=>String(item.personId||item.storageId||item.email||'')===id?{...item,approvalStatus:result.approvalStatus,active:result.active,status:result.status}:item);
+  localStorage.setItem(USERS_KEY,JSON.stringify(users));
+  renderOperationalUsers();
+  renderAdminUsers();
+ }catch(error){alert(error.message);}
+ finally{button.disabled=false;}
+}
+
 function addPortalAuditEvent(action,recordId,data){
   const item={
     id:'AUD-'+Date.now()+'-'+Math.random().toString(36).slice(2,7),
@@ -14369,7 +14370,6 @@ function renderAdminUsers(){
   if(!box)return;
   const st=getAccessState();
   const users=getOperationalUsers();
-  const current=String(getSession()?.email||'').trim().toLowerCase();
 
   // A fonte principal é a coleção de usuários: qualquer cadastro role=admin
   // precisa aparecer aqui, mesmo que a lista local access.admins esteja antiga.
@@ -14387,11 +14387,7 @@ function renderAdminUsers(){
     const u=users.find(x=>String(x.email||'').trim().toLowerCase()===email);
     const displayName=u?.name||email;
     const initial=(displayName||'?').trim().charAt(0).toUpperCase();
-    const active=!(u?.active===false || u?.approvalStatus==='disabled');
-    const isSelf=email===current;
-    const protectedBase=email==='sgq@empresa.com';
-    const realAdmins=emails.filter(e=>e!=='sgq@empresa.com'||users.some(u=>String(u.email||'').trim().toLowerCase()===e));
-    const cantDelete=realAdmins.length<=1 || isSelf || protectedBase;
+    const active=!(u?.active===false || ['disabled','inactive'].includes(u?.approvalStatus));
     const safeEmail=encodeURIComponent(email);
     return `<div class="admin-user-row">
       <div class="admin-user-info">
@@ -14401,8 +14397,7 @@ function renderAdminUsers(){
       <div style="display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end">
         ${u?`<button class="btn secondary" type="button" onclick="openUnitUserAccess('${encodeURIComponent(u.personId||u.email||u.name)}')">Editar acesso</button>`:''}
         <button class="btn secondary" type="button" onclick="editAdminAccountByEmail(decodeURIComponent('${safeEmail}'))">Editar</button>
-        <button class="btn secondary" type="button" ${isSelf?'disabled title="Você não pode desativar a conta que está usando"':''} onclick="toggleAdminAccountByEmail(decodeURIComponent('${safeEmail}'))">${active?'Desativar':'Ativar'}</button>
-        <button class="remove-admin" type="button" ${cantDelete?'disabled title="Não é possível excluir esta conta"':''} onclick="deleteAdminAccountByEmail(decodeURIComponent('${safeEmail}'))">Excluir</button>
+        ${nucleoLoginStatusButton(u)}
       </div>
     </div>`;
   }).join('');
@@ -14418,37 +14413,6 @@ function editAdminAccountByEmail(email){
   if(i<0){st.admins.push(String(email||'').trim().toLowerCase());saveAccessState(st);i=adminIndexByEmail(email)}
   editAdminAccount(i);
 }
-function toggleAdminAccountByEmail(email){
-  const st=getAccessState();
-  let i=adminIndexByEmail(email);
-  if(i<0){st.admins.push(String(email||'').trim().toLowerCase());saveAccessState(st);i=adminIndexByEmail(email)}
-  toggleAdminAccount(i);
-}
-function deleteAdminAccountByEmail(email){
-  if(!isAdmin()){alert('Acesso restrito.');return}
-  email=String(email||'').trim().toLowerCase();
-  const current=String(getSession()?.email||'').trim().toLowerCase();
-  if(email===current){alert('Você não pode excluir a conta que está usando.');return}
-  if(email==='sgq@empresa.com'){alert('A conta administrativa principal não pode ser excluída.');return}
-
-  const users=getOperationalUsers();
-  const admins=users.filter(u=>String(u.role||'').toLowerCase()==='admin' && String(u.email||'').trim().toLowerCase()!==email);
-  if(admins.length<1){alert('É necessário manter pelo menos um administrador cadastrado.');return}
-  const u=users.find(x=>String(x.email||'').trim().toLowerCase()===email);
-  if(!u){alert('Cadastro do administrador não encontrado.');return}
-  if(!confirm(`Excluir permanentemente o acesso de ${u.name||email}?\n\nO histórico do sistema será preservado, mas esta conta não poderá mais entrar.`))return;
-
-  saveOperationalUsers(users.filter(x=>String(x.email||'').trim().toLowerCase()!==email));
-  markDeletedUserKey(email);
-  const st=getAccessState();
-  st.admins=(st.admins||[]).filter(x=>String(x||'').trim().toLowerCase()!==email);
-  saveAccessState(st);
-  portalBackendDelete('users',email);
-  renderAdminUsers();
-  renderOperationalUsers();
-  alert('Administrador excluído.');
-}
-
 function editAdminAccount(index){
   if(!isAdmin()){alert('Acesso restrito.');return}
   const st=getAccessState();
@@ -14465,43 +14429,6 @@ function editAdminAccount(index){
   saveOperationalUsers(users);
   portalBackendSave('users',users[ui].email||users[ui].name,users[ui]);
   renderAdminUsers();
-}
-function toggleAdminAccount(index){
-  if(!isAdmin()){alert('Acesso restrito.');return}
-  const st=getAccessState();
-  const email=String(st.admins[index]||'').trim().toLowerCase();
-  const current=String(getSession()?.email||'').trim().toLowerCase();
-  if(email===current){alert('Você não pode desativar a conta que está usando.');return}
-  const users=getOperationalUsers();
-  const ui=users.findIndex(u=>String(u.email||'').trim().toLowerCase()===email);
-  if(ui<0){alert('Cadastro do administrador não encontrado.');return}
-  const active=!(users[ui].active===false || users[ui].approvalStatus==='disabled');
-  const action=active?'desativar':'ativar';
-  if(!confirm(`Deseja ${action} o acesso de ${users[ui].name||email}?`))return;
-  users[ui]={...users[ui],role:'admin',active:!active,approvalStatus:active?'disabled':'approved',status:active?'disabled':'active',updatedAt:new Date().toISOString()};
-  saveOperationalUsers(users);
-  portalBackendSave('users',users[ui].email||users[ui].name,users[ui]);
-  renderAdminUsers();
-}
-function deleteAdminAccount(index){
-  if(!isAdmin()){alert('Acesso restrito.');return}
-  const st=getAccessState();
-  if(st.admins.length<=1){alert('É necessário manter pelo menos um administrador cadastrado.');return}
-  const email=String(st.admins[index]||'').trim().toLowerCase();
-  const current=String(getSession()?.email||'').trim().toLowerCase();
-  if(email===current){alert('Você não pode excluir a conta que está usando.');return}
-  if(email==='sgq@empresa.com'){alert('A conta administrativa principal não pode ser excluída.');return}
-  const users=getOperationalUsers();
-  const u=users.find(x=>String(x.email||'').trim().toLowerCase()===email);
-  if(!confirm(`Excluir permanentemente o acesso de ${u?.name||email}?\n\nO histórico do sistema será preservado, mas esta conta não poderá mais entrar.`))return;
-  const filtered=users.filter(x=>String(x.email||'').trim().toLowerCase()!==email);
-  localStorage.setItem(USERS_KEY,JSON.stringify(filtered));
-  markDeletedUserKey(email);
-  st.admins=st.admins.filter(x=>String(x||'').trim().toLowerCase()!==email);
-  saveAccessState(st);
-  portalBackendDelete('users',email);
-  renderAdminUsers();
-  renderOperationalUsers();
 }
 async function addAdmin(){
   if(!nucleoPersonPermissions(getSession()||{}).sgq)return;
@@ -17441,7 +17368,28 @@ async function nucleoGenerateSacConsultPdf(button){
  try{
   const result=await portalJsonp({acao:'portal_sac_consult_pdf',id:button.dataset.sacConsultPdf},90000);
   if(token!==getSession()?.authToken)return;
-  if(!result?.sucesso||!result.base64)throw Error(result?.erro||'PDF indisponível.');
+  if(!result?.sucesso)throw Error(result?.erro||'Não foi possível gerar o PDF do SAC.');
+  if(!result.base64){
+   if(Array.isArray(result.dados)&&result.abas?.externa){
+    const details=button.closest('article')?.querySelector('details');
+    if(!details)throw Error('Abra o SAC novamente para gerar o PDF.');
+    const title=details.querySelector('summary')?.textContent||'SAC';
+    const sections=[...details.querySelectorAll('section')].map(section=>section.outerHTML).join('');
+    const frame=document.createElement('iframe');
+    frame.title='Impressão da consulta de SAC';
+    frame.style.cssText='position:fixed;left:-10000px;top:0;width:210mm;height:297mm;border:0';
+    frame.onload=()=>{
+     if(token!==getSession()?.authToken){frame.remove();return;}
+     frame.contentWindow.addEventListener('afterprint',()=>frame.remove(),{once:true});
+     frame.contentWindow.focus();
+     frame.contentWindow.print();
+    };
+    frame.srcdoc=`<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>@page{size:A4;margin:16mm}body{font:13px Arial;color:#182432}h1{font-size:20px}h4{font-size:14px;border-bottom:1px solid #aaa;padding-bottom:5px}dt{margin-top:8px;break-after:avoid}dd{margin:3px 0;overflow-wrap:anywhere}</style><h1>Consulta de SAC</h1><p>${escapeHtml(title)}</p>${sections}</html>`;
+    document.body.appendChild(frame);
+    return;
+   }
+   throw Error('O Apps Script não retornou o PDF do SAC. Confira a versão publicada e a URL da integração.');
+  }
   const raw=atob(result.base64);
   if(!raw.startsWith('%PDF-'))throw Error('O arquivo retornado não é um PDF válido.');
   showPdfBlob(new Blob([Uint8Array.from(raw,c=>c.charCodeAt(0))],{type:'application/pdf'}),result.fileName||'SAC.pdf');
