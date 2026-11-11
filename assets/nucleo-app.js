@@ -27,7 +27,7 @@ function nucleoLoadAdminModule(){
   if(nucleoAdminModulePromise)return nucleoAdminModulePromise;
   nucleoAdminModulePromise=new Promise((resolve,reject)=>{
     const script=document.createElement('script');
-    script.src=new URL('assets/modules/admin-workspaces.js?v=20261111-acessos-pontuais-v87',document.baseURI).href;
+    script.src=new URL('assets/modules/admin-workspaces.js?v=20261111-sac-consulta-v89',document.baseURI).href;
     const timer=setTimeout(()=>finish(new Error('Tempo limite ao carregar o módulo.')),20000);
     function finish(error){clearTimeout(timer);script.onload=script.onerror=null;if(error){script.remove();nucleoAdminModulePromise=null;reject(error)}else resolve();}
     script.onload=()=>finish();
@@ -99,7 +99,8 @@ const ADMIN_OPERATIONAL_MODULES={
     title:'Gestão de processos',
     desc:'Lista Mestra digital dos documentos controlados, nomenclaturas, modelos e histórico documental do SGQ.',
     cards:[
-      ['Lista Mestra','Consultar todos os documentos controlados, situação, revisão e vínculo com o arquivo vigente.','master'],
+      ['Documentos vigentes','Consultar a Lista Mestra e os arquivos vigentes.','master'],
+      ['Documentos em revisão','Consultar documentos em revisão ou aguardando aprovação.','review'],
       ['Adicionar documento existente','Adotar um documento que já existe e trazê-lo para o controle do Núcleo sem recriar o arquivo.','adopt'],
       ['Importar documentos existentes','Colar uma tabela do Excel/Sheets ou importar CSV/TSV para migrar a Lista Mestra atual.','import'],
       ['Nomenclaturas','Controlar siglas de tipos, unidades e áreas usadas na codificação documental.','nomenclature'],
@@ -17227,7 +17228,7 @@ function nucleoRefreshAccessConsultations(user){
  const visible=moduleItems.some(id=>{
    const item=document.getElementById(id);
    return item&&!item.classList.contains('hidden')&&item.style.display!=='none';
- })||permissions.some(([id])=>document.getElementById(id)?.hidden===false);
+ })||permissions.some(([id])=>{const item=document.getElementById(id);return item?.hidden===false&&item.dataset.accessCatalogOnly===undefined;});
  module.classList.toggle('hidden',!visible);
  module.style.display=visible?'':'none';
 }
@@ -17255,7 +17256,7 @@ function nucleoShowMyAccess(){
    const consultation=NUCLEO_ACCESS_CONSULTATIONS[key]?.[0];
    const actions=[consultation,...(navigation[key]||[])].filter(Boolean)
      .map(id=>document.getElementById(id))
-     .filter(el=>el&&!el.hidden&&getComputedStyle(el).display!=='none'&&!el.classList.contains('hidden'));
+     .filter(el=>el&&!el.hidden&&(el.dataset.accessCatalogOnly!==undefined||getComputedStyle(el).display!=='none'&&!el.classList.contains('hidden')));
    return {title:NUCLEO_PERSON_MODULES[key],allowed,actions};
  }).filter(Boolean);
  host.innerHTML=modules.length?modules.map(({title,allowed,actions})=>
@@ -17296,7 +17297,12 @@ function nucleoOpenAccessConsultation(module){
    const inUnit=record=>units.includes(explicitRecordUnit(record));
    let items;
    if(module==='sac'){
-     items=getExternalRoControls().filter(r=>inUnit(r)&&sacIsRealSac(r)).map(r=>[r.ro,r.client||r.cliente||r.officialForm?.client||'']);
+     const records=getExternalRoControls().filter(r=>inUnit(r)&&sacIsRealSac(r));
+     host.innerHTML=records.length?records.map(nucleoSacConsultationCard).join(''):'<p>Nenhum SAC disponível para consulta.</p>';
+     host.querySelectorAll('[data-sac-consult-pdf]').forEach(button=>{
+       button.addEventListener('click',()=>nucleoGenerateSacConsultPdf(button));
+     });
+     return;
    }else if(module==='documents'){
      const own=normalizeAnswer(getSession()?.name||'');
      const requests=getAdminModuleRecords().filter(r=>r.module==='documents'&&inUnit(r)&&own&&normalizeAnswer(r.createdBy||'')===own);
@@ -17308,6 +17314,40 @@ function nucleoOpenAccessConsultation(module){
      '<article class="card"><b>'+escapeHtml(heading||'')+'</b>'+(detail?'<p style="white-space:pre-wrap">'+escapeHtml(detail)+'</p>':'')+'</article>'
    ).join(''):'<p>Nenhum registro disponível para consulta.</p>';
  }
+}
+
+function nucleoSacConsultationCard(sac){
+ const f=sac.officialForm||{};
+ const display=value=>({yes:'Sim',no:'Não',pending:'Pendente',informative:'Informativo',billing:'Faturamento',quality:'Qualidade'}[value]||value);
+ const groups=[
+  ['Identificação',[['Cliente',sac.client||sac.cliente],['Unidade',sac.unit||sac.unidade],['Data da reclamação',f.complaintDate],['Representante',sac.representative||f.representative],['Produto',sac.product||f.fiscalProductCode],['Pedido',f.fiscalOrder||sac.order]]],
+  ['Entrada fiscal',[['Baixa de títulos',f.titleWriteoff],['Desconto financeiro',f.financialDiscount],['Valor do desconto',f.financialDiscountValue],['Nota de devolução / remessa',f.returnInvoiceIssued],['Número da nota',f.returnInvoiceNumber],['Pedido de reposição emitido',f.replacementOrderIssued],['Número do pedido de reposição',f.replacementOrderNumber],['Nota fiscal',f.fiscalInvoice]]],
+  ['Desvio e reconhecimento',[['Código do produto',f.fiscalProductCode||f.deviationProductCode],['Descrição',f.deviationDescription],['Tipo de desvio',f.deviationType],['Quantidade não conforme',f.nonconformingQty],['Retirada',f.pickup],['Data do envio',f.sentDate],['Procedente',f.founded],['Nº da RNC',f.rncNumber],['Tamanho do lote',f.lotSize],['Valor da reclamação',f.claimValue],['% de B.O.',f.boPercent],['Reconhecido por',f.recognitionArea],['Anexos / links',f.attachments]]],
+  ['Tratativa',[['Tipo de tratativa',sac.treatmentType],['Situação',sac.treatmentStatus],['Prazo vigente',sac.treatmentDeadline],['Setor responsável',sac.responsibleSector],['PDCA',sac.pdcaRequired===false?'Dispensado':sac.pdcaRequired===true?'Obrigatório':''],['Prazo do PDCA',sac.pdcaDeadline],['Orientação da Qualidade',sac.qualityNote],['Detalhes da tratativa',sac.treatmentDescription],['Decisão da Diretoria',sac.directorDecision]]],
+  ['Histórico de prazos',(sac.deadlineHistory||[]).map(h=>['Prazo', [h.oldDeadline,h.newDeadline].filter(Boolean).join(' → ')+(h.reason?' · '+h.reason:'')])],
+  ['Histórico de envios',(sac.sacSendHistory||[]).map(h=>['Envio',[h.sentAt,h.sentBy,h.to||h.directorEmail].filter(Boolean).join(' · ')])]
+ ];
+ const details=groups.map(([title,fields])=>{
+  const filled=fields.filter(([,v])=>v!=null&&String(v).trim()!=='');
+  return filled.length?'<section><h4>'+escapeHtml(title)+'</h4><dl>'+filled.map(([label,value])=>'<dt><b>'+escapeHtml(label)+'</b></dt><dd style="white-space:pre-wrap;overflow-wrap:anywhere">'+escapeHtml(String(display(value)))+'</dd>').join('')+'</dl></section>':'';
+ }).join('');
+ return '<article class="card"><details><summary><b>'+escapeHtml(sac.ro||'SAC')+'</b> · '+escapeHtml(sac.client||sac.cliente||'')+'</summary>'+details+'</details>'+
+  '<button type="button" class="btn secondary" style="margin-top:8px" data-sac-consult-pdf="'+escapeHtml(String(sac.id||''))+'">Gerar PDF</button></article>';
+}
+
+async function nucleoGenerateSacConsultPdf(button){
+ if(!nucleoFeatureRequire('sac','consult'))return;
+ const token=getSession()?.authToken;
+ button.disabled=true;
+ try{
+  const result=await portalJsonp({acao:'portal_sac_consult_pdf',id:button.dataset.sacConsultPdf},90000);
+  if(token!==getSession()?.authToken)return;
+  if(!result?.sucesso||!result.base64)throw Error(result?.erro||'PDF indisponível.');
+  const raw=atob(result.base64);
+  if(!raw.startsWith('%PDF-'))throw Error('O arquivo retornado não é um PDF válido.');
+  showPdfBlob(new Blob([Uint8Array.from(raw,c=>c.charCodeAt(0))],{type:'application/pdf'}),result.fileName||'SAC.pdf');
+ }catch(error){alert(error.message||String(error));}
+ finally{button.disabled=false;}
 }
 
 function nucleoAnnouncementSelectedUnits(){
@@ -17348,8 +17388,8 @@ function nucleoApplyFeatureAccess(){
 
 function nucleoWorkspaceFeature(key,mode){
  const module=key==='nccapa'?'nc':key;
- const maps={documents:{new:'request',mine:'consult',standards:'standards',deliveries:'history',doc_analysis:'prepare',doc_preparation:'prepare',doc_ready:'deliver',history:'consult'},processes:{new:'edit',published:'consult',review:'review',pending:'review',history:'history',templates:'templates'},equipment:{new:'edit',active:'consult',pending:'pending',history:'history'},training:{new:'edit',active:'consult',pending:'pending',history:'history'},nccapa:{new_rnc:'edit',new_internal:'edit',active:'consult',history:'consult',suppliers:'edit',supplier_indicators:'consult'}};
- return [module,maps[key]?.[mode]||'consult'];
+ const maps={documents:{new:'request',mine:'consult',standards:'standards',deliveries:'history',doc_analysis:'prepare',doc_preparation:'prepare',doc_ready:'deliver',history:'consult'},processes:{new:'edit',master:'consult',published:'consult',review:'review',pending:'review',history:'history',adopt:'edit',import:'edit',nomenclature:'edit',templates:'templates'},equipment:{new:'edit',active:'consult',pending:'pending',history:'history'},training:{new:'edit',active:'consult',pending:'pending',history:'history'},nccapa:{new_rnc:'edit',new_internal:'edit',active:'consult',history:'consult',suppliers:'edit',supplier_indicators:'consult'}};
+ return [module,maps[key]?.[mode]||(key==='processes'?'':'consult')];
 }
 function nucleoWorkspaceAllowed(key,mode){const [module,feature]=nucleoWorkspaceFeature(key,mode);return nucleoPersonFeatureCan(module,feature);}
 function nucleoApplyFeatureButtons(){
