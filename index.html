@@ -3752,16 +3752,27 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
       <h2 style="margin-top:0;margin-bottom:4px">PDCAs recebidos</h2>
       <p class="small" style="margin:0">Histórico dos PDCAs já enviados. Administradores visualizam todos; usuários operacionais visualizam apenas os PDCAs permitidos para seu usuário.</p>
     </div>
-    <button id="pdcaPrioritiesButton" class="btn secondary" type="button" onclick="nucleoOpenPdcaPriorities()">
-      Abrir prioridades
-    </button>
   </div>
 
   <div id="pdcaPdfSummary" style="margin:14px 0 16px"></div>
 
   <div class="toolbar">
-    <input id="sentSearch" placeholder="Buscar por R.O., cliente, responsável, reclamante ou setor" oninput="renderSentPdcas()">
-    <div id="sentLifecycleTabs" class="actions" role="tablist" aria-label="Etapas das respostas"><button id="sentActiveTab" class="btn primary" type="button" role="tab" onclick="nucleoSetPdcaLifecycle('active')">Pendências e confirmações</button><button id="sentHistoryTab" class="btn secondary" type="button" role="tab" onclick="nucleoSetPdcaLifecycle('history')">Histórico — encerradas</button></div><input id="sentLifecycleFilter" type="hidden" value="active"><p id="sentLifecycleDescription" class="small" role="status"></p>
+    <div class="sent-search-row">
+      <button id="pdcaPrioritiesButton" class="btn secondary" type="button" onclick="nucleoOpenPdcaPriorities()">
+        Abrir prioridades
+      </button>
+      <input id="sentSearch" type="search" aria-label="Buscar PDCAs recebidos" placeholder="Buscar PDCAs..." oninput="renderSentPdcas()">
+    </div>
+    <div id="sentLifecycleTabs" class="actions" role="tablist" aria-label="Etapas das respostas">
+      <button id="sentActiveTab" class="btn primary" type="button" role="tab" onclick="nucleoSetPdcaLifecycle('active')">
+        <span>Pendências e confirmações</span> <strong class="sent-lifecycle-count"></strong>
+      </button>
+      <button id="sentHistoryTab" class="btn secondary" type="button" role="tab" onclick="nucleoSetPdcaLifecycle('history')">
+        <span>Histórico — encerradas</span> <strong class="sent-lifecycle-count"></strong>
+      </button>
+    </div>
+    <input id="sentLifecycleFilter" type="hidden" value="active">
+    <p id="sentLifecycleDescription" class="small" role="status"></p>
     <select id="sentStatusFilter" onchange="renderSentPdcas()">
       <option value="todos">Todos os status</option>
       <option value="Enviado">Enviado</option>
@@ -6123,7 +6134,7 @@ function renderSupplierIndicatorsWorkspace(){
 <script src="assets/modules-v2/indicators/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/modules-v2/announcements/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/team-load-local-v47.js?v=20261027-team-local-central"></script>
-<script src="assets/nucleo-app.js?v=20261111-periodo-indicadores-v76"></script>
+<script src="assets/nucleo-app.js?v=20261111-pdca-mobile-v77"></script>
 <script src="assets/api-source-lock-v20.js?v=20261110-periodo-central-v72"></script>
 
 <script id="nucleoModuleMaintenanceGuardV1">
@@ -7187,6 +7198,68 @@ body.nucleo-hide-sac-indicators [data-nucleo-sac-indicator="1"]{
     overflow:visible!important;
     text-align:left;
     overflow-wrap:anywhere;
+  }
+}
+</style>
+
+<style id="sent-pdca-controls">
+#sentView .sent-search-row{
+  display:flex;
+  flex:1 0 100%;
+  gap:8px;
+  min-width:0;
+}
+#sentView .sent-search-row #sentSearch{
+  min-width:0;
+  width:auto;
+  flex:1 1 0;
+}
+#sentView #pdcaPrioritiesButton{
+  flex:0 0 auto;
+}
+#sentLifecycleTabs .sent-lifecycle-count:not(:empty)::before{content:"("}
+#sentLifecycleTabs .sent-lifecycle-count:not(:empty)::after{content:")"}
+@media (max-width:760px){
+  #sentView #sentLifecycleTabs{
+    display:grid!important;
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    gap:10px!important;
+    width:100%;
+    margin:2px 0 0;
+  }
+  #sentLifecycleTabs .btn{
+    display:flex;
+    flex-direction:column-reverse;
+    align-items:flex-start;
+    justify-content:flex-end;
+    gap:5px;
+    min-width:0;
+    padding:10px 12px;
+    background:#fff;
+    border:1px solid #dfe7e4;
+    border-radius:13px;
+    color:#475467;
+    text-align:left;
+    font-size:12px;
+    overflow-wrap:anywhere;
+  }
+  #sentLifecycleTabs .btn[aria-selected="true"]{
+    border-color:#8aabc8;
+    background:#edf4fb;
+  }
+  #sentLifecycleTabs .sent-lifecycle-count{
+    color:#173f42;
+    font-size:22px;
+    line-height:1;
+  }
+  #sentLifecycleTabs #sentActiveTab .sent-lifecycle-count{color:#9a6500}
+  #sentLifecycleTabs .sent-lifecycle-count:not(:empty)::before,
+  #sentLifecycleTabs .sent-lifecycle-count:not(:empty)::after{content:none}
+  #sentView #pdcaPrioritiesButton{
+    width:auto;
+    max-width:46%;
+    padding-inline:9px;
+    white-space:normal;
   }
 }
 </style>
