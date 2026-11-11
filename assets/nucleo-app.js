@@ -1276,7 +1276,12 @@ function applyPortalBackendSnapshot(snapshot){
     localStorage.setItem(PDCA_DRAFTS_KEY,JSON.stringify(map));
   }
   if(Array.isArray(data.savedFilters))localStorage.setItem(SAVED_FILTERS_KEY,JSON.stringify(data.savedFilters));
-  if(Array.isArray(data.pdcaSent)){localStorage.setItem(SENT_PDCA_KEY,JSON.stringify(data.pdcaSent));try{localStorage.setItem(SENT_PDCA_KEY,JSON.stringify(data.pdcaSent))}catch(e){}}
+  if(Array.isArray(data.pdcaSent)){
+    localStorage.setItem(SENT_PDCA_KEY,JSON.stringify(data.pdcaSent));
+    if(document.getElementById('sentView')?.classList.contains('hidden')===false){
+      try{renderSentPdcas()}catch(e){console.warn('Falha ao atualizar a lista de PDCAs:',e)}
+    }
+  }
   if(Array.isArray(data.favorites)){
     const mine=data.favorites.find(x=>String(x.userKey||x.id||'')===notificationUserKey());
     if(mine&&Array.isArray(mine.items))localStorage.setItem(FAVORITES_KEY,JSON.stringify(mine.items));
@@ -1368,7 +1373,9 @@ async function loadPortalBackend(showMessage,options,load){
       const res=await portalJsonp({acao:'portal_load_part',parte:part},90000);
       if(getSession()?.authToken!==token)return false;
       if(!res||res.sucesso===false)throw new Error(res?.erro||res?.error||'A base não confirmou a etapa.');
-      if(!res.dados||typeof res.dados!=='object')throw new Error('A API não retornou os dados desta etapa.');
+      if(!res.dados||typeof res.dados!=='object'||Array.isArray(res.dados)){
+        throw new Error('A API não retornou os dados desta etapa. Confira a implantação do Apps Script.');
+      }
 
       applyPortalBackendSnapshot(res);
       if(part==='core'&&isAdmin()
@@ -10384,7 +10391,7 @@ function showSentPdcas(){
 function renderSentPdcas(){
  refreshPdcaSidebarBadge();
  const q=String(document.getElementById('sentSearch')?.value||'').toLowerCase(),sf=document.getElementById('sentStatusFilter')?.value||'todos';
- let data=getSentPdcas();if(!isAdmin()){const email=currentEmail();data=data.filter(p=>String(p.email||'').toLowerCase()===email);}
+ let data=getSentPdcas();if(!isAdmin()){const email=currentEmail();data=data.filter(p=>Boolean(email)&&String(p.email||'').trim().toLowerCase()===email);}
  const rows=data.map(p=>{const ro=getAllRoRecords().find(r=>String(r.numero||r.id)===String(p.ro)&&(!explicitRecordUnit(p)||explicitRecordUnit(r)===explicitRecordUnit(p))),user=ro?resolveRoClaimant(ro):null;return {p,ro,user,name:p.externalPdf&&p.fileName?p.fileName.replace(/\.pdf$/i,''):p.id};}).filter(({p,ro,user,name})=>[name,p.ro,p.responsavel,p.setor,p.cliente,ro?roRegistrantName(ro):'',user?personDisplayName(user):''].join(' ').toLowerCase().includes(q)&&(sf==='todos'||p.status===sf));
  const body=document.getElementById('sentRows');if(!body)return;
  const lifecycle=document.getElementById('sentLifecycleFilter')?.value||(isAdmin()?'active':'all');
@@ -11929,6 +11936,9 @@ function applyImportedRos(records,meta){
   if(roListView && !roListView.classList.contains('hidden')){
     try{render()}catch(e){}
   }
+  if(document.getElementById('mySubmittedRosView')?.classList.contains('hidden')===false){
+    try{renderMySubmittedRos()}catch(e){console.warn('Falha ao atualizar minhas R.O.s:',e)}
+  }
   refreshRoSummary();
   if(isAdmin()){
     const triageView=document.getElementById('triageView');
@@ -12021,6 +12031,17 @@ async function bootstrapRoData(){
 }
 
 let nucleoRoCentralRefreshPromise=null;
+function assertOfficialRoPeriod(data,period){
+  if(!period.periodo)return;
+  const applied=data?.filtroPeriodo;
+  if(applied?.ativo!==true||applied.periodo!==period.periodo
+    ||!/^\d{4}-\d{2}-\d{2}$/.test(applied.inicio)
+    ||!/^\d{4}-\d{2}-\d{2}$/.test(applied.fim)
+    ||applied.inicio<period.inicio||applied.fim>period.fim){
+    throw new Error('A API não confirmou a aplicação do período de sincronização. Atualize a implantação do Apps Script e tente novamente.');
+  }
+}
+
 async function loadOfficialRosFullFallback(settings,onProgress,reason){
   const s=settings||getSavedIntegrationSettings();
   const period=roSyncPeriodParams(s);
@@ -12028,6 +12049,7 @@ async function loadOfficialRosFullFallback(settings,onProgress,reason){
   console.warn('[NÚCLEO SYNC] fallback para leitura completa',reason||'');
   const data=await portalJsonp({...period},150000);
   if(data?.sucesso===false)throw new Error(data.erro||'A planilha recusou a leitura completa.');
+  assertOfficialRoPeriod(data,period);
   if(!Array.isArray(data?.dados))throw new Error('A leitura completa não devolveu a lista de R.O.s.');
   const total=Number.isFinite(Number(data.quantidade))?Number(data.quantidade):data.dados.length;
   const internas=Number.isFinite(Number(data.quantidadeInterna))?Number(data.quantidadeInterna):null;
@@ -12072,6 +12094,7 @@ async function loadOfficialRosPaged(settings,onProgress){
       if(offset===0)return loadOfficialRosFullFallback(s,onProgress,'resposta paginada incompatível');
       throw new Error('A leitura por páginas deixou de responder no meio da sincronização.');
     }
+    assertOfficialRoPeriod(page,period);
     const expected=Number(page.quantidade);
     if(!Number.isSafeInteger(expected)||expected<0||Number(page.offset)!==offset){
       if(offset===0)return loadOfficialRosFullFallback(s,onProgress,'primeira página inválida');
@@ -15231,7 +15254,7 @@ function resolveRoClaimant(ro){
   return matches.length===1?matches[0]:null;
 }
 function wasRoSubmittedByCurrentUser(ro){
-  if(isAdmin()||!ro)return false;
+  if(!ro)return false;
   const user=resolveRoClaimant(ro),session=getSession()||{};if(!user)return false;
   if(session.personId&&user.personId)return session.personId===user.personId;
   return !!session.email&&String(session.email).trim().toLowerCase()===String(user.email||'').trim().toLowerCase();
@@ -15399,7 +15422,7 @@ function submittedRoRowClass(ro){
  return decision==='cancelled'?'submitted-ro-cancelled':decision==='record'?'submitted-ro-record':decision==='obsolete'?'submitted-ro-obsolete':'';
 }
 function renderMySubmittedRos(){
-  if(isAdmin())return;
+  if(isAdmin()&&getSession()?.permissions?.detailVersion!==1)return;
 
   const q=normalizeAnswer(document.getElementById('mySubmittedSearch')?.value||'');
   const filter=document.getElementById('mySubmittedStatusFilter')?.value||'all';
@@ -15807,6 +15830,41 @@ function populateAssignedRoFilters(){
     unitEl.innerHTML='<option value="all">Todas as unidades</option>'+units.map(u=>`<option value="${escapeHtml(u)}">${escapeHtml(u)}</option>`).join('');
     if([...unitEl.options].some(o=>o.value===current))unitEl.value=current;
   }
+}
+
+function openAssignedFilters(){
+  const dialog=document.getElementById('assignedFilterDialog');
+  const fields=document.getElementById('assignedFilterFields');
+  const filters=[
+    ['assignedSectorFilter','Setor'],
+    ['assignedOriginFilter','Origem'],
+    ['assignedUnitFilter','Unidade'],
+    ['filter','Situação']
+  ];
+  fields.replaceChildren(...filters.map(([id,name])=>{
+    const source=document.getElementById(id);
+    const field=source.cloneNode(true);
+    field.removeAttribute('id');
+    field.removeAttribute('onchange');
+    field.dataset.filterId=id;
+    field.value=source.value;
+    const label=document.createElement('label');
+    label.append(name,field);
+    return label;
+  }));
+  dialog.showModal();
+}
+
+function applyAssignedFilters(event){
+  event.preventDefault();
+  document.querySelectorAll('#assignedFilterFields select').forEach(field=>{
+    const source=document.getElementById(field.dataset.filterId);
+    if(source&&!source.disabled&&Array.from(source.options).some(option=>option.value===field.value)){
+      source.value=field.value;
+    }
+  });
+  document.getElementById('assignedFilterDialog').close();
+  render();
 }
 
 function showAssignedRos(){
