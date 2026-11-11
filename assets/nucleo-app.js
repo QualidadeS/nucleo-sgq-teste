@@ -17217,6 +17217,21 @@ function nucleoRefreshIndicatorClassificationOptions(){
  select.innerHTML='<option value="all">Todas as classificações</option>'+nucleoClassificationOptions().map(name=>'<option value="'+escapeHtml(name)+'">'+escapeHtml(name)+'</option>').join('');
  if([...select.options].some(o=>o.value===value))select.value=value;
 }
+function nucleoIndicatorBreakdownTable(title,columns,rows){
+ const header=columns.map(([label])=>`<th scope="col">${escapeHtml(label)}</th>`).join('');
+ const body=rows.map(row=>{
+   const cells=columns.map(([label,key])=>{
+     const value=row[key];
+     const content=Array.isArray(value)?value.map(escapeHtml).join('<br>'):escapeHtml(value);
+     const detail=key==='decisions'?' class="indicator-breakdown-decisions"':'';
+     return `<td data-label="${escapeHtml(label)}"${detail}>${content}</td>`;
+   }).join('');
+   return `<tr>${cells}</tr>`;
+ }).join('');
+ return `<div class="indicator-breakdown-wrap"><table class="indicator-breakdown" aria-label="${escapeHtml(title)}">
+   <thead><tr>${header}</tr></thead><tbody>${body}</tbody></table></div>`;
+}
+
 function nucleoRenderClassificationIndicators(data){
  const host=document.getElementById('sgqByClassification');if(!host)return;
  const map=getSavedTriageMap(),rows=new Map();
@@ -17226,7 +17241,13 @@ function nucleoRenderClassificationIndicators(data){
   if(!rows.has(key))rows.set(key,{name,total:0,record:0,cancelled:0,obsolete:0,directed:0});
   const row=rows.get(key);row.total++;const status=sgqIndicatorStatusCode(ro,map);if(status in row)row[status]++;});
  });
- host.innerHTML=rows.size?'<p class="small">Uma R.O. com várias classificações é contada em cada uma delas.</p><div style="overflow:auto"><table style="width:100%"><thead><tr><th>Classificação</th><th>Total</th><th>Registro</th><th>Canceladas</th><th>Obsoletas</th><th>Direcionadas</th></tr></thead><tbody>'+[...rows.values()].sort((a,b)=>b.total-a.total||a.name.localeCompare(b.name,'pt-BR')).map(row=>'<tr><td>'+escapeHtml(row.name)+'</td><td>'+row.total+'</td><td>'+row.record+'</td><td>'+row.cancelled+'</td><td>'+row.obsolete+'</td><td>'+row.directed+'</td></tr>').join('')+'</tbody></table></div>':'<p class="small">Nenhuma ocorrência para os filtros escolhidos.</p>';
+ const columns=[['Classificação','name'],['Total','total'],['Registro','record'],
+   ['Canceladas','cancelled'],['Obsoletas','obsolete'],['Direcionadas','directed']];
+ const ranked=[...rows.values()].sort((a,b)=>b.total-a.total||a.name.localeCompare(b.name,'pt-BR'));
+ host.innerHTML=ranked.length
+   ? '<p class="small">Uma R.O. com várias classificações é contada em cada uma delas.</p>'
+     +nucleoIndicatorBreakdownTable('R.O.s por classificação',columns,ranked)
+   : '<p class="small">Nenhuma ocorrência para os filtros escolhidos.</p>';
 }
 
 function nucleoDecisionRules(unit){const config=unitConfiguration(unit)||{};return Array.isArray(config.decisionRules)?config.decisionRules:NUCLEO_DEFAULT_DECISIONS;}
@@ -17270,7 +17291,12 @@ function nucleoSectorDecisionIndicators(data){
 }
 function nucleoRenderSectorDecisionIndicators(data){
  const host=document.getElementById('sgqBySector');if(!host)return;const rows=nucleoSectorDecisionIndicators(data);
- host.innerHTML=rows.length?'<div style="overflow:auto"><table style="width:100%;min-width:850px"><thead><tr><th>Setor</th><th>Total</th><th>Canceladas</th><th>Registro</th><th>Obsoletas</th><th>Pendentes</th><th>Respondidas</th><th>Apresentadas</th><th>Concluídas</th><th>A triar</th><th>Decisões</th></tr></thead><tbody>'+rows.map(row=>'<tr><td>'+escapeHtml(row.name)+'</td>'+['total','cancelled','record','obsolete','pending','responded','presented','done','triage'].map(key=>'<td>'+row[key]+'</td>').join('')+'<td>'+[...row.decisions].map(([label,count])=>escapeHtml(label)+': '+count).join('<br>')+'</td></tr>').join('')+'</tbody></table></div>':'<p class="small">Nenhuma ocorrência para os filtros.</p>';
+ const columns=[['Setor','name'],['Total','total'],['Canceladas','cancelled'],['Registro','record'],
+   ['Obsoletas','obsolete'],['Pendentes','pending'],['Respondidas','responded'],['Apresentadas','presented'],
+   ['Concluídas','done'],['A triar','triage'],['Decisões','decisions']];
+ const summary=rows.map(row=>({...row,decisions:[...row.decisions].map(([label,count])=>label+': '+count)}));
+ host.innerHTML=summary.length?nucleoIndicatorBreakdownTable('R.O.s por setor',columns,summary)
+   :'<p class="small">Nenhuma ocorrência para os filtros escolhidos.</p>';
 }
 
 function nucleoRefreshIndicatorDecisions(){
