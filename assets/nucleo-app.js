@@ -14,7 +14,7 @@ function nucleoLoadAdminModule(){
   if(nucleoAdminModulePromise)return nucleoAdminModulePromise;
   nucleoAdminModulePromise=new Promise((resolve,reject)=>{
     const script=document.createElement('script');
-    script.src=new URL('assets/modules/admin-workspaces.js?v=20261013-process-master1',document.baseURI).href;
+    script.src=new URL('assets/modules/admin-workspaces.js?v=20261111-acessos-pessoa-v82',document.baseURI).href;
     const timer=setTimeout(()=>finish(new Error('Tempo limite ao carregar o módulo.')),20000);
     function finish(error){clearTimeout(timer);script.onload=script.onerror=null;if(error){script.remove();nucleoAdminModulePromise=null;reject(error)}else resolve();}
     script.onload=()=>finish();
@@ -14629,7 +14629,7 @@ function restoreSideModules(){
 }
 function openModuleForNav(id){const m={navNewRo:'moduleRo',navMySubmittedRos:'moduleRo',navAssignedRos:'moduleRo',navSent:'moduleRo',navActions:'moduleRo',navPendingActions:'moduleRo',navTriage:'moduleRo',navContests:'moduleRo',navNewExternalRo:'moduleRo',navExternalRoControl:'moduleSac',navMySacs:'moduleSac',navSacTracking:'moduleSac',navPendingHub:'modulePersonal',navDocumentRequests:'modulePersonal',navIndicators:'moduleManagement',navAnnouncements:'moduleManagement',navEquipment:'moduleManagement',navTraining:'moduleManagement',navNcCapa:'moduleManagement',navDocuments:'moduleManagement',navProcesses:'moduleManagement'};if(m[id])setSideModuleOpen(m[id],true)}
 function setNav(which){
-  ['navRos','navNewRo','navNewExternalRo','navMySubmittedRos','navAssignedRos','navSent','navActions','navPendingHub','navDocumentRequests','navProfile','navTriage','navExternalRoControl','navMySacs','navContests','navIndicators','navPendingActions','navAnnouncements','navEquipment','navTraining','navNcCapa','navDocuments','navProcesses','navAdmin'].forEach(function(id){
+  ['navRos','navNewRo','navNewExternalRo','navMySubmittedRos','navAssignedRos','navSent','navActions','navPendingHub','navDocumentRequests','navProfile','navTriage','navExternalRoControl','navMySacs','navContests','navIndicators','navPendingActions','navAnnouncements','navEquipment','navTraining','navNcCapa','navDocuments','navProcesses','navUsersConsult','navSectorsConsult','navAdmin'].forEach(function(id){
     var el=document.getElementById(id);
     if(el) el.classList.remove('active');
   });
@@ -14647,6 +14647,9 @@ function setNav(which){
     indicators:'navIndicators',
     pending:'navPendingActions',
     profile:'navProfile',
+    navProcesses:'navProcesses',
+    usersConsult:'navUsersConsult',
+    sectorsConsult:'navSectorsConsult',
     admin:'navAdmin'
   };
 
@@ -14668,6 +14671,9 @@ function setNav(which){
       indicators:'Indicadores SGQ',
       pending:'Ações pendentes',
       profile:'Meu perfil',
+      navProcesses:'Gestão de processos',
+      usersConsult:'Consultar cadastros',
+      sectorsConsult:'Consultar configurações da unidade',
       admin:'Administração'
     };
     crumb.textContent=labels[which] || 'Minhas R.O.s';
@@ -17139,11 +17145,56 @@ function nucleoPersonPermissions(user){
 function nucleoPersonCan(module,manage=false){const user=getSession();if(!user)return false;const p=nucleoPersonPermissions(user);return !!(p.sgq||p.modules[module]?.[manage?'manage':'view']);}
 function nucleoPersonUnits(user){return Array.isArray(user.accessUnits)?user.accessUnits:user.role==='admin'?['matriz','filial']:user.role==='quality'?['filial']:[explicitPortalUnit(user.unit)||'matriz'];}
 function nucleoApplyPersonAccess(){
- const user=getSession();if(!user?.permissions)return;
+ const user=getSession();
+ if(!user?.permissions){nucleoRefreshAccessConsultations(null);return;}
  const map={navRos:'ros',navAssignedRos:'ros',navMySubmittedRos:'ros',navTriage:'ros',navContests:'ros',navSent:'pdca',navActions:'pdca',navPendingActions:'pdca',navExternalPdcas:'pdca',navExternalRoControl:'sac',navMySacs:'sac',navSacTracking:'sac',navDocuments:'documents',navDocumentRequests:'documents',navIndicators:'indicators',navAnnouncements:'announcements',navEquipment:'equipment',navTraining:'training',navNcCapa:'nc',navProcesses:'processes'};
  Object.entries(map).forEach(([id,module])=>{const el=document.getElementById(id);if(!el)return;const allowed=nucleoPersonCan(module,id==='navTriage'||id==='navExternalRoControl');if(!allowed){el.style.setProperty('display','none','important');el.classList.add('hidden');}else{el.style.removeProperty('display');el.classList.remove('hidden');}});
  nucleoApplyFeatureAccess();
+ nucleoRefreshAccessConsultations(user);
  ['cfgUsers','unitQualitySettings','cfgNotifications','cfgUnits'].forEach(id=>{const el=document.getElementById(id);if(!el)return;const module=id==='cfgUsers'?'users':'sectors';el.style.setProperty('display',nucleoPersonCan(module)?'':'none','important');});
+}
+
+function nucleoRefreshAccessConsultations(user){
+ const module=document.getElementById('moduleManagement');
+ const permissions=[['navUsersConsult','users'],['navSectorsConsult','sectors']];
+ permissions.forEach(([id,key])=>{
+   const item=document.getElementById(id);
+   if(item)item.hidden=!user||isAdmin()||!nucleoPersonFeatureAllowed(user,key,'consult');
+ });
+ if(!module||!user||isAdmin())return;
+ const moduleItems=['navEquipment','navTraining','navNcCapa','navProcesses','navIndicators','navAnnouncements'];
+ const visible=moduleItems.some(id=>{
+   const item=document.getElementById(id);
+   return item&&!item.classList.contains('hidden')&&item.style.display!=='none';
+ })||permissions.some(([id])=>document.getElementById(id)?.hidden===false);
+ module.classList.toggle('hidden',!visible);
+ module.style.display=visible?'':'none';
+}
+
+function nucleoOpenAccessConsultation(module){
+ if(!['users','sectors'].includes(module)||!nucleoFeatureRequire(module,'consult'))return;
+ const units=nucleoPersonUnits(getSession());
+ const title=module==='users'?'Consultar cadastros':'Consultar configurações da unidade';
+ const host=document.getElementById('adminModuleContent');
+ if(!host)return;
+ window.nucleoManagerModuleKey='';
+ view('adminModuleView');
+ setNav(module==='users'?'usersConsult':'sectorsConsult');
+ document.getElementById('adminModuleTitle').textContent=title;
+ document.getElementById('adminModuleSubtitle').textContent='';
+ document.getElementById('adminModuleEyebrow').textContent='';
+ const label=unit=>unit==='filial'?'Filial':'Matriz';
+ if(module==='users'){
+   const people=getOperationalUsers().filter(person=>!nucleoPersonPermissions(person).sgq&&nucleoPersonUnits(person).some(unit=>units.includes(unit)));
+   host.innerHTML='<ul class="card">'+people.map(person=>'<li><b>'+escapeHtml(person.name||'')+'</b> · '+escapeHtml(person.sector||'')+' · '+escapeHtml(nucleoPersonUnits(person).filter(unit=>units.includes(unit)).map(label).join(' e '))+'</li>').join('')+'</ul>';
+   if(!people.length)host.textContent='Nenhum cadastro disponível. Sincronize para atualizar a consulta.';
+ }else{
+   host.innerHTML=units.map(unit=>{
+     const sectors=unitConfiguration(unit)?.sectorList;
+     const names=normalizeSectorList(sectors);
+     return '<section class="card"><h3>'+label(unit)+'</h3>'+(names.length?'<ul>'+names.map(name=>'<li>'+escapeHtml(name)+'</li>').join('')+'</ul>':'<p>Nenhum setor disponível para consulta.</p>')+'</section>';
+   }).join('');
+ }
 }
 
 function nucleoAnnouncementSelectedUnits(){
