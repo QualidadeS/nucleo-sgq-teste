@@ -3036,9 +3036,9 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
   }
   .overview-head{align-items:stretch!important}
   .overview-head>.btn{align-self:flex-start!important}
-  .overview-kpis{grid-template-columns:1fr!important;gap:10px!important;margin:14px 0!important}
-  .overview-kpi{min-height:0!important;padding:16px!important}
-  .overview-kpi b{font-size:30px!important}
+  #overviewKpis{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px!important;margin:14px 0!important}
+  #overviewKpis .overview-kpi{min-width:0;min-height:0!important;padding:11px 13px!important;overflow-wrap:anywhere}
+  #overviewKpis .overview-kpi b{font-size:22px!important}
   .overview-grid{gap:10px!important}
   .overview-panel{padding:14px!important}
 
@@ -6123,7 +6123,7 @@ function renderSupplierIndicatorsWorkspace(){
 <script src="assets/modules-v2/indicators/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/modules-v2/announcements/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/team-load-local-v47.js?v=20261027-team-local-central"></script>
-<script src="assets/nucleo-app.js?v=20261111-rascunho-login-v75"></script>
+<script src="assets/nucleo-app.js?v=20261111-periodo-indicadores-v76"></script>
 <script src="assets/api-source-lock-v20.js?v=20261110-periodo-central-v72"></script>
 
 <script id="nucleoModuleMaintenanceGuardV1">
