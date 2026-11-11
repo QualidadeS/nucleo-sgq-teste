@@ -7449,6 +7449,94 @@ body.nucleo-hide-sac-indicators [data-nucleo-sac-indicator="1"]{
 }
 </style>
 
+<style id="mobile-assigned-actions-contestation">
+@media screen and (max-width:760px), screen and (max-width:1024px) and (orientation:portrait) and (pointer:coarse){
+  #roListView .ro-control-table > :is(thead,tbody) > tr{
+    grid-template-columns:minmax(88px,1fr) minmax(0,2fr);
+    align-items:center;
+  }
+  #roListView #rows > tr > td{
+    padding:6px 4px;
+    border-bottom:0;
+  }
+  #roListView #rows > tr{
+    border-bottom:1px solid #e5e7eb;
+  }
+  #roListView #rows > tr > td:nth-child(8){
+    grid-column:2;
+    grid-row:1;
+  }
+  #roListView #rows > tr > td:nth-child(6):has(.pdca-source-control > button){
+    grid-column:2;
+    grid-row:2;
+    padding-top:0;
+  }
+  #roListView #rows td:nth-child(8) > .assigned-operational-icons,
+  #roListView #rows .pdca-source-control{
+    justify-content:flex-end!important;
+    flex-wrap:wrap!important;
+    gap:5px!important;
+  }
+  #roListView #rows .assigned-response-actions > .btn{
+    padding:6px 8px;
+    font-size:12px;
+  }
+
+  #adminModuleContent table:has(button[onclick^="nucleoEquipmentOpenCalibrationRecord("]){
+    display:block!important;
+    width:100%!important;
+    min-width:0!important;
+  }
+  #adminModuleContent table:has(button[onclick^="nucleoEquipmentOpenCalibrationRecord("]) thead{
+    display:none;
+  }
+  #adminModuleContent table:has(button[onclick^="nucleoEquipmentOpenCalibrationRecord("]) tbody{
+    display:block;
+  }
+  #adminModuleContent tr:has(button[onclick^="nucleoEquipmentOpenCalibrationRecord("]){
+    display:grid;
+    grid-template-columns:minmax(0,1fr) auto;
+    align-items:center;
+    gap:4px 8px;
+    padding:8px 0;
+    border-bottom:1px solid #e5e7eb;
+  }
+  #adminModuleContent tr:has(button[onclick^="nucleoEquipmentOpenCalibrationRecord("]) > td{
+    padding:4px;
+    border:0;
+  }
+  #adminModuleContent tr:has(button[onclick^="nucleoEquipmentOpenCalibrationRecord("]) > td:not(:first-child,:nth-child(5),:last-child){
+    display:none;
+  }
+  #adminModuleContent tr:has(button[onclick^="nucleoEquipmentOpenCalibrationRecord("]) > td:last-child{
+    grid-column:1/-1;
+  }
+  #adminModuleContent tr:has(button[onclick^="nucleoEquipmentOpenCalibrationRecord("]) > td:last-child > div{
+    display:grid!important;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+  #adminModuleContent tr:has(button[onclick^="nucleoEquipmentOpenCalibrationRecord("]) .btn{
+    padding:7px 8px;
+    min-height:42px;
+    white-space:normal;
+    overflow-wrap:normal;
+  }
+
+  #contestModal{
+    z-index:2147482400;
+    padding:12px;
+    overflow:auto;
+  }
+  #contestModal > .modal-box{
+    max-height:calc(100dvh - 24px)!important;
+    overflow:auto;
+  }
+  #contestModal .modal-actions{
+    flex-wrap:wrap;
+  }
+}
+</style>
+
 <style id="nucleo-mobile-fit">
 @media screen and (max-width:760px), screen and (max-width:1024px) and (orientation:portrait) and (pointer:coarse){
   .workspace main :is(table.mobile-code-actions,#ncTreatmentList > div > table),
