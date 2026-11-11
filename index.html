@@ -3354,6 +3354,9 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
         <button class="side-item side-independent-module" id="navProcesses" onclick="showAdminOperationalModule('processes')"><span class="side-num side-icon"><svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="12" cy="18" r="2"/><path d="M8 6h8M7 8l4 8M17 8l-4 8"/></svg></span><span><b>Gestão de processos</b><small>IT, GSP, POP, LPP e documentos internos</small></span></button>
         <button class="side-item side-independent-module" id="navUsersConsult" type="button" onclick="nucleoOpenAccessConsultation('users')" hidden><span class="side-num side-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2m16-5 2 2m0-4-2 2"/><circle cx="10" cy="7" r="4"/></svg></span><span><b>Consultar cadastros</b></span></button>
         <button class="side-item side-independent-module" id="navSectorsConsult" type="button" onclick="nucleoOpenAccessConsultation('sectors')" hidden><span class="side-num side-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 21h18M5 21V9h6v12m0-17h8v17M8 12h.01M8 16h.01M15 8h.01M15 12h.01M15 16h.01"/></svg></span><span><b>Consultar configurações da unidade</b></span></button>
+        <button class="side-item side-independent-module" id="navSacsConsult" type="button" onclick="nucleoOpenAccessConsultation('sac')" hidden><span class="side-num side-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4V5zM8 9h8m-8 3h5"/></svg></span><span><b>Consultar SACs</b></span></button>
+        <button class="side-item side-independent-module" id="navDocumentsConsult" type="button" onclick="nucleoOpenAccessConsultation('documents')" hidden><span class="side-num side-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6zM14 3v5h5M9 12h6m-6 4h6"/></svg></span><span><b>Consultar documentos e solicitações</b></span></button>
+        <button class="side-item side-independent-module" id="navAnnouncementsConsult" type="button" onclick="nucleoOpenAccessConsultation('announcements')" hidden><span class="side-num side-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 10v4h4l8 4V6l-8 4H4zm5 4 2 6m8-12 2-2m-2 6h3"/></svg></span><span><b>Consultar comunicados</b></span></button>
         <button class="side-item side-independent-module" id="navAudit5s" type="button" onclick="showAudit5S()"><span class="side-num side-icon"><svg viewBox="0 0 24 24"><path d="M5 4h14v16H5z"/><path d="m8 9 2 2 4-4M8 15h8"/></svg></span><span><b>Auditoria 5S</b><small>Auditorias, ações e resultados</small></span></button>
         <button class="side-item side-independent-module" id="navIndicators" type="button" onclick="showSgqIndicators()" style="display:none"><span class="side-num side-icon"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></span><span><b>Indicadores SGQ</b><small>Visão consolidada</small></span></button>
         <button class="side-item side-independent-module" id="navAnnouncements" type="button" onclick="showAnnouncementsAdmin()" style="display:none"><span class="side-num side-icon"><svg viewBox="0 0 24 24"><path d="M4 10v4h4l8 4V6l-8 4H4Z"/><path d="M8 14l2 6M19 9c1 1 1 5 0 6"/></svg></span><span><b>Comunicados</b><small>Avisos gerais do SGQ</small></span></button>
@@ -3473,7 +3476,7 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
 <th>Prazo</th>
 <th>Status</th>
 <th>PDCA</th>
-<th class="operational-action-col">Ações operacionais</th>
+<th class="operational-action-col">Ações</th>
 </tr></thead><tbody id="rows"></tbody></table></div>
   <div id="roListMore" class="small" style="margin-top:12px;text-align:center"></div>
 </section>
@@ -6149,7 +6152,7 @@ function renderSupplierIndicatorsWorkspace(){
 <script src="assets/modules-v2/indicators/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/modules-v2/announcements/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/team-load-local-v47.js?v=20261027-team-local-central"></script>
-<script src="assets/nucleo-app.js?v=20261111-acessos-integrados-v83"></script>
+<script src="assets/nucleo-app.js?v=20261111-consultas-personalizadas-v85"></script>
 <script src="assets/api-source-lock-v20.js?v=20261110-periodo-central-v72"></script>
 
 <script id="nucleoModuleMaintenanceGuardV1">
@@ -7467,7 +7470,7 @@ body.nucleo-hide-sac-indicators [data-nucleo-sac-indicator="1"]{
     grid-column:2;
     grid-row:1;
   }
-  #roListView #rows > tr > td:nth-child(6):has(.pdca-source-control > button){
+  #roListView #rows > tr > td:nth-child(7):has(.pdca-source-control > button){
     grid-column:2;
     grid-row:2;
     padding-top:0;
@@ -7683,6 +7686,33 @@ body.nucleo-hide-sac-indicators [data-nucleo-sac-indicator="1"]{
   .pdca-screen-page .pdca-annex-imgbox{
     max-width:100%;
   }
+}
+</style>
+
+<style id="assigned-layout-v84">
+@media (min-width:761px){
+  #roListView .assigned-filter-row{grid-template-columns:repeat(3,minmax(0,1fr));align-items:stretch}
+  #roListView .assigned-filter-row #search{grid-column:auto}
+  #roListView .ro-control-table :is(th,td){vertical-align:middle;padding-inline:8px}
+  #roListView .ro-control-table :is(th,td):nth-child(1){width:8%}
+  #roListView .ro-control-table :is(th,td):nth-child(2){width:14%}
+  #roListView .ro-control-table :is(th,td):nth-child(3){width:14%}
+  #roListView .ro-control-table :is(th,td):nth-child(4){width:7%}
+  #roListView .ro-control-table :is(th,td):nth-child(5){width:8%}
+  #roListView .ro-control-table :is(th,td):nth-child(6){width:13%;text-align:center}
+  #roListView .ro-control-table :is(th,td):nth-child(7){width:13%;text-align:center}
+  #roListView .ro-control-table :is(th,td):nth-child(8){width:23%;text-align:center}
+  #roListView .ro-control-table .pdca-source-control{justify-content:center}
+  #roListView #rows td:nth-child(8) > .assigned-operational-icons{flex-wrap:wrap!important}
+}
+@media (min-width:1200px){
+  #roListView .assigned-filter-row{grid-template-columns:minmax(0,1.8fr) repeat(5,minmax(0,1fr))}
+  #roListView .assigned-filter-row:not(:has(#assignedEmailFilter)){grid-template-columns:minmax(0,1.8fr) repeat(4,minmax(0,1fr))}
+}
+@media screen and (max-width:760px), screen and (max-width:1024px) and (orientation:portrait) and (pointer:coarse){
+  #roListView .assigned-filter-row{grid-template-columns:minmax(0,1fr) auto!important}
+  #roListView .assigned-filter-row>select{display:none!important}
+  #roListView #assignedFilterButton{display:inline-flex}
 }
 </style>
 </body></html>
