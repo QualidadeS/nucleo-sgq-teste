@@ -6148,7 +6148,7 @@ function renderSupplierIndicatorsWorkspace(){
 <script src="assets/modules-v2/indicators/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/modules-v2/announcements/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/team-load-local-v47.js?v=20261027-team-local-central"></script>
-<script src="assets/nucleo-app.js?v=20261111-atribuidas-acesso-v80"></script>
+<script src="assets/nucleo-app.js?v=20261111-indicadores-tablet-v81"></script>
 <script src="assets/api-source-lock-v20.js?v=20261110-periodo-central-v72"></script>
 
 <script id="nucleoModuleMaintenanceGuardV1">
@@ -7534,6 +7534,66 @@ body.nucleo-hide-sac-indicators [data-nucleo-sac-indicator="1"]{
   #contestModal .modal-actions{
     flex-wrap:wrap;
   }
+}
+</style>
+
+<style id="indicator-breakdown-responsive">
+.indicator-breakdown-wrap{overflow:auto}
+.indicator-breakdown{width:100%}
+#sgqBySector .indicator-breakdown{min-width:850px}
+@media screen and (max-width:760px), screen and (max-width:1024px) and (orientation:portrait) and (pointer:coarse){
+  #sgqIndicatorsView .sgq-grid{grid-template-columns:minmax(0,1fr)}
+  #sgqIndicatorsView .indicator-breakdown-wrap{overflow:visible}
+  #sgqIndicatorsView .indicator-breakdown{
+    display:block!important;
+    width:100%!important;
+    min-width:0!important;
+  }
+  #sgqIndicatorsView .indicator-breakdown thead{
+    position:absolute;
+    width:1px;
+    height:1px;
+    overflow:hidden;
+    clip-path:inset(50%);
+    white-space:nowrap;
+  }
+  #sgqIndicatorsView .indicator-breakdown tbody{display:block}
+  #sgqIndicatorsView .indicator-breakdown tbody > tr{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(min(100%,86px),1fr));
+    gap:6px;
+    margin:0 0 10px;
+    padding:10px;
+    border:1px solid #e2e8f0;
+    border-radius:12px;
+    background:#fff;
+  }
+  #sgqIndicatorsView .indicator-breakdown tbody td{
+    min-width:0;
+    border:0;
+    padding:6px 8px;
+    border-radius:8px;
+    background:#f5f8fb;
+    color:#172033;
+    font-weight:700;
+    overflow-wrap:break-word!important;
+  }
+  #sgqIndicatorsView .indicator-breakdown tbody td[data-label]::before{
+    content:attr(data-label);
+    display:block;
+    margin-bottom:4px;
+    color:#475467;
+    font-size:11px;
+    font-weight:400;
+  }
+  #sgqIndicatorsView .indicator-breakdown tbody td:first-child,
+  #sgqIndicatorsView .indicator-breakdown-decisions{grid-column:1/-1}
+  #sgqIndicatorsView .indicator-breakdown tbody td:first-child{
+    background:transparent;
+    font-size:15px;
+  }
+  #sgqIndicatorsView .indicator-breakdown tbody td:first-child::before{content:none}
+  #sgqIndicatorsView .indicator-breakdown-decisions{font-size:12px}
 }
 </style>
 
