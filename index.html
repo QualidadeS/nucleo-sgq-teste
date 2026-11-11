@@ -3436,7 +3436,10 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
       <h2 style="margin:4px 0 0">R.O.s atribuídas</h2>
       <p class="small" style="margin:6px 0 0">Consulte as ocorrências disponíveis para sua atuação.</p>
     </div>
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span id="nucleoAssignedQuotaBadge">✉ E-mail hoje: —</span><button class="btn secondary" type="button" onclick="nucleoOpenAssignedExcelExport()">Exportar Excel</button></div>
+    <div id="assignedAdminTools" class="hidden" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span id="nucleoAssignedQuotaBadge">✉ E-mail hoje: —</span>
+      <button class="btn secondary" type="button" onclick="if(isAdmin())nucleoOpenAssignedExcelExport()">Exportar Excel</button>
+    </div>
   </div>
   <div id="sectorAccessNote" class="small" style="margin:12px 0;color:#667085"></div>
   <div id="assignedLifecycleTabs" style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 12px">
@@ -6145,7 +6148,7 @@ function renderSupplierIndicatorsWorkspace(){
 <script src="assets/modules-v2/indicators/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/modules-v2/announcements/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/team-load-local-v47.js?v=20261027-team-local-central"></script>
-<script src="assets/nucleo-app.js?v=20261111-listas-filtros-v79"></script>
+<script src="assets/nucleo-app.js?v=20261111-atribuidas-acesso-v80"></script>
 <script src="assets/api-source-lock-v20.js?v=20261110-periodo-central-v72"></script>
 
 <script id="nucleoModuleMaintenanceGuardV1">
@@ -7300,7 +7303,7 @@ body.nucleo-hide-sac-indicators [data-nucleo-sac-indicator="1"]{
 </style>
 
 <style id="nucleo-mobile-code-actions">
-@media screen and (max-width:760px){
+@media screen and (max-width:760px), screen and (max-width:1024px) and (orientation:portrait) and (pointer:coarse){
   #overviewQuickAccess{display:none!important}
   main :is(table.mobile-code-actions,#ncTreatmentList > div > table){
     display:block!important;
@@ -7385,8 +7388,69 @@ body.nucleo-hide-sac-indicators [data-nucleo-sac-indicator="1"]{
 }
 </style>
 
+<style id="mobile-tablet-sac-admin">
+@media screen and (max-width:760px), screen and (max-width:1024px) and (orientation:portrait) and (pointer:coarse){
+  #externalRoControlView > div:has(> table > #externalRoControlBody){
+    display:none!important;
+  }
+  #externalRoControlCards{
+    grid-template-columns:minmax(0,1fr)!important;
+    gap:8px!important;
+  }
+  #externalRoControlCards > .card{
+    padding:12px!important;
+    overflow-wrap:anywhere;
+  }
+  #externalRoControlCards .btn{
+    min-height:40px;
+    max-width:100%;
+    white-space:normal;
+  }
+  #triageView #triageBody .triage-actions{
+    justify-content:flex-end;
+  }
+  #triageView .action-table th:last-child,
+  #triageView .action-table td:last-child{
+    text-align:right;
+  }
+  #settingsView{
+    min-width:0;
+    max-width:100%;
+    overflow-wrap:anywhere;
+  }
+  #settingsView .admin-config-nav,
+  #operationalUsersList .admin-user-row > .actions,
+  #cfgOperationalCorrections > .actions{
+    display:grid!important;
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    gap:8px!important;
+  }
+  #settingsView .admin-config-nav > button,
+  #operationalUsersList .admin-user-row > .actions > button,
+  #cfgOperationalCorrections > .actions > button{
+    min-width:0;
+    min-height:42px;
+    padding:7px 8px;
+    white-space:normal;
+    overflow-wrap:anywhere;
+  }
+  #operationalUsersList .admin-user-row{
+    flex-direction:column;
+    align-items:stretch;
+    gap:8px;
+  }
+  #operationalUsersList .admin-user-row > .actions{
+    margin-top:4px;
+  }
+  #cfgOperationalCorrections .settings-grid,
+  #cfgIntegration .settings-grid{
+    grid-template-columns:minmax(0,1fr)!important;
+  }
+}
+</style>
+
 <style id="nucleo-mobile-fit">
-@media screen and (max-width:760px){
+@media screen and (max-width:760px), screen and (max-width:1024px) and (orientation:portrait) and (pointer:coarse){
   .workspace main :is(table.mobile-code-actions,#ncTreatmentList > div > table),
   #actionsDashboardView table.action-table.mobile-code-actions,
   #triageView table.action-table.mobile-code-actions{
