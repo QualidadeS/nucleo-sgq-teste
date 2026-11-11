@@ -6,12 +6,13 @@ if(new URLSearchParams(location.search).get('recuperar')==='1'){
 const NUCLEO_DEFAULT_DECISIONS=[{"id":"directed","label":"Direcionar para tratativa","behavior":"directed","active":true,"requireSector":true,"requireReason":true,"pdcaRequired":true,"deadlineDays":null,"color":"#eef4ff"},{"id":"record","label":"Somente para registro","behavior":"record","active":true,"requireSector":false,"requireReason":true,"pdcaRequired":false,"deadlineDays":null,"color":"#fff9e5"},{"id":"cancelled","label":"Cancelar R.O.","behavior":"cancelled","active":true,"requireSector":false,"requireReason":true,"pdcaRequired":false,"deadlineDays":null,"color":"#fff0f0"},{"id":"obsolete","label":"Obsoleta","behavior":"obsolete","active":true,"requireSector":false,"requireReason":true,"pdcaRequired":false,"deadlineDays":null,"color":"#f0f1f3"},{"id":"falta_caixa","label":"Falta de caixa","behavior":"record","active":true,"requireSector":false,"requireReason":false,"pdcaRequired":false,"deadlineDays":null,"color":"#fff9e5"}];
 const NUCLEO_FEATURE_BUTTONS={"showList":["ros","consult"],"showAssignedRos":["ros","assigned"],"showMySubmittedRos":["ros","submitted"],"showTriage":["ros","triage"],"openTriageRecord":["ros","triage"],"saveTriageRecord":["ros","triage"],"showContestations":["ros","reviewContests"],"reviewContestation":["ros","reviewContests"],"submitContest":["ros","contest"],"openContest":["ros","contest"],"startPdcaFromList":["pdca","respond"],"openPDCA":["pdca","respond"],"finishPDCA":["pdca","respond"],"showSentPdcas":["pdca","received"],"showActionsDashboard":["pdca","actions"],"showPendingActions":["pdca","reviewActions"],"confirmActionCompletion":["pdca","reviewActions"],"markActionCompleted":["pdca","reviewActions"],"registerActionEvidence":["pdca","completeAction"],"presentPdca":["pdca","present"],"presentCurrentPdca":["pdca","present"],"savePdcaPresentationRecord":["pdca","present"],"finalizeAndSendSac":["sac","finalize"],"saveSacEditForm":["sac","edit"],"saveExternalRoControl":["sac","edit"],"saveSacDecisionLocally":["sac","edit"],"publishAnnouncement":["announcements","publish"],"openStandardDocumentCreate":["documents","standards"],"saveStandardDocument":["documents","standards"],"toggleStandardDocument":["documents","standards"],"deleteStandardDocument":["documents","standards"],"addOperationalUser":["users","create"],"approvePortalUser":["users","approve"],"rejectPortalUser":["users","approve"],"openUserRegistrationEditor":["users","edit"],"saveUserRegistrationEditor":["users","edit"],"removeOperationalUserByKey":["users","delete"],"saveSectorConfiguration":["sectors","edit"],"saveFixedEmailCopies":["sectors","emails"],"saveRncProcessTemplateFromForm":["processes","templates"],"deleteAssignedDirection":["ros","triage"],"openAssignedSectorEdit":["ros","triage"],"endAnnouncement":["announcements","publish"],"openUnitUserAccess":["users","permissions"],"showAnnouncementsAdmin":["announcements","publish"],"openAdminResetPassword":["users","edit"]};
 const NUCLEO_PERSON_FEATURES={"ros":{"consult":["Consultar R.O.s disponíveis",false,"view"],"submitted":["R.O.s cadastradas por mim",false,"view"],"assigned":["R.O.s atribuídas",false,"view"],"triage":["Triar, classificar e direcionar",true,"manage"],"contest":["Criar contestações",true,"view"],"reviewContests":["Analisar contestações",true,"manage"],"claimant":["Alterar e confirmar reclamante",true,"manage"]},"pdca":{"received":["Consultar PDCAs recebidos",false,"view"],"respond":["Responder e continuar PDCA",true,"view"],"actions":["Consultar ações",false,"view"],"completeAction":["Registrar conclusão e evidências",true,"view"],"reviewActions":["Conferir e aprovar ações",true,"manage"],"import":["Importar e vincular respostas",true,"manage"],"present":["Registrar apresentação",true,"manage"],"dispatch":["Despachar resposta ao reclamante",true,"manage"]},"sac":{"consult":["Consultar SACs",false,"view"],"edit":["Classificar e editar SACs",true,"manage"],"finalize":["Finalizar e enviar SAC",true,"manage"]},"documents":{"consult":["Consultar documentos e solicitações",false,"view"],"request":["Criar solicitação de documento",true,"view"],"standards":["Cadastrar e alterar documentos padrão",true,"manage"],"prepare":["Preencher e armazenar documento solicitado",true,"manage"],"deliver":["Enviar e entregar documentos",true,"manage"],"history":["Consultar histórico de entregas",false,"manage"]},"indicators":{"consult":["Consultar indicadores",false,"view"]},"announcements":{"consult":["Consultar comunicados",false,"view"],"publish":["Emitir, alterar e encerrar comunicados",true,"manage"]},"equipment":{"consult":["Consultar equipamentos",false,"view"],"pending":["Consultar calibrações pendentes",false,"view"],"history":["Consultar histórico metrológico",false,"view"],"edit":["Cadastrar e alterar equipamentos",true,"manage"],"delete":["Excluir equipamentos",true,"manage"]},"training":{"consult":["Consultar treinamentos",false,"view"],"pending":["Consultar reciclagens pendentes",false,"view"],"history":["Consultar histórico de competências",false,"view"],"edit":["Cadastrar e alterar treinamentos",true,"manage"],"delete":["Excluir treinamentos",true,"manage"]},"nc":{"consult":["Consultar RNCs e tratamento",false,"view"],"edit":["Cadastrar e alterar RNCs",true,"manage"],"send":["Enviar RNC e anexar fotos",true,"manage"],"delete":["Excluir RNCs",true,"manage"]},"processes":{"consult":["Consultar documentos vigentes",false,"view"],"review":["Consultar documentos em revisão",false,"view"],"history":["Consultar histórico documental",false,"view"],"edit":["Cadastrar e alterar documentos internos",true,"manage"],"templates":["Alterar modelos e estrutura dos formulários",true,"manage"],"delete":["Excluir documentos internos",true,"manage"]},"users":{"consult":["Consultar cadastros",false,"manage"],"create":["Cadastrar pessoas",true,"manage"],"edit":["Editar nomes, dados e setores",true,"manage"],"approve":["Aprovar e bloquear cadastros",true,"manage"],"permissions":["Definir permissões de outras pessoas",true,"manage"],"delete":["Excluir usuários",true,"manage"]},"sectors":{"decisions":["Editar decisões e regras de R.O.",true,"manage"],"consult":["Consultar configurações da unidade",false,"manage"],"edit":["Cadastrar e alterar setores",true,"manage"],"emails":["Alterar destinatários e cópias padrão",true,"manage"],"folders":["Alterar e validar pastas do Drive",true,"manage"],"documentTypes":["Editar tipos de documentos",true,"manage"]}};
+let nucleoSidebarAuditAccess=null;
 const NUCLEO_ACCESS_CONSULTATIONS={
  users:['navUsersConsult','Consultar cadastros'],
  sectors:['navSectorsConsult','Consultar configurações da unidade'],
  sac:['navSacsConsult','Consultar SACs'],
- documents:['navDocumentsConsult','Consultar documentos e solicitações'],
- announcements:['navAnnouncementsConsult','Consultar comunicados']
+ documents:['navDocumentRequests','Consultar documentos e solicitações'],
+ announcements:['navAnnouncements','Consultar comunicados']
 };
 const NUCLEO_PERMISSION_MODULE_KEYS={
  documents:'documentos',indicators:'indicadores',announcements:'comunicados',
@@ -27,7 +28,7 @@ function nucleoLoadAdminModule(){
   if(nucleoAdminModulePromise)return nucleoAdminModulePromise;
   nucleoAdminModulePromise=new Promise((resolve,reject)=>{
     const script=document.createElement('script');
-    script.src=new URL('assets/modules/admin-workspaces.js?v=20261111-sac-consulta-v89',document.baseURI).href;
+    script.src=new URL('assets/modules/admin-workspaces.js?v=20261111-menu-unificado-v90',document.baseURI).href;
     const timer=setTimeout(()=>finish(new Error('Tempo limite ao carregar o módulo.')),20000);
     function finish(error){clearTimeout(timer);script.onload=script.onerror=null;if(error){script.remove();nucleoAdminModulePromise=null;reject(error)}else resolve();}
     script.onload=()=>finish();
@@ -5956,7 +5957,7 @@ function refreshRepresentativeSacMenu(){
   const allowed=isRepresentativeSacAccess(), item=document.getElementById('navMySacs'), mod=document.getElementById('moduleSac');
   if(item){item.style.display=(!admin&&allowed)?'':'none';item.classList.toggle('hidden',admin||!allowed)}
   if(mod){
-    const showModule=admin||allowed;
+    const showModule=admin||allowed||!!(getSession()?.permissions&&nucleoPersonFeatureCan('sac','consult'));
     mod.style.display=showModule?'':'none';
     mod.classList.toggle('hidden',!showModule);
   }
@@ -14641,7 +14642,7 @@ function restoreSideModules(){
     setSideModuleOpen(id,s[id]===undefined?defaultOpen:!!s[id],false);
   });
 }
-function openModuleForNav(id){const m={navNewRo:'moduleRo',navMySubmittedRos:'moduleRo',navAssignedRos:'moduleRo',navSent:'moduleRo',navActions:'moduleRo',navPendingActions:'moduleRo',navTriage:'moduleRo',navContests:'moduleRo',navNewExternalRo:'moduleRo',navExternalRoControl:'moduleSac',navMySacs:'moduleSac',navSacTracking:'moduleSac',navPendingHub:'modulePersonal',navDocumentRequests:'modulePersonal',navIndicators:'moduleManagement',navAnnouncements:'moduleManagement',navEquipment:'moduleManagement',navTraining:'moduleManagement',navNcCapa:'moduleManagement',navDocuments:'moduleManagement',navProcesses:'moduleManagement'};if(m[id])setSideModuleOpen(m[id],true)}
+function openModuleForNav(id){const m={navNewRo:'moduleRo',navMySubmittedRos:'moduleRo',navAssignedRos:'moduleRo',navSent:'moduleRo',navActions:'moduleRo',navPendingActions:'moduleRo',navTriage:'moduleRo',navContests:'moduleRo',navNewExternalRo:'moduleRo',navExternalRoControl:'moduleSac',navMySacs:'moduleSac',navSacsConsult:'moduleSac',navSacTracking:'moduleSac',navPendingHub:'modulePersonal',navDocumentRequests:'modulePersonal',navIndicators:'moduleManagement',navAnnouncements:'moduleManagement',navEquipment:'moduleManagement',navTraining:'moduleManagement',navNcCapa:'moduleManagement',navDocuments:'moduleManagement',navProcesses:'moduleManagement'};if(m[id])setSideModuleOpen(m[id],true)}
 function setNav(which){
   ['navRos','navNewRo','navNewExternalRo','navMySubmittedRos','navAssignedRos','navSent','navActions','navPendingHub','navDocumentRequests','navProfile','navTriage','navExternalRoControl','navMySacs','navContests','navIndicators','navPendingActions','navAnnouncements','navEquipment','navTraining','navNcCapa','navDocuments','navProcesses','navMyAccess',...Object.values(NUCLEO_ACCESS_CONSULTATIONS).map(([id])=>id),'navAdmin'].forEach(function(id){
     var el=document.getElementById(id);
@@ -17208,27 +17209,66 @@ function nucleoApplyPersonAccess(){
  const user=getSession();
  const catalog=document.getElementById('navMyAccess');
  if(catalog)catalog.hidden=!user?.permissions||nucleoPersonPermissions(user).sgq===true;
- if(!user?.permissions){nucleoRefreshAccessConsultations(null);return;}
+ nucleoRefreshAuditMenu(user);
+ if(!user?.permissions){
+  for(const id of ['moduleRo','modulePersonal']){
+   const group=document.getElementById(id);
+   if(group)group.style.removeProperty('display');
+  }
+  nucleoRefreshAccessConsultations(user);
+  return;
+ }
  const map={navRos:'ros',navAssignedRos:'ros',navMySubmittedRos:'ros',navTriage:'ros',navContests:'ros',navSent:'pdca',navActions:'pdca',navPendingActions:'pdca',navExternalPdcas:'pdca',navExternalRoControl:'sac',navMySacs:'sac',navSacTracking:'sac',navDocuments:'documents',navDocumentRequests:'documents',navIndicators:'indicators',navAnnouncements:'announcements',navEquipment:'equipment',navTraining:'training',navNcCapa:'nc',navProcesses:'processes'};
  Object.entries(map).forEach(([id,module])=>{const el=document.getElementById(id);if(!el)return;const allowed=nucleoPersonCan(module,id==='navTriage'||id==='navExternalRoControl');if(!allowed){el.style.setProperty('display','none','important');el.classList.add('hidden');}else{el.style.removeProperty('display');el.classList.remove('hidden');}});
  nucleoApplyFeatureAccess();
  nucleoRefreshAccessConsultations(user);
+ for(const id of ['moduleRo','modulePersonal']){
+  const group=document.getElementById(id);
+  if(!group)continue;
+  const visible=[...group.querySelectorAll('.side-module-body .side-item')].some(item=>
+    !item.hidden&&!item.classList.contains('hidden')&&item.style.display!=='none'&&getComputedStyle(item).display!=='none'
+  );
+  group.style.display=visible?'':'none';
+ }
  ['cfgUsers','unitQualitySettings','cfgNotifications','cfgUnits'].forEach(id=>{const el=document.getElementById(id);if(!el)return;const module=id==='cfgUsers'?'users':'sectors';el.style.setProperty('display',nucleoPersonCan(module)?'':'none','important');});
+}
+
+function nucleoRefreshAuditMenu(user){
+ const item=document.getElementById('navAudit5s');
+ if(!item)return;
+ const token=user?.authToken;
+ if(!token){nucleoSidebarAuditAccess=null;item.hidden=true;return;}
+ if(isAdmin()){item.hidden=false;return;}
+ const now=new Date();
+ const month=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+ const unit=nucleoPersonUnits(user).includes(explicitPortalUnit(user.unit))?explicitPortalUnit(user.unit):nucleoPersonUnits(user)[0];
+ const key=token+'|'+unit+'|'+month;
+ if(nucleoSidebarAuditAccess?.key===key){item.hidden=!nucleoSidebarAuditAccess.allowed;return;}
+ const state={key,allowed:false};
+ nucleoSidebarAuditAccess=state;
+ item.hidden=true;
+ portalJsonp({acao:'nucleo_5s_access',unit,month},30000).then(access=>{
+  if(nucleoSidebarAuditAccess!==state||getSession()?.authToken!==token)return;
+  if(!access?.sucesso){nucleoSidebarAuditAccess=null;return;}
+  state.allowed=Boolean(access.canAudit||access.canSeeAllResults||access.resultSectors?.length);
+  item.hidden=!state.allowed;
+  nucleoRefreshAccessConsultations(getSession());
+ }).catch(()=>{if(nucleoSidebarAuditAccess===state)nucleoSidebarAuditAccess=null;});
 }
 
 function nucleoRefreshAccessConsultations(user){
  const module=document.getElementById('moduleManagement');
- const permissions=Object.entries(NUCLEO_ACCESS_CONSULTATIONS).map(([key,[id]])=>[id,key]);
+ const permissions=['users','sectors','sac'].map(key=>[NUCLEO_ACCESS_CONSULTATIONS[key][0],key]);
  permissions.forEach(([id,key])=>{
    const item=document.getElementById(id);
-   if(item)item.hidden=!user||isAdmin()||!nucleoPersonFeatureAllowed(user,key,'consult');
+   if(item)item.hidden=!user?.permissions||isAdmin()||!nucleoPersonFeatureAllowed(user,key,'consult');
  });
  if(!module||!user||isAdmin())return;
- const moduleItems=['navEquipment','navTraining','navNcCapa','navProcesses','navIndicators','navAnnouncements'];
+ const moduleItems=['navEquipment','navTraining','navNcCapa','navProcesses','navAudit5s','navIndicators','navAnnouncements'];
  const visible=moduleItems.some(id=>{
    const item=document.getElementById(id);
-   return item&&!item.classList.contains('hidden')&&item.style.display!=='none';
- })||permissions.some(([id])=>{const item=document.getElementById(id);return item?.hidden===false&&item.dataset.accessCatalogOnly===undefined;});
+   return item&&!item.hidden&&!item.classList.contains('hidden')&&item.style.display!=='none';
+ });
  module.classList.toggle('hidden',!visible);
  module.style.display=visible?'':'none';
 }
@@ -17241,7 +17281,7 @@ function nucleoShowMyAccess(){
  const navigation={
   ros:['navAssignedRos','navMySubmittedRos','navRos','navTriage'],
   pdca:['navSent','navActions','navExternalPdcas'],sac:['navExternalRoControl','navMySacs'],
-  documents:['navDocumentRequests'],indicators:['navIndicators'],announcements:['navAnnouncements'],
+  indicators:['navIndicators'],
   equipment:['navEquipment'],training:['navTraining'],nc:['navNcCapa'],processes:['navProcesses']
  };
  window.nucleoManagerModuleKey='';
@@ -17267,6 +17307,17 @@ function nucleoShowMyAccess(){
  host.querySelectorAll('[data-access-target]').forEach(button=>{
   button.addEventListener('click',()=>document.getElementById(button.dataset.accessTarget)?.click());
  });
+}
+
+function nucleoOpenDocumentMenu(){
+ if(!getSession()?.permissions||nucleoPersonFeatureCan('documents','request')||nucleoPersonFeatureCan('documents','prepare')){
+  return showAdminOperationalModule('documents');
+ }
+ return nucleoOpenAccessConsultation('documents');
+}
+function nucleoOpenAnnouncementsMenu(){
+ if(nucleoPersonFeatureCan('announcements','publish')&&isAdmin())return showAnnouncementsAdmin();
+ return nucleoOpenAccessConsultation('announcements');
 }
 
 function nucleoOpenAccessConsultation(module){
@@ -17382,8 +17433,8 @@ function nucleoFeatureEditor(user,parent){
 }
 function nucleoApplyFeatureAccess(){
  if(getSession()?.permissions?.detailVersion!==1)return;
- const nav={navRos:['ros','consult'],navAssignedRos:['ros','assigned'],navMySubmittedRos:['ros','submitted'],navTriage:['ros','triage'],navContests:['ros','reviewContests'],navSent:['pdca','received'],navActions:['pdca','actions'],navPendingActions:['pdca','reviewActions'],navExternalPdcas:['pdca','import'],navExternalRoControl:['sac','edit'],navMySacs:['sac','consult'],navSacTracking:['sac','consult'],navDocuments:['documents','*'],navDocumentRequests:['documents','request'],navIndicators:['indicators','consult'],navAnnouncements:['announcements','publish'],navEquipment:['equipment','*'],navTraining:['training','*'],navNcCapa:['nc','*'],navProcesses:['processes','*']};
- Object.entries(nav).forEach(([id,[module,key]])=>{const el=document.getElementById(id);if(el&&!(key==='*'?nucleoPersonCan(module):nucleoPersonFeatureCan(module,key))){el.style.setProperty('display','none','important');el.classList.add('hidden');}});
+ const nav={navRos:['ros','consult'],navAssignedRos:['ros','assigned'],navMySubmittedRos:['ros','submitted'],navTriage:['ros','triage'],navContests:['ros','reviewContests'],navSent:['pdca','received'],navActions:['pdca','actions'],navPendingActions:['pdca','reviewActions'],navExternalPdcas:['pdca','import'],navExternalRoControl:['sac','edit'],navMySacs:['sac','consult'],navSacTracking:['sac','consult'],navDocuments:['documents','*'],navDocumentRequests:['documents','*'],navIndicators:['indicators','consult'],navAnnouncements:['announcements','*'],navEquipment:['equipment','*'],navTraining:['training','*'],navNcCapa:['nc','*'],navProcesses:['processes','*']};
+ Object.entries(nav).forEach(([id,[module,key]])=>{const el=document.getElementById(id);if(el&&!(id==='navDocumentRequests'?['consult','request','prepare'].some(feature=>nucleoPersonFeatureCan(module,feature)):id==='navAnnouncements'?(nucleoPersonFeatureCan(module,'consult')||isAdmin()&&nucleoPersonFeatureCan(module,'publish')):key==='*'?nucleoPersonCan(module):nucleoPersonFeatureCan(module,key))){el.style.setProperty('display','none','important');el.classList.add('hidden');}});
 }
 
 function nucleoWorkspaceFeature(key,mode){
