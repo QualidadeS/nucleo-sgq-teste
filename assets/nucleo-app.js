@@ -14830,6 +14830,7 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
   if(!searchEl||!filterEl||!rowsEl)return;
   const q=searchEl.value.trim().toLowerCase(),f=filterEl.value;
   const admin=isAdmin();
+  document.getElementById('assignedAdminTools')?.classList.toggle('hidden',!admin);
   const assignedSector=document.getElementById('assignedSectorFilter')?.value||'all';
   const assignedOrigin=document.getElementById('assignedOriginFilter')?.value||'all';
   const assignedUnit=document.getElementById('assignedUnitFilter')?.value||'all';
