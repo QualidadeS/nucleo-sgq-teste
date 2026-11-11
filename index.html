@@ -1026,12 +1026,10 @@ main{max-width:1180px;margin:0 auto;padding:54px 54px 36px}
 .side-module.admin-only{display:none}
 
 /* v97.38 — bloqueio visual de permissões por perfil */
+body.role-operator #navAudit5s,
+body.role-manager #navAudit5s,
 body.role-operator .admin-only,
 body.role-manager .admin-only{
-  display:none !important;
-}
-body.role-operator #moduleManagement,
-body.role-manager #moduleManagement{
   display:none !important;
 }
 
@@ -3353,6 +3351,8 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
         <button class="side-item side-independent-module" id="navTraining" onclick="showAdminOperationalModule('training')"><span class="side-num side-icon"><svg viewBox="0 0 24 24"><path d="m3 8 9-4 9 4-9 4-9-4Z"/><path d="M7 10.5V15c3 2 7 2 10 0v-4.5M21 8v7"/></svg></span><span><b>Treinamentos e competências</b><small>Treinamentos, reciclagens e histórico</small></span></button>
         <button class="side-item side-independent-module" id="navNcCapa" onclick="showAdminOperationalModule('nccapa')"><span class="side-num side-icon"><svg viewBox="0 0 24 24"><path d="M12 3 4 6v5c0 5 3.4 8.3 8 10 4.6-1.7 8-5 8-10V6l-8-3Z"/><path d="m8.5 12 2.2 2.2 4.8-5"/></svg></span><span><b>Não conformidades e CAPA</b><small>Relatório independente e ações</small></span></button>
         <button class="side-item side-independent-module" id="navProcesses" onclick="showAdminOperationalModule('processes')"><span class="side-num side-icon"><svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="12" cy="18" r="2"/><path d="M8 6h8M7 8l4 8M17 8l-4 8"/></svg></span><span><b>Gestão de processos</b><small>IT, GSP, POP, LPP e documentos internos</small></span></button>
+        <button class="side-item side-independent-module" id="navUsersConsult" type="button" onclick="nucleoOpenAccessConsultation('users')" hidden>Consultar cadastros</button>
+        <button class="side-item side-independent-module" id="navSectorsConsult" type="button" onclick="nucleoOpenAccessConsultation('sectors')" hidden>Consultar configurações da unidade</button>
         <button class="side-item side-independent-module" id="navAudit5s" type="button" onclick="showAudit5S()"><span class="side-num side-icon"><svg viewBox="0 0 24 24"><path d="M5 4h14v16H5z"/><path d="m8 9 2 2 4-4M8 15h8"/></svg></span><span><b>Auditoria 5S</b><small>Auditorias, ações e resultados</small></span></button>
         <button class="side-item side-independent-module" id="navIndicators" type="button" onclick="showSgqIndicators()" style="display:none"><span class="side-num side-icon"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></span><span><b>Indicadores SGQ</b><small>Visão consolidada</small></span></button>
         <button class="side-item side-independent-module" id="navAnnouncements" type="button" onclick="showAnnouncementsAdmin()" style="display:none"><span class="side-num side-icon"><svg viewBox="0 0 24 24"><path d="M4 10v4h4l8 4V6l-8 4H4Z"/><path d="M8 14l2 6M19 9c1 1 1 5 0 6"/></svg></span><span><b>Comunicados</b><small>Avisos gerais do SGQ</small></span></button>
@@ -6148,7 +6148,7 @@ function renderSupplierIndicatorsWorkspace(){
 <script src="assets/modules-v2/indicators/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/modules-v2/announcements/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/team-load-local-v47.js?v=20261027-team-local-central"></script>
-<script src="assets/nucleo-app.js?v=20261111-indicadores-tablet-v81"></script>
+<script src="assets/nucleo-app.js?v=20261111-acessos-pessoa-v82"></script>
 <script src="assets/api-source-lock-v20.js?v=20261110-periodo-central-v72"></script>
 
 <script id="nucleoModuleMaintenanceGuardV1">
