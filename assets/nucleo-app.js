@@ -15413,6 +15413,7 @@ function canConsultRoHistory(){
 function groupRoHistoryRecords(records,keyFor){
   const grouped=new Map();
   for(const record of records){
+    if(!record||typeof record!=='object')continue;
     const key=String(keyFor(record)||'').trim();
     if(!key)continue;
     if(!grouped.has(key))grouped.set(key,[]);
@@ -15427,8 +15428,12 @@ function buildRoHistoryRows(){
   const responses=groupRoHistoryRecords(localStorage.getItem(SENT_PDCA_KEY)?getAllSentPdcas():[],p=>p.ro||p.roId||p.numeroRo);
   const contests=groupRoHistoryRecords(getContestations().filter(c=>!c.type||c.type==='ro'),c=>c.ro);
   const sacs=groupRoHistoryRecords(getExternalRoControls().filter(sacIsRealSac),r=>r.ro);
-  const units=nucleoPersonUnits(getSession());
-  return getAllRoRecords().filter(ro=>units.includes(explicitRecordUnit(ro))).map(ro=>{
+  const session=getSession();
+  const units=nucleoPersonUnits(session);
+  const allUnits=session.role==='admin'&&units.includes('matriz')&&units.includes('filial');
+  // A sincronização atualiza ros em lugar. Algumas versões mantêm ROs como lista separada.
+  const source=typeof ros!=='undefined'&&Array.isArray(ros)&&ros.length?ros:getAllRoRecords();
+  return source.filter(ro=>ro&&(allUnits||units.includes(explicitRecordUnit(ro)))).map(ro=>{
     const number=String(ro.numero||ro.id||ro.codigo||'').trim();
     const unit=explicitRecordUnit(ro);
     const related=records=>(records.get(number)||[]).filter(item=>{
@@ -15445,18 +15450,20 @@ function buildRoHistoryRows(){
       tri:decision||null,contest:objections[0]||null,
       ret:{pdca:current,action:complainantActionState(current)}
     });
-    return {ro,number,unit,state,decisions,pdcas,objections,sacs:related(sacs)};
-  }).sort((a,b)=>(sgqIndicatorDate(b.ro)?.getTime()||0)-(sgqIndicatorDate(a.ro)?.getTime()||0)||b.number.localeCompare(a.number,undefined,{numeric:true}));
+    return {ro,number,unit,state,decisions,pdcas,objections,sacs:related(sacs),registeredAt:sgqIndicatorDate(ro)?.getTime()||0};
+  }).sort((a,b)=>b.registeredAt-a.registeredAt||b.number.localeCompare(a.number,undefined,{numeric:true}));
 }
 
 let roHistoryPage=1;
 let roHistoryRows=[];
 const RO_HISTORY_PAGE_SIZE=30;
 function renderRoHistory(){
-  const text=(id,value)=>{document.getElementById(id).textContent=value;};
-  const q=normalizeAnswer(document.getElementById('mySubmittedSearch').value);
-  const status=document.getElementById('mySubmittedStatusFilter').value;
-  const unit=document.getElementById('roHistoryUnitFilter').value;
+  const body=document.getElementById('mySubmittedRows');
+  if(!body)return;
+  const text=(id,value)=>{const el=document.getElementById(id);if(el)el.textContent=value;};
+  const q=normalizeAnswer(document.getElementById('mySubmittedSearch')?.value||'');
+  const status=document.getElementById('mySubmittedStatusFilter')?.value||'all';
+  const unit=document.getElementById('roHistoryUnitFilter')?.value||'';
   const rows=roHistoryRows.filter(({ro,number,unit:rowUnit,state,decisions})=>
     (!unit||unit===rowUnit)&&(status==='all'||status===state.code)&&
     (!q||normalizeAnswer([number,ro.cliente,ro.assunto,ro.tipoRO,ro.descricao,state.label,...decisions.map(t=>t.responsibleSector)].join(' ')).includes(q)));
@@ -15465,14 +15472,14 @@ function renderRoHistory(){
   text('mySubmittedDirected',rows.filter(x=>['directed','contest'].includes(x.state.code)).length);
   text('mySubmittedDone',rows.filter(x=>x.state.code==='done').length);
   const pages=Math.max(1,Math.ceil(rows.length/RO_HISTORY_PAGE_SIZE));
-  roHistoryPage=Math.min(roHistoryPage,pages);
+  roHistoryPage=Math.max(1,Math.min(roHistoryPage,pages));
   text('roHistoryPageLabel','Página '+roHistoryPage+' de '+pages);
-  document.getElementById('roHistoryPrev').disabled=roHistoryPage===1;
-  document.getElementById('roHistoryNext').disabled=roHistoryPage===pages;
-  const body=document.getElementById('mySubmittedRows');
+  const prev=document.getElementById('roHistoryPrev'),next=document.getElementById('roHistoryNext');
+  if(prev)prev.disabled=roHistoryPage===1;
+  if(next)next.disabled=roHistoryPage===pages;
   body.innerHTML=rows.slice((roHistoryPage-1)*RO_HISTORY_PAGE_SIZE,roHistoryPage*RO_HISTORY_PAGE_SIZE).map(({ro,number,unit,state,decisions,pdcas})=>`
     <tr>
-      <td><b>${escapeHtml(number)}</b><div class="small">${unit==='filial'?'Filial':'Matriz'}</div></td>
+      <td><b>${escapeHtml(number)}</b><div class="small">${unit==='filial'?'Filial':unit==='matriz'?'Matriz':'Unidade não informada'}</div></td>
       <td>${escapeHtml(ro.data||'—')}</td>
       <td>${escapeHtml(ro.cliente||'—')}</td>
       <td>${escapeHtml(ro.assunto||ro.tipoRO||'—')}</td>
@@ -15486,7 +15493,9 @@ function renderRoHistory(){
 }
 
 function openRoHistory(number,unit){
-  if(!canConsultRoHistory()||!nucleoPersonUnits(getSession()).includes(unit))return;
+  if(!canConsultRoHistory())return;
+  const session=getSession(),units=nucleoPersonUnits(session);
+  if(!units.includes(unit)&&!(unit===''&&session.role==='admin'&&units.includes('matriz')&&units.includes('filial')))return;
   const entry=roHistoryRows.find(row=>row.number===number&&row.unit===unit);
   if(!entry)return;
   const {ro,state,decisions,pdcas,objections,sacs}=entry;
@@ -15497,7 +15506,7 @@ function openRoHistory(number,unit){
   document.getElementById('roHistoryTitle').textContent='Histórico · '+number;
   const sections=[
     card('Registro da ocorrência',[
-      ['Data do registro',ro.data],['Registrada por',roRegistrantName(ro)],['Unidade',unit==='filial'?'Filial':'Matriz'],
+      ['Data do registro',ro.data],['Registrada por',roRegistrantName(ro)],['Unidade',unit==='filial'?'Filial':unit==='matriz'?'Matriz':'Unidade não informada'],
       ['Cliente',ro.cliente],['Situação',state.label],['Ocorrência',ro.assunto||ro.tipoRO],['Descrição',ro.descricao]
     ]),
     ...(decisions.length?decisions.map(t=>card('Triagem · '+(t.decisionLabel||triageStatusLabel(t.decision)),[
@@ -15548,11 +15557,9 @@ function showMySubmittedRos(){
     [...unitFilter.options].forEach(option=>option.hidden=!!option.value&&!units.includes(option.value));
     unitFilter.hidden=units.length<2;
     roHistoryPage=1;
-    roHistoryRows=buildRoHistoryRows();
   }else roHistoryRows=[];
   view('mySubmittedRosView');
-  setNav('mysubmitted');
-  renderMySubmittedRos();
+  try{setNav('mysubmitted');}finally{renderMySubmittedRos(true);}
 }
 
 function submittedRoRowClass(ro){
@@ -15561,8 +15568,15 @@ function submittedRoRowClass(ro){
 }
 function renderMySubmittedRos(refreshHistory=false){
   if(canConsultRoHistory()){
-    if(refreshHistory)roHistoryRows=buildRoHistoryRows();
-    renderRoHistory();
+    try{
+      if(refreshHistory)roHistoryRows=buildRoHistoryRows();
+      renderRoHistory();
+    }catch(error){
+      console.error('Histórico de R.O.s:',error);
+      roHistoryRows=[];
+      const body=document.getElementById('mySubmittedRows');
+      if(body)body.innerHTML='<tr><td colspan="9" style="padding:20px">Não foi possível carregar o histórico. Sincronize e tente novamente.</td></tr>';
+    }
     return;
   }
 
