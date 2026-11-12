@@ -3315,7 +3315,7 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
       <div class="side-module-body">
         <button class="side-item" id="navNewRo" type="button" onclick="openRoRegistrationForm()"><span class="side-num">＋</span><span><b>Cadastrar R.O.</b><small>Abrir formulário oficial</small></span></button>
         <button class="side-item hidden" id="navNewExternalRo" type="button" onclick="openExternalRoRegistrationForm()"><span class="side-num">＋</span><span><b>Cadastrar R.O. Externa / SAC</b><small>Reclamação de cliente · base Externa</small></span></button>
-        <button class="side-item" id="navMySubmittedRos" type="button" onclick="showMySubmittedRos()"><span class="side-num">◎</span><span><b>R.O.s cadastradas por mim</b><small>Acompanhar registros</small></span></button> 
+        <button class="side-item" id="navMySubmittedRos" type="button" onclick="nucleoOpenRoHistoryList()"><span class="side-num">◎</span><span><b>R.O.s cadastradas por mim</b><small>Acompanhar registros</small></span></button> 
         <button class="side-item" id="navAssignedRos" type="button" onclick="showAssignedRos()"><span class="side-num">↳</span><span><b>R.O.s atribuídas</b><small>Ocorrências para atuação</small></span></button>
         <button class="side-item" id="navSent" onclick="showSentPdcas()"><span class="side-num">✓</span><span><b>PDCAs recebidos</b><small>Histórico de respostas</small></span><span id="pdcaSidebarBadge" class="side-pending-badge hidden">0</span></button>
         <button class="side-item side-independent-module" id="navExternalPdcas" onclick="nucleoDriveOpen('pdca')"><span class="side-num">↥</span><span><b>Importar PDCAs</b><small>Importação, histórico e pendências</small></span></button>
@@ -3576,15 +3576,15 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
   </div>
 
   <div class="toolbar" style="margin-top:16px">
-    <input id="mySubmittedSearch" placeholder="Buscar por R.O., cliente ou ocorrência" oninput="roHistoryPage=1;renderMySubmittedRos()">
-    <select id="mySubmittedStatusFilter" onchange="roHistoryPage=1;renderMySubmittedRos()">
+    <input id="mySubmittedSearch" placeholder="Buscar por R.O., cliente ou ocorrência" oninput="nucleoFilterSubmittedRos()">
+    <select id="mySubmittedStatusFilter" onchange="nucleoFilterSubmittedRos()">
       <option value="all">Todas as situações</option>
       <option value="triage">Aguardando triagem</option>
       <option value="directed">Direcionadas</option>
       <option value="contest">Em contestação</option>
       <option value="done">Concluídas / encerradas</option>
     </select>
-    <select id="roHistoryUnitFilter" data-ro-history-only hidden aria-label="Unidade" onchange="roHistoryPage=1;renderMySubmittedRos()">
+    <select id="roHistoryUnitFilter" data-ro-history-only hidden aria-label="Unidade" onchange="nucleoFilterSubmittedRos()">
       <option value="">Todas as unidades</option><option value="matriz">Matriz</option><option value="filial">Filial</option>
     </select>
   </div>
@@ -6184,7 +6184,7 @@ function renderSupplierIndicatorsWorkspace(){
 <script src="assets/modules-v2/indicators/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/modules-v2/announcements/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/team-load-local-v47.js?v=20261027-team-local-central"></script>
-<script src="assets/nucleo-app.js?v=20261112-historico-ros-lista-v100"></script>
+<script src="assets/nucleo-app-historico-v101.js"></script>
 <script src="assets/api-source-lock-v20.js?v=20261110-periodo-central-v72"></script>
 
 <script id="nucleoModuleMaintenanceGuardV1">
