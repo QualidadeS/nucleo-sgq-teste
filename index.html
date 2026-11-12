@@ -3564,30 +3564,33 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
 <section id="mySubmittedRosView" class="card hidden">
   <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap">
     <div>
-      <h2 style="margin:0">R.O.s cadastradas por mim</h2>
-      <p class="small" style="margin:5px 0 0">Acompanhe as ocorrências que você registrou e receba aqui o PDCA como retorno da R.O., mesmo quando a tratativa for feita por outro setor.</p>
+      <h2 id="mySubmittedTitle" style="margin:0">R.O.s cadastradas por mim</h2>
+      <p data-ro-personal-only class="small" style="margin:5px 0 0">Acompanhe as ocorrências que você registrou e receba aqui o PDCA como retorno da R.O., mesmo quando a tratativa for feita por outro setor.</p>
     </div>
-    <button class="btn primary" type="button" onclick="openRoRegistrationForm()">＋ Cadastrar nova R.O.</button>
+    <button data-ro-personal-only class="btn primary" type="button" onclick="openRoRegistrationForm()">＋ Cadastrar nova R.O.</button>
   </div>
 
-  <div style="margin-top:16px;padding:12px 14px;border:1px solid #d9e2ec;background:#f8fafc;border-radius:12px">
+  <div data-ro-personal-only style="margin-top:16px;padding:12px 14px;border:1px solid #d9e2ec;background:#f8fafc;border-radius:12px">
     <b>Como o sistema identifica suas R.O.s</b>
     <div class="small" style="margin-top:4px">O sistema identifica quem registrou a R.O. pelo campo “Nome e Sobrenome (responsável pelo registro deste formulário)”. Quando o setor responsável enviar o PDCA, ele aparece aqui como retorno da R.O.</div>
   </div>
 
   <div class="toolbar" style="margin-top:16px">
-    <input id="mySubmittedSearch" placeholder="Buscar por R.O., cliente ou ocorrência" oninput="renderMySubmittedRos()">
-    <select id="mySubmittedStatusFilter" onchange="renderMySubmittedRos()">
+    <input id="mySubmittedSearch" placeholder="Buscar por R.O., cliente ou ocorrência" oninput="roHistoryPage=1;renderMySubmittedRos()">
+    <select id="mySubmittedStatusFilter" onchange="roHistoryPage=1;renderMySubmittedRos()">
       <option value="all">Todas as situações</option>
       <option value="triage">Aguardando triagem</option>
       <option value="directed">Direcionadas</option>
       <option value="contest">Em contestação</option>
       <option value="done">Concluídas / encerradas</option>
     </select>
+    <select id="roHistoryUnitFilter" data-ro-history-only hidden aria-label="Unidade" onchange="roHistoryPage=1;renderMySubmittedRos()">
+      <option value="">Todas as unidades</option><option value="matriz">Matriz</option><option value="filial">Filial</option>
+    </select>
   </div>
 
   <div id="mySubmittedSummary" class="ro-summary" style="margin-top:12px">
-    <div class="ro-summary-card"><b id="mySubmittedTotal">0</b><span>Cadastradas por mim</span></div>
+    <div class="ro-summary-card"><b id="mySubmittedTotal">0</b><span id="mySubmittedTotalLabel">Cadastradas por mim</span></div>
     <div class="ro-summary-card alert"><b id="mySubmittedWaiting">0</b><span>Aguardando triagem</span></div>
     <div class="ro-summary-card"><b id="mySubmittedDirected">0</b><span>Em tratativa</span></div>
     <div class="ro-summary-card"><b id="mySubmittedDone">0</b><span>Encerradas</span></div>
@@ -3611,7 +3614,29 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
       <tbody id="mySubmittedRows"></tbody>
     </table>
   </div>
+  <div class="actions" data-ro-history-only hidden>
+    <button id="roHistoryPrev" class="btn secondary" type="button" onclick="roHistoryPage--;renderRoHistory()">Anterior</button>
+    <span id="roHistoryPageLabel" role="status"></span>
+    <button id="roHistoryNext" class="btn secondary" type="button" onclick="roHistoryPage++;renderRoHistory()">Próxima</button>
+  </div>
 </section>
+<style>
+#mySubmittedRosView [hidden]{display:none!important}
+#roHistoryDialog{width:min(92vw,850px);max-height:88vh;padding:18px;border:1px solid #dce4ee;border-radius:14px;background:#fff;color:#17233b}
+#roHistoryDialog::backdrop{background:#0f172a88}
+.ro-history-event{padding:14px;margin-top:10px}
+.ro-history-event h4{margin:0 0 8px}
+.ro-history-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:10px;margin:0}
+.ro-history-fields dt{font-weight:700}
+.ro-history-fields dd{margin:3px 0 0;white-space:pre-wrap;overflow-wrap:anywhere}
+</style>
+<dialog id="roHistoryDialog" aria-labelledby="roHistoryTitle">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+    <h3 id="roHistoryTitle" style="margin:0"></h3>
+    <form method="dialog"><button class="btn secondary" type="submit">Fechar</button></form>
+  </div>
+  <div id="roHistoryContent"></div>
+</dialog>
 
 <section id="detailView" class="card hidden"><button id="detailBackBtn" class="back" onclick="returnFromRoDetail()">← Voltar</button><div style="display:flex;justify-content:space-between;gap:12px;align-items:center">
   <div><h2 id="dNumero" style="margin:0"></h2><div class="small" id="dCliente"></div></div>
@@ -6159,7 +6184,7 @@ function renderSupplierIndicatorsWorkspace(){
 <script src="assets/modules-v2/indicators/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/modules-v2/announcements/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/team-load-local-v47.js?v=20261027-team-local-central"></script>
-<script src="assets/nucleo-app.js?v=20261111-ficha-sac-consulta-v98"></script>
+<script src="assets/nucleo-app.js?v=20261111-historico-ros-v99"></script>
 <script src="assets/api-source-lock-v20.js?v=20261110-periodo-central-v72"></script>
 
 <script id="nucleoModuleMaintenanceGuardV1">
