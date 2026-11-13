@@ -3397,8 +3397,16 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
   <main>
 <style>
 #navPersonalSettings[hidden]{display:none!important}
-#nucleoPersonalView fieldset{border:1px solid var(--line);border-radius:10px;margin:12px 0;padding:12px}
-#nucleoPersonalView fieldset label{display:inline-flex;gap:8px;align-items:center;margin:5px 16px 5px 0}
+#nucleoPersonalView{min-width:0;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere}
+#nucleoPersonalForm{max-width:760px}
+#nucleoPersonalTheme{width:min(100%,240px);display:block;margin-top:6px}
+#nucleoPersonalView fieldset{min-width:0;border:1px solid var(--line);border-radius:10px;margin:12px 0;padding:12px}
+#nucleoPersonalNucleus,#nucleoPersonalEmail{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,175px),1fr));gap:8px}
+#nucleoPersonalView fieldset label{display:flex;gap:8px;align-items:center;padding:8px;margin:0}
+#nucleoPersonalView .personal-history{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,270px),1fr));gap:12px;margin-top:20px}
+#nucleoPersonalView .personal-history section{min-width:0;border:1px solid var(--line);border-radius:10px;padding:12px}
+#nucleoPersonalView .personal-history h3{margin:0 0 8px}
+#nucleoPersonalView .personal-history ul{margin:0;padding-inline-start:20px}
 #nucleoPersonalView fieldset input{width:auto}
 #nucleoPersonalView li{padding:6px 0;overflow-wrap:anywhere}
 html[data-nucleo-theme="dark"]{color-scheme:dark;--bg:#111827;--card:#192338;--text:#eef3fa;--muted:#becbdd;--line:#3b4b63;--blue:#a6ccff;--blue2:#c5deff;--soft:#24334c;--danger:#ffb4ab;--warn:#ffcd8d;--ok:#88dfac}
@@ -3419,11 +3427,17 @@ html[data-nucleo-theme="dark"] :is(.side-item,.small,.help,.crumbs,.label){color
     <button class="btn primary" type="submit" disabled>Salvar preferências</button>
     <p id="nucleoPersonalStatus" role="status"></p>
   </form>
-  <h3>Histórico de notificações</h3>
-  <ul id="nucleoPersonalNotificationHistory"></ul>
-  <h3>Histórico de e-mails</h3>
-  <p class="small">Horário de envio registrado pelo Núcleo.</p>
-  <ul id="nucleoPersonalEmailHistory"></ul>
+  <div class="personal-history">
+    <section>
+      <h3>Histórico de notificações</h3>
+      <ul id="nucleoPersonalNotificationHistory"></ul>
+    </section>
+    <section>
+      <h3>Histórico de e-mails</h3>
+      <p class="small">Horário de envio registrado pelo Núcleo.</p>
+      <ul id="nucleoPersonalEmailHistory"></ul>
+    </section>
+  </div>
 </section>
 
 <style>
@@ -6253,7 +6267,7 @@ function renderSupplierIndicatorsWorkspace(){
 <script src="assets/modules-v2/indicators/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/modules-v2/announcements/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/team-load-local-v47.js?v=20261027-team-local-central"></script>
-<script src="assets/nucleo-app-sistema-v111.js"></script>
+<script src="assets/nucleo-app-sistema-v112.js"></script>
 <script src="assets/api-source-lock-v20.js?v=20261110-periodo-central-v72"></script>
 
 <script id="nucleoModuleMaintenanceGuardV1">
