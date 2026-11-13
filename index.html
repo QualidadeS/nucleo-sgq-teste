@@ -3361,6 +3361,7 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
     </div>
   </nav>
 <div class="sidebar-bottom-icons" aria-label="Ações da conta">
+  <button id="navSistemaTeste" class="sidebar-icon-btn" type="button" hidden title="Sistema" aria-label="Sistema" onclick="nucleoOpenSistemaTeste()">▣</button>
   <button id="navAdmin" class="sidebar-icon-btn" type="button" onclick="openAdmin()" title="Administração" aria-label="Administração">⚙</button>
   <button id="navProfile" class="sidebar-icon-btn" type="button" onclick="showProfile()" title="Meu perfil" aria-label="Meu perfil"><span class="bottom-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.7-4.2 3.1-6.3 7-6.3s6.3 2.1 7 6.3"/></svg></span></button>
   <button class="sidebar-icon-btn" id="navMyAccess" type="button" onclick="nucleoShowMyAccess()" title="Meus acessos" aria-label="Meus acessos" hidden><span class="bottom-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3l8 4v5c0 5-4 8-8 9-4-1-8-4-8-9V7zM8.5 12l2.5 2.5 4.5-5"/></svg></span></button>
@@ -6184,7 +6185,27 @@ function renderSupplierIndicatorsWorkspace(){
 <script src="assets/modules-v2/indicators/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/modules-v2/announcements/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/team-load-local-v47.js?v=20261027-team-local-central"></script>
-<script src="assets/nucleo-app-historico-v101.js"></script>
+<style>
+#navSistemaTeste[hidden]{display:none!important}
+#nucleoSistemaDialog{width:min(92vw,780px);max-height:86vh;overflow:auto;border:1px solid #dce4ed;border-radius:16px;padding:20px;color:#173b67}
+#nucleoSistemaDialog::backdrop{background:#10244299}
+#nucleoSistemaDialog ul{padding-inline-start:22px;overflow-wrap:anywhere}
+#nucleoSistemaDialog li{margin:.55rem 0}
+</style>
+<dialog id="nucleoSistemaDialog" aria-labelledby="nucleoSistemaTitle">
+  <div class="actions" style="justify-content:space-between">
+    <h2 id="nucleoSistemaTitle">Sistema</h2>
+    <form method="dialog"><button class="btn secondary" type="submit">Fechar</button></form>
+  </div>
+  <button class="btn secondary" type="button" onclick="nucleoOpenSistemaTeste()">Atualizar</button>
+  <p id="nucleoSistemaStatus" role="status"></p>
+  <h3>Últimos acessos</h3>
+  <p class="small">Atividade recente indica que o Núcleo Teste esteve aberto e conectado nos últimos três minutos.</p>
+  <ul id="nucleoSistemaUsers"></ul>
+  <h3>Erros recentes</h3>
+  <ul id="nucleoSistemaErrors"></ul>
+</dialog>
+<script src="assets/nucleo-app-sistema-v102.js"></script>
 <script src="assets/api-source-lock-v20.js?v=20261110-periodo-central-v72"></script>
 
 <script id="nucleoModuleMaintenanceGuardV1">
