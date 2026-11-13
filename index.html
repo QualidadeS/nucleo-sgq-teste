@@ -3363,6 +3363,7 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
 <div class="sidebar-bottom-icons" aria-label="Ações da conta">
   <button id="navSistemaTeste" class="sidebar-icon-btn" type="button" hidden title="Sistema" aria-label="Sistema" onclick="nucleoOpenSistemaTeste()">▣</button>
   <button id="navAdmin" class="sidebar-icon-btn" type="button" onclick="openAdmin()" title="Administração" aria-label="Administração">⚙</button>
+  <button id="navPersonalSettings" class="sidebar-icon-btn" type="button" hidden onclick="nucleoOpenPersonalSettings()" title="Configurações pessoais" aria-label="Configurações pessoais">◐</button>
   <button id="navProfile" class="sidebar-icon-btn" type="button" onclick="showProfile()" title="Meu perfil" aria-label="Meu perfil"><span class="bottom-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.7-4.2 3.1-6.3 7-6.3s6.3 2.1 7 6.3"/></svg></span></button>
   <button class="sidebar-icon-btn" id="navMyAccess" type="button" onclick="nucleoShowMyAccess()" title="Meus acessos" aria-label="Meus acessos" hidden><span class="bottom-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3l8 4v5c0 5-4 8-8 9-4-1-8-4-8-9V7zM8.5 12l2.5 2.5 4.5-5"/></svg></span></button>
   <button class="sidebar-icon-btn sidebar-icon-logout" type="button" onclick="logoutUser()" title="Sair" aria-label="Sair">↪</button>
@@ -3395,6 +3396,37 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
   </div>
   <main>
 <style>
+#navPersonalSettings[hidden]{display:none!important}
+#nucleoPersonalView fieldset{border:1px solid var(--line);border-radius:10px;margin:12px 0;padding:12px}
+#nucleoPersonalView fieldset label{display:inline-flex;gap:8px;align-items:center;margin:5px 16px 5px 0}
+#nucleoPersonalView fieldset input{width:auto}
+#nucleoPersonalView li{padding:6px 0;overflow-wrap:anywhere}
+html[data-nucleo-theme="dark"]{color-scheme:dark;--bg:#111827;--card:#192338;--text:#eef3fa;--muted:#becbdd;--line:#3b4b63;--blue:#a6ccff;--blue2:#c5deff;--soft:#24334c;--danger:#ffb4ab;--warn:#ffcd8d;--ok:#88dfac}
+html[data-nucleo-theme="dark"] :is(body,.workspace,.topbar,.sidebar,.modal-box,.card,.settings-block,table,thead,tbody,tr,th,td,input,select,textarea){background-color:var(--card);color:var(--text);border-color:var(--line)}
+html[data-nucleo-theme="dark"] :is(.side-item,.small,.help,.crumbs,.label){color:var(--muted)}
+</style>
+<section id="nucleoPersonalView" class="card hidden" aria-labelledby="nucleoPersonalTitle">
+  <h2 id="nucleoPersonalTitle">Configurações pessoais</h2>
+  <form id="nucleoPersonalForm" onsubmit="event.preventDefault();nucleoSavePersonalSettings()">
+    <label>Tema <select id="nucleoPersonalTheme" onchange="nucleoApplyPersonalTheme(this.value)">
+      <option value="light">Claro</option><option value="dark">Escuro</option>
+    </select></label>
+    <fieldset><legend>Notificações no Núcleo</legend><div id="nucleoPersonalNucleus"></div></fieldset>
+    <fieldset><legend>Cópias de avisos por e-mail</legend>
+      <p class="small">Você continua recebendo mensagens enviadas diretamente para sua conta, como atribuições e documentos.</p>
+      <div id="nucleoPersonalEmail"></div>
+    </fieldset>
+    <button class="btn primary" type="submit" disabled>Salvar preferências</button>
+    <p id="nucleoPersonalStatus" role="status"></p>
+  </form>
+  <h3>Histórico de notificações</h3>
+  <ul id="nucleoPersonalNotificationHistory"></ul>
+  <h3>Histórico de e-mails</h3>
+  <p class="small">Horário de envio registrado pelo Núcleo.</p>
+  <ul id="nucleoPersonalEmailHistory"></ul>
+</section>
+
+<style>
 #navSistemaTeste[hidden]{display:none!important}
 #nucleoSistemaView table{width:100%}
 #nucleoSistemaView td{overflow-wrap:anywhere;white-space:pre-line}
@@ -3406,6 +3438,7 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
   <nav class="actions" aria-label="Configurações do Sistema">
     <button class="btn secondary" type="button" onclick="document.getElementById('cfgIntegration').scrollIntoView()">Integração e sincronização</button>
     <button class="btn secondary" type="button" onclick="openUnitDriveSettings()">Unidades e pastas do Drive</button>
+    <button class="btn secondary" type="button" onclick="document.getElementById('nucleoSystemEmailHistory').scrollIntoView()">Histórico de e-mails</button>
   </nav>
 
   <form class="actions" onsubmit="event.preventDefault();nucleoOpenSistemaTeste()">
@@ -3421,6 +3454,19 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
   <div class="system-table"><table><thead><tr><th>Horário</th><th>Conta</th><th>Categoria</th><th>Operação</th></tr></thead><tbody id="nucleoSistemaErrors"></tbody></table></div>
   <h3>Última atividade por conta</h3>
   <div class="system-table"><table><thead><tr><th>Data e horário</th><th>Conta</th></tr></thead><tbody id="nucleoSistemaUsers"></tbody></table></div>
+    <div class="settings-block" id="nucleoSystemEmailHistory">
+      <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap">
+        <div><h3 style="margin:0">Histórico de e-mails</h3><div class="help">Últimos registros informados pela base central.</div></div>
+        <div class="actions">
+          <button class="btn secondary" type="button" onclick="refreshEmailHistory()">Atualizar histórico</button>
+          <button class="btn secondary" type="button" onclick="requestEmailQueueProcessing()">Reprocessar pendentes antigos</button>
+        </div>
+      </div>
+      <div id="emailQueueSummary" class="small" style="margin-top:10px">Ainda não carregado.</div>
+      <div class="email-history-table-wrap">
+        <table class="email-history-table"><thead><tr><th>Data</th><th>Evento</th><th>R.O.</th><th>Destino</th><th>Status</th></tr></thead><tbody id="emailHistoryRows"><tr><td colspan="5">Sem dados.</td></tr></tbody></table>
+      </div>
+    </div>
 <div id="cfgIntegration" class="settings-block"><h2 style="margin:0 0 12px">Integração e sincronização</h2>
     <div id="integrationLockPanel" class="settings-block">
       <h3>Área protegida</h3>
@@ -5265,19 +5311,7 @@ Cancelada</textarea></label>
       </div>
     </div>
 
-    <div class="settings-block">
-      <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap">
-        <div><h3 style="margin:0">Histórico de e-mails</h3><div class="help">Últimos registros informados pela base central.</div></div>
-        <div class="actions">
-          <button class="btn secondary" type="button" onclick="refreshEmailHistory()">Atualizar histórico</button>
-          <button class="btn secondary" type="button" onclick="requestEmailQueueProcessing()">Reprocessar pendentes antigos</button>
-        </div>
-      </div>
-      <div id="emailQueueSummary" class="small" style="margin-top:10px">Ainda não carregado.</div>
-      <div class="email-history-table-wrap">
-        <table class="email-history-table"><thead><tr><th>Data</th><th>Evento</th><th>R.O.</th><th>Destino</th><th>Status</th></tr></thead><tbody id="emailHistoryRows"><tr><td colspan="5">Sem dados.</td></tr></tbody></table>
-      </div>
-    </div>
+
   </div>
 
   
@@ -6219,7 +6253,7 @@ function renderSupplierIndicatorsWorkspace(){
 <script src="assets/modules-v2/indicators/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/modules-v2/announcements/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/team-load-local-v47.js?v=20261027-team-local-central"></script>
-<script src="assets/nucleo-app-sistema-v108.js"></script>
+<script src="assets/nucleo-app-sistema-v110.js"></script>
 <script src="assets/api-source-lock-v20.js?v=20261110-periodo-central-v72"></script>
 
 <script id="nucleoModuleMaintenanceGuardV1">
@@ -6333,7 +6367,7 @@ function renderSupplierIndicatorsWorkspace(){
 <script src="assets/modules-v2/ro-extension.js?v=20261028-ro-extension-v3-email-async"></script>
 <script src="assets/modules-v2/ro-resend-email.js?v=20261103-email-error-filter-v28"></script>
 <script src="assets/modules-v2/ro-resend-email-guard-v12.js?v=20261103-single-envelope-v12"></script>
-<script src="assets/modules-v2/email-quota-panel.js?v=20261029-email-quota-v1"></script>
+<script src="assets/modules-v2/email-quota-sistema-v109.js"></script>
 
 <script id="nucleoMaintenanceMutualExclusionV3">
 (function(){
