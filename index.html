@@ -3394,6 +3394,30 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
     <div id="notificationList" class="notification-list"></div>
   </div>
   <main>
+<style>
+#navSistemaTeste[hidden]{display:none!important}
+#nucleoSistemaView table{width:100%}
+#nucleoSistemaView td{overflow-wrap:anywhere}
+#nucleoSistemaView .system-table{overflow:auto}
+#nucleoSistemaView h3{margin-top:24px}
+</style>
+<section id="nucleoSistemaView" class="card hidden" aria-labelledby="nucleoSistemaTitle">
+  <h2 id="nucleoSistemaTitle">Sistema</h2>
+  <form class="actions" onsubmit="event.preventDefault();nucleoOpenSistemaTeste()">
+    <label>Dia <input type="date" id="nucleoSistemaDay" required></label>
+    <button class="btn primary" type="submit">Consultar</button>
+  </form>
+  <p id="nucleoSistemaStatus" role="status"></p>
+  <h3>Logins do dia</h3>
+  <div class="system-table"><table><thead><tr><th>Horário</th><th>Conta</th></tr></thead><tbody id="nucleoSistemaLogins"></tbody></table></div>
+  <h3>Alterações registradas</h3>
+  <div class="system-table"><table><thead><tr><th>Horário</th><th>Conta</th><th>Operação</th><th>Módulo</th><th>Registro</th></tr></thead><tbody id="nucleoSistemaChanges"></tbody></table></div>
+  <h3>Erros do dia</h3>
+  <div class="system-table"><table><thead><tr><th>Horário</th><th>Conta</th><th>Categoria</th><th>Operação</th></tr></thead><tbody id="nucleoSistemaErrors"></tbody></table></div>
+  <h3>Última atividade por conta</h3>
+  <div class="system-table"><table><thead><tr><th>Data e horário</th><th>Conta</th></tr></thead><tbody id="nucleoSistemaUsers"></tbody></table></div>
+</section>
+
 
 <section id="listView" class="card">
   <div class="overview-head">
@@ -6185,27 +6209,7 @@ function renderSupplierIndicatorsWorkspace(){
 <script src="assets/modules-v2/indicators/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/modules-v2/announcements/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/team-load-local-v47.js?v=20261027-team-local-central"></script>
-<style>
-#navSistemaTeste[hidden]{display:none!important}
-#nucleoSistemaDialog{width:min(92vw,780px);max-height:86vh;overflow:auto;border:1px solid #dce4ed;border-radius:16px;padding:20px;color:#173b67}
-#nucleoSistemaDialog::backdrop{background:#10244299}
-#nucleoSistemaDialog ul{padding-inline-start:22px;overflow-wrap:anywhere}
-#nucleoSistemaDialog li{margin:.55rem 0}
-</style>
-<dialog id="nucleoSistemaDialog" aria-labelledby="nucleoSistemaTitle">
-  <div class="actions" style="justify-content:space-between">
-    <h2 id="nucleoSistemaTitle">Sistema</h2>
-    <form method="dialog"><button class="btn secondary" type="submit">Fechar</button></form>
-  </div>
-  <button class="btn secondary" type="button" onclick="nucleoOpenSistemaTeste()">Atualizar</button>
-  <p id="nucleoSistemaStatus" role="status"></p>
-  <h3>Últimos acessos</h3>
-  <p class="small">Atividade recente indica que o Núcleo Teste esteve aberto e conectado nos últimos três minutos.</p>
-  <ul id="nucleoSistemaUsers"></ul>
-  <h3>Erros recentes</h3>
-  <ul id="nucleoSistemaErrors"></ul>
-</dialog>
-<script src="assets/nucleo-app-sistema-v104.js"></script>
+<script src="assets/nucleo-app-sistema-v105.js"></script>
 <script src="assets/api-source-lock-v20.js?v=20261110-periodo-central-v72"></script>
 
 <script id="nucleoModuleMaintenanceGuardV1">
