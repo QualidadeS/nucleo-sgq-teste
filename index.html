@@ -3403,6 +3403,11 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
 </style>
 <section id="nucleoSistemaView" class="card hidden" aria-labelledby="nucleoSistemaTitle">
   <h2 id="nucleoSistemaTitle">Sistema</h2>
+  <nav class="actions" aria-label="Configurações do Sistema">
+    <button class="btn secondary" type="button" onclick="document.getElementById('cfgIntegration').scrollIntoView()">Integração e sincronização</button>
+    <button class="btn secondary" type="button" onclick="openUnitDriveSettings()">Unidades e pastas do Drive</button>
+  </nav>
+
   <form class="actions" onsubmit="event.preventDefault();nucleoOpenSistemaTeste()">
     <label>Dia <input type="date" id="nucleoSistemaDay" required></label>
     <button class="btn primary" type="submit">Consultar</button>
@@ -3416,6 +3421,72 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
   <div class="system-table"><table><thead><tr><th>Horário</th><th>Conta</th><th>Categoria</th><th>Operação</th></tr></thead><tbody id="nucleoSistemaErrors"></tbody></table></div>
   <h3>Última atividade por conta</h3>
   <div class="system-table"><table><thead><tr><th>Data e horário</th><th>Conta</th></tr></thead><tbody id="nucleoSistemaUsers"></tbody></table></div>
+<div id="cfgIntegration" class="settings-block"><h2 style="margin:0 0 12px">Integração e sincronização</h2>
+    <div id="integrationLockPanel" class="settings-block">
+      <h3>Área protegida</h3>
+      <p class="help">As configurações de integração alteram a conexão do NÚCLEO com as planilhas. Informe a senha administrativa para visualizar ou modificar esta área.</p>
+      <div class="settings-grid">
+        <label><div class="label">Senha da integração</div><input id="integrationAdminPassword" type="password" autocomplete="off" placeholder="Digite a senha" onkeydown="if(event.key==='Enter'){event.preventDefault();unlockIntegrationSettings()}"></label>
+      </div>
+      <div class="actions">
+        <button class="btn primary" type="button" onclick="unlockIntegrationSettings()">Desbloquear integração</button>
+      </div>
+      <div id="integrationLockMessage" class="statusline hidden"></div>
+    </div>
+    <div id="integrationProtectedContent" class="hidden">
+
+    <div class="settings-block">
+      <h3>Conexão com Google Sheets / Apps Script</h3>
+      <p class="help">O Apps Script funciona como API entre o portal e as planilhas privadas.</p>
+      <div class="settings-grid">
+        <label><div class="label">URL do Web App / API</div><input id="apiUrl" placeholder="https://script.google.com/macros/s/.../exec"></label>
+        <label><div class="label">Chave de integração</div><input id="apiKey" placeholder="Chave definida no Apps Script"></label>
+        <label><div class="label">Sincronização automática</div><select id="autoSync"><option value="5">A cada 5 minutos</option><option value="15">A cada 15 minutos</option><option value="30">A cada 30 minutos</option><option value="0">Somente manual</option></select></label>
+        <label><div class="label">Período buscado na planilha</div><select id="roSyncPeriod" onchange="editRoSyncPeriod()"><option value="all">Todo o período</option><option value="30">Últimos 30 dias</option><option value="90">Últimos 90 dias</option><option value="180">Últimos 180 dias</option><option value="365">Últimos 12 meses</option><option value="custom">Período personalizado</option></select></label>
+        <label id="roSyncDateFromWrap" class="hidden"><div class="label">Buscar de</div><input id="roSyncDateFrom" type="date" oninput="editRoSyncPeriod()"></label>
+        <label><div class="label">Sincronizar ao enviar PDCA</div><select><option>Sim</option><option>Não</option></select></label>
+      </div>
+      <div class="actions">
+        <button class="btn secondary" type="button" onclick="openIntegrationApi()">Abrir API</button>
+        <button class="btn secondary" type="button" onclick="testConnection()">Testar conexão</button>
+        <button class="btn primary" type="button" id="saveIntegrationButton" onclick="saveIntegrationSettingsConfirmed()">Salvar integração</button>
+      </div>
+      <div id="testResult" class="statusline hidden"></div>
+
+      <div style="margin-top:18px;padding-top:16px;border-top:1px solid #dfe7e4">
+        <h3 style="margin:0 0 6px">Importação para o preview do ChatGPT</h3>
+        <p class="help" style="margin-top:0">
+          Se o preview bloquear a conexão externa, abra a API, copie todo o JSON e cole abaixo.
+          Isso importa as R.O.s reais para este preview sem alterar a planilha.
+        </p>
+        <textarea id="integrationJsonPaste" rows="7" placeholder='Cole aqui o JSON que começa com {"sucesso":true,"quantidade":...}'></textarea>
+        <div class="actions" style="margin-top:10px">
+          <button class="btn primary" type="button" onclick="importIntegrationJson()">Importar R.O.s</button>
+          <label class="btn secondary" style="cursor:pointer">
+            Importar arquivo JSON
+            <input id="integrationJsonFile" type="file" accept=".json,application/json,text/plain" style="display:none" onchange="importIntegrationFile(this)">
+          </label>
+          <button class="btn secondary" type="button" onclick="clearImportedRos()">Voltar aos dados de demonstração</button>
+        </div>
+        <div id="importResult" class="statusline hidden"></div>
+      </div>
+    </div>
+  
+      <div class="actions" style="margin-top:12px">
+        <button class="btn secondary" type="button" onclick="lockIntegrationSettings()">Bloquear integração</button>
+      </div>
+    </div>
+  </div>
+  <section id="nucleoSystemDrive" class="settings-block" aria-labelledby="nucleoSystemDriveTitle">
+    <h3 id="nucleoSystemDriveTitle">Unidades e pastas do Drive</h3>
+    <label>Unidade <select id="nucleoSystemDriveUnit" onchange="nucleoLoadSystemDriveFolders()">
+      <option value="matriz">SETA SC — Matriz</option>
+      <option value="filial">SETA ES — Unidade Linhares</option>
+    </select></label>
+    <div id="nucleoSystemDriveFields"></div>
+    <button type="button" class="btn primary" onclick="nucleoSaveSystemDriveFolders(this)">Salvar pastas da unidade</button>
+    <p id="nucleoSystemDriveStatus" role="status"></p>
+  </section>
 </section>
 
 
@@ -5052,14 +5123,12 @@ Diretoria"></textarea>
   <p class="small" style="margin-top:5px">Usuários, setores, triagem, avisos, base central e integração.</p>
 
   <div class="admin-config-nav" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
-    <button type="button" onclick="openUnitDriveSettings()">🏭 Unidades e pastas do Drive</button>
     <button type="button" onclick="document.getElementById('cfgUsers')?.scrollIntoView({behavior:'smooth'})">👥 Usuários e acessos</button>
     <button type="button" onclick="document.getElementById('cfgUnits')?.scrollIntoView({behavior:'smooth'})">🏭 Setores</button>
     <button type="button" onclick="document.getElementById('cfgSectorAliases')?.scrollIntoView({behavior:'smooth'})">≋ Padronização de setores</button>
     <button class="sgq-only" type="button" onclick="document.getElementById('cfgTriage')?.scrollIntoView({behavior:'smooth'})">↳ Triagem de R.O.</button>
     <button type="button" onclick="document.getElementById('cfgNotifications')?.scrollIntoView({behavior:'smooth'})">🔔 Avisos e e-mails</button>
     <button type="button" onclick="document.getElementById('cfgBackend')?.scrollIntoView({behavior:'smooth'})">☁ Base central</button>
-<button class="sgq-only" type="button" onclick="document.getElementById('cfgIntegration')?.scrollIntoView({behavior:'smooth'})">↻ Integração</button>
   </div>
 
   <div id="configSavedState" class="statusline hidden" style="margin-bottom:12px"></div>
@@ -5281,65 +5350,6 @@ Cancelada</textarea></label>
     </div>
   </div>
 </div>
-
-<div id="cfgIntegration" class="config-section sgq-only"><h2 style="margin:0 0 12px">6. Integração e sincronização</h2>
-    <div id="integrationLockPanel" class="settings-block">
-      <h3>Área protegida</h3>
-      <p class="help">As configurações de integração alteram a conexão do NÚCLEO com as planilhas. Informe a senha administrativa para visualizar ou modificar esta área.</p>
-      <div class="settings-grid">
-        <label><div class="label">Senha da integração</div><input id="integrationAdminPassword" type="password" autocomplete="off" placeholder="Digite a senha" onkeydown="if(event.key==='Enter'){event.preventDefault();unlockIntegrationSettings()}"></label>
-      </div>
-      <div class="actions">
-        <button class="btn primary" type="button" onclick="unlockIntegrationSettings()">Desbloquear integração</button>
-      </div>
-      <div id="integrationLockMessage" class="statusline hidden"></div>
-    </div>
-    <div id="integrationProtectedContent" class="hidden">
-
-    <div class="settings-block">
-      <h3>Conexão com Google Sheets / Apps Script</h3>
-      <p class="help">O Apps Script funciona como API entre o portal e as planilhas privadas.</p>
-      <div class="settings-grid">
-        <label><div class="label">URL do Web App / API</div><input id="apiUrl" placeholder="https://script.google.com/macros/s/.../exec"></label>
-        <label><div class="label">Chave de integração</div><input id="apiKey" placeholder="Chave definida no Apps Script"></label>
-        <label><div class="label">Sincronização automática</div><select id="autoSync"><option value="5">A cada 5 minutos</option><option value="15">A cada 15 minutos</option><option value="30">A cada 30 minutos</option><option value="0">Somente manual</option></select></label>
-        <label><div class="label">Período buscado na planilha</div><select id="roSyncPeriod" onchange="editRoSyncPeriod()"><option value="all">Todo o período</option><option value="30">Últimos 30 dias</option><option value="90">Últimos 90 dias</option><option value="180">Últimos 180 dias</option><option value="365">Últimos 12 meses</option><option value="custom">Período personalizado</option></select></label>
-        <label id="roSyncDateFromWrap" class="hidden"><div class="label">Buscar de</div><input id="roSyncDateFrom" type="date" oninput="editRoSyncPeriod()"></label>
-        <label><div class="label">Sincronizar ao enviar PDCA</div><select><option>Sim</option><option>Não</option></select></label>
-      </div>
-      <div class="actions">
-        <button class="btn secondary" type="button" onclick="openIntegrationApi()">Abrir API</button>
-        <button class="btn secondary" type="button" onclick="testConnection()">Testar conexão</button>
-        <button class="btn primary" type="button" id="saveIntegrationButton" onclick="saveIntegrationSettingsConfirmed()">Salvar integração</button>
-      </div>
-      <div id="testResult" class="statusline hidden"></div>
-
-      <div style="margin-top:18px;padding-top:16px;border-top:1px solid #dfe7e4">
-        <h3 style="margin:0 0 6px">Importação para o preview do ChatGPT</h3>
-        <p class="help" style="margin-top:0">
-          Se o preview bloquear a conexão externa, abra a API, copie todo o JSON e cole abaixo.
-          Isso importa as R.O.s reais para este preview sem alterar a planilha.
-        </p>
-        <textarea id="integrationJsonPaste" rows="7" placeholder='Cole aqui o JSON que começa com {"sucesso":true,"quantidade":...}'></textarea>
-        <div class="actions" style="margin-top:10px">
-          <button class="btn primary" type="button" onclick="importIntegrationJson()">Importar R.O.s</button>
-          <label class="btn secondary" style="cursor:pointer">
-            Importar arquivo JSON
-            <input id="integrationJsonFile" type="file" accept=".json,application/json,text/plain" style="display:none" onchange="importIntegrationFile(this)">
-          </label>
-          <button class="btn secondary" type="button" onclick="clearImportedRos()">Voltar aos dados de demonstração</button>
-        </div>
-        <div id="importResult" class="statusline hidden"></div>
-      </div>
-    </div>
-  
-      <div class="actions" style="margin-top:12px">
-        <button class="btn secondary" type="button" onclick="lockIntegrationSettings()">Bloquear integração</button>
-      </div>
-    </div>
-  </div>
-
-  
 
 </section>
 </main>
@@ -6209,7 +6219,7 @@ function renderSupplierIndicatorsWorkspace(){
 <script src="assets/modules-v2/indicators/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/modules-v2/announcements/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/team-load-local-v47.js?v=20261027-team-local-central"></script>
-<script src="assets/nucleo-app-sistema-v105.js"></script>
+<script src="assets/nucleo-app-sistema-v106.js"></script>
 <script src="assets/api-source-lock-v20.js?v=20261110-periodo-central-v72"></script>
 
 <script id="nucleoModuleMaintenanceGuardV1">
