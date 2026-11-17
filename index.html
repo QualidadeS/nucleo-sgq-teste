@@ -3600,7 +3600,7 @@ html[data-nucleo-theme="dark"] :is(.side-item,.small,.help,.crumbs,.label){color
   <div id="sectorAccessNote" class="small" style="margin:12px 0;color:#667085"></div>
   <div id="assignedLifecycleTabs" style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 12px">
     <button id="assignedActiveTab" class="btn primary" type="button" onclick="setAssignedLifecycle('active')">Precisa de resposta</button>
-    <button id="assignedHistoryTab" class="btn secondary" type="button" onclick="setAssignedLifecycle('history')">Encerradas</button>
+    <button id="assignedHistoryTab" class="btn secondary" type="button" onclick="setAssignedLifecycle('history')">Histórico</button>
   </div>
   <div class="assigned-filter-row">
     <input id="search" placeholder="Buscar por número ou cliente" oninput="nucleoScheduleRoSearch()" onkeydown="if(event.key==='Enter'){event.preventDefault();nucleoRunRoSearch()}">
@@ -3608,7 +3608,7 @@ html[data-nucleo-theme="dark"] :is(.side-item,.small,.help,.crumbs,.label){color
     <select id="assignedSectorFilter" aria-label="Setor responsável" onchange="render()"><option value="all">Todos os setores</option></select>
     <select id="assignedOriginFilter" onchange="render()"><option value="all">Todas as origens</option><option value="Interna">Interna</option><option value="Externa">Externa</option></select>
     <select id="assignedUnitFilter" onchange="render()"><option value="all">Todas as unidades</option></select>
-    <select id="filter" onchange="render()"><option value="todas">Todas as situações</option><option value="precisa_resposta">Precisa de resposta</option><option value="ja_respondeu">Já tem resposta</option><option value="cancelada">Cancelada</option><option value="registro">Registro</option><option value="obsoleto">Obsoleto</option></select>
+    <select id="filter" onchange="render()"><option value="todas">Todas as situações</option><option value="precisa_resposta">Precisa de resposta</option><option value="aguarda_apresentacao">Aguardando apresentação</option><option value="ja_respondeu">Já tem resposta</option><option value="cancelada">Cancelada</option><option value="registro">Registro</option><option value="obsoleto">Obsoleto</option></select>
   </div>
   <dialog id="assignedFilterDialog" aria-labelledby="assignedFilterTitle">
     <form onsubmit="applyAssignedFilters(event)">
@@ -6266,7 +6266,7 @@ function renderSupplierIndicatorsWorkspace(){
 <script src="assets/modules-v2/indicators/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/modules-v2/announcements/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/team-load-local-v47.js?v=20261027-team-local-central"></script>
-<script src="assets/nucleo-app-sistema-v116.js"></script>
+<script src="assets/nucleo-app-sistema-v117.js"></script>
 <script src="assets/api-source-lock-v20.js?v=20261110-periodo-central-v72"></script>
 
 <script id="nucleoModuleMaintenanceGuardV1">
