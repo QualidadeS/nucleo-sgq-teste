@@ -5187,7 +5187,7 @@ Diretoria"></textarea>
     <button type="button" onclick="document.getElementById('cfgUnits')?.scrollIntoView({behavior:'smooth'})">🏭 Setores</button>
     <button type="button" onclick="document.getElementById('cfgSectorAliases')?.scrollIntoView({behavior:'smooth'})">≋ Padronização de setores</button>
     <button class="sgq-only" type="button" onclick="document.getElementById('cfgTriage')?.scrollIntoView({behavior:'smooth'})">↳ Triagem de R.O.</button>
-    <button id="navSacEmailSettings" type="button" hidden onclick="document.getElementById('unitQualitySettings')?.scrollIntoView({behavior:'smooth'})">Destinatários dos SACs</button>
+    <button id="navSacEmailSettings" type="button" hidden onclick="openUnitSacEmailSettings()">Destinatários dos SACs</button>
     <button type="button" onclick="document.getElementById('cfgNotifications')?.scrollIntoView({behavior:'smooth'})">🔔 Avisos e e-mails</button>
     <button type="button" onclick="document.getElementById('cfgBackend')?.scrollIntoView({behavior:'smooth'})">☁ Base central</button>
   </div>
@@ -6267,7 +6267,7 @@ function renderSupplierIndicatorsWorkspace(){
 <script src="assets/modules-v2/indicators/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/modules-v2/announcements/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/team-load-local-v47.js?v=20261027-team-local-central"></script>
-<script src="assets/nucleo-app-sistema-v138.js"></script>
+<script src="assets/nucleo-app-sistema-v139.js"></script>
 <script src="assets/api-source-lock-v20.js?v=20261110-periodo-central-v72"></script>
 
 <script id="nucleoModuleMaintenanceGuardV1">
@@ -8044,5 +8044,23 @@ html[data-nucleo-theme="dark"] #cfgBackend .admin-correction-note {
 .test-email-dialog label { display:grid; gap:5px; }
 .test-email-dialog .actions { justify-content:flex-end; }
 #nucleoTestMail[hidden] { display:none !important; }
+</style>
+<style>
+#unitQualitySettings:not([open]) {
+  background:transparent !important;
+  border-color:transparent !important;
+  padding:0 !important;
+  box-shadow:none;
+}
+#unitQualitySettings > .unit-settings-toggle {
+  display:inline-flex;
+  width:fit-content;
+  list-style:none;
+  cursor:pointer;
+}
+#unitQualitySettings > .unit-settings-toggle::-webkit-details-marker { display:none; }
+#unitQualitySettings[open] > .unit-settings-toggle { margin-bottom:18px; }
+#unitQualitySettings:not([open]) .unit-settings-close-label,
+#unitQualitySettings[open] .unit-settings-open-label { display:none; }
 </style>
 </body></html>
