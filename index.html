@@ -3417,7 +3417,7 @@ html[data-nucleo-theme="dark"] :is(.side-item,.small,.help,.crumbs,.label){color
 <section id="nucleoPersonalView" class="card hidden" aria-labelledby="nucleoPersonalTitle">
   <h2 id="nucleoPersonalTitle">Configurações pessoais</h2>
   <form id="nucleoPersonalForm" onsubmit="event.preventDefault();nucleoSavePersonalSettings()">
-    <label>Tema <select id="nucleoPersonalTheme" onchange="nucleoApplyPersonalTheme(this.value)">
+    <label>Tema <select id="nucleoPersonalTheme">
       <option value="light">Claro</option><option value="dark">Escuro</option><option value="system">Do sistema</option>
     </select></label>
     <fieldset><legend>Aparência</legend>
@@ -5213,6 +5213,8 @@ Diretoria"></textarea>
 
   <div class="admin-config-nav" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
     <button type="button" onclick="document.getElementById('cfgUsers')?.scrollIntoView({behavior:'smooth'})">👥 Usuários e acessos</button>
+    <button type="button" onclick="openPersonIdentityManager()">Identidades e confirmação de reclamantes</button>
+    <button id="navSgqAdminRegistration" class="sgq-only" type="button" aria-controls="sgqAdminRegistration" aria-expanded="false" onclick="toggleSgqAdminRegistration()">Cadastro de administrador</button>
     <button type="button" onclick="document.getElementById('cfgUnits')?.scrollIntoView({behavior:'smooth'})">🏭 Setores</button>
     <button type="button" onclick="document.getElementById('cfgSectorAliases')?.scrollIntoView({behavior:'smooth'})">≋ Padronização de setores</button>
     <button class="sgq-only" type="button" onclick="document.getElementById('cfgTriage')?.scrollIntoView({behavior:'smooth'})">↳ Triagem de R.O.</button>
@@ -5228,12 +5230,8 @@ Diretoria"></textarea>
     <div class="small" style="margin-top:4px">As áreas abaixo são exclusivas do SGQ/ADM. Cada bloco possui seus próprios controles de salvamento; a integração permanece protegida por senha.</div>
   </div>
 
-  <div id="cfgUsers" class="config-section active"><h2 style="margin:0 0 12px">1. Usuários e acessos</h2><button class="btn secondary" type="button" onclick="openPersonIdentityManager()">Identidades e confirmação de reclamantes</button>
-    <details class="settings-block sgq-only" id="sgqAdminRegistration">
-      <summary class="btn secondary unit-settings-toggle">
-        <span class="unit-settings-open-label">Abrir cadastro de administrador</span>
-        <span class="unit-settings-close-label">Fechar cadastro de administrador</span>
-      </summary>
+  <div id="cfgUsers" class="config-section active"><h2 style="margin:0 0 12px">1. Usuários e acessos</h2>
+    <div class="settings-block sgq-only" id="sgqAdminRegistration" hidden>
       <h3>Administradores / SGQ</h3>
       <p class="help">Usuários com acesso à triagem, indicadores, conferência de ações e configurações.</p>
       <div class="settings-grid">
@@ -5246,7 +5244,7 @@ Diretoria"></textarea>
         <button class="btn primary" type="button" onclick="addAdmin()">Cadastrar administrador</button>
       </div>
       <div id="adminUsersList" class="admin-users"></div>
-    </details>
+    </div>
 
     <div class="settings-block">
       <div style="margin-bottom:12px">
@@ -6300,7 +6298,7 @@ function renderSupplierIndicatorsWorkspace(){
 <script src="assets/modules-v2/indicators/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/modules-v2/announcements/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/team-load-local-v47.js?v=20261027-team-local-central"></script>
-<script src="assets/nucleo-app-sistema-v141.js"></script>
+<script src="assets/nucleo-app-sistema-v142.js"></script>
 <script src="assets/api-source-lock-v20.js?v=20261110-periodo-central-v72"></script>
 
 <script id="nucleoModuleMaintenanceGuardV1">
@@ -8079,22 +8077,22 @@ html[data-nucleo-theme="dark"] #cfgBackend .admin-correction-note {
 #nucleoTestMail[hidden] { display:none !important; }
 </style>
 <style>
-:is(#unitQualitySettings, #sgqAdminRegistration):not([open]) {
+#unitQualitySettings:not([open]) {
   background:transparent !important;
   border-color:transparent !important;
   padding:0 !important;
   box-shadow:none;
 }
-:is(#unitQualitySettings, #sgqAdminRegistration) > .unit-settings-toggle {
+#unitQualitySettings > .unit-settings-toggle {
   display:inline-flex;
   width:fit-content;
   list-style:none;
   cursor:pointer;
 }
-:is(#unitQualitySettings, #sgqAdminRegistration) > .unit-settings-toggle::-webkit-details-marker { display:none; }
-:is(#unitQualitySettings, #sgqAdminRegistration)[open] > .unit-settings-toggle { margin-bottom:18px; }
-:is(#unitQualitySettings, #sgqAdminRegistration):not([open]) .unit-settings-close-label,
-:is(#unitQualitySettings, #sgqAdminRegistration)[open] .unit-settings-open-label { display:none; }
+#unitQualitySettings > .unit-settings-toggle::-webkit-details-marker { display:none; }
+#unitQualitySettings[open] > .unit-settings-toggle { margin-bottom:18px; }
+#unitQualitySettings:not([open]) .unit-settings-close-label,
+#unitQualitySettings[open] .unit-settings-open-label { display:none; }
 </style>
 <style>
 
@@ -8120,5 +8118,17 @@ html[data-nucleo-ro-columns~="origem"] .personal-assigned-table tr > :is(th,td):
 html[data-nucleo-ro-columns~="prazo"] .personal-assigned-table tr > :is(th,td):nth-child(5):not([colspan]) {display:none!important}
 html[data-nucleo-ro-columns~="status"] .personal-assigned-table tr > :is(th,td):nth-child(6):not([colspan]) {display:none!important}
 html[data-nucleo-ro-columns~="pdca"] .personal-assigned-table tr > :is(th,td):nth-child(7):not([colspan]) {display:none!important}
+</style>
+<style>
+
+#sgqAdminRegistration[hidden] {display:none!important}
+#settingsView .admin-config-nav {display:flex!important;flex-wrap:wrap;align-items:stretch}
+#settingsView .admin-config-nav > button {width:auto!important;max-width:100%}
+#nucleoPersonalView .personal-style-options label:has(select) {display:grid;align-content:start;gap:6px}
+#nucleoPersonalView .personal-style-options select {width:100%;min-width:0}
+html:is([data-nucleo-accent="green"],[data-nucleo-accent="wine"]) .side-nav .side-item.active {
+  border-inline-start:3px solid var(--personal-accent);
+}
+html[data-nucleo-font="large"] #nucleoPersonalView label {font-size:16px}
 </style>
 </body></html>
