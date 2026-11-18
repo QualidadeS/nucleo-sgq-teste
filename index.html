@@ -4424,7 +4424,7 @@ Diretoria"></textarea>
 
 <section id="externalRoControlView" class="card hidden"><div id="sacLocalPending" class="settings-block" hidden></div>
   <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
-    <div class="small" style="margin:8px 0 12px;padding:10px 12px;border:1px solid #dbe4ee;border-radius:10px;background:#f8fafc"><b>Análise iniciada em 24/09/2026.</b> A partir desta data, toda R.O. Externa aparece primeiro para avaliação. Se não exigir atendimento de SAC, marque <b>Somente R.O.</b> e ela sai desta visualização. Se exigir SAC, crie o SAC e siga a tratativa normal.</div><div>
+    <div class="small sac-analysis-notice" style="margin:8px 0 12px;padding:10px 12px;border:1px solid #dbe4ee;border-radius:10px;background:#f8fafc"><b>Análise iniciada em 24/09/2026.</b> A partir desta data, toda R.O. Externa aparece primeiro para avaliação. Se não exigir atendimento de SAC, marque <b>Somente R.O.</b> e ela sai desta visualização. Se exigir SAC, crie o SAC e siga a tratativa normal.</div><div>
       <h2 style="margin:0">Análise e acompanhamento de SAC</h2>
       <p class="small" style="margin:5px 0 0">R.O. Externa continua sendo R.O. até o SGQ confirmar que há necessidade de SAC.</p>
     </div>
@@ -6266,7 +6266,7 @@ function renderSupplierIndicatorsWorkspace(){
 <script src="assets/modules-v2/indicators/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/modules-v2/announcements/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/team-load-local-v47.js?v=20261027-team-local-central"></script>
-<script src="assets/nucleo-app-sistema-v119.js"></script>
+<script src="assets/nucleo-app-sistema-v136.js"></script>
 <script src="assets/api-source-lock-v20.js?v=20261110-periodo-central-v72"></script>
 
 <script id="nucleoModuleMaintenanceGuardV1">
@@ -7908,6 +7908,106 @@ html[data-nucleo-theme="dark"] .topbar #syncMsg.okline {
 html[data-nucleo-theme="dark"] .topbar #syncMsg:not(.okline) {
   background:var(--soft);
   color:var(--text);
+}
+</style>
+<style id="nucleo-dark-theme-v136">
+/* Surfaces shared by the SGQ panels and operational lists. */
+html[data-nucleo-theme="dark"] :is(
+  .admin-user-row, .unit-settings-section, .sgq-panel, .sgq-chart-card,
+  .sgq-kpi, .overview-kpi, .overview-panel, .ro-summary-card, .sum-card,
+  .triage-box, .sac-analysis-notice, .nc-empty-state, #roHistoryDialog
+) {
+  background:var(--card) !important;
+  border-color:var(--line) !important;
+  color:var(--text) !important;
+}
+html[data-nucleo-theme="dark"] :is(
+  .sgq-status-mini, .overview-quick, .overview-count, .admin-user-row .role-tag,
+  #overviewTeam .inline-team-person, #actionsDashboardView .action-table th,
+  #adminModuleView button.card[onclick^="openAdminOperationalWorkspace("]
+) {
+  background:var(--soft) !important;
+  border-color:var(--line) !important;
+  color:var(--text) !important;
+}
+html[data-nucleo-theme="dark"] #adminModuleView button.card[onclick^="openAdminOperationalWorkspace("]:hover,
+html[data-nucleo-theme="dark"] .overview-quick:hover {
+  background:var(--nucleo-nav-active) !important;
+}
+html[data-nucleo-theme="dark"] #adminModuleView button.card[onclick^="openAdminOperationalWorkspace("] > div:first-child {
+  background:var(--nucleo-nav-active) !important;
+  color:var(--nucleo-main) !important;
+}
+html[data-nucleo-theme="dark"] :is(
+  #adminModuleView [style*="color:#1455ff"], .overview-kpi small, .overview-customize-btn
+) {color:var(--nucleo-main) !important}
+html[data-nucleo-theme="dark"] :is(
+  .unit-settings-section h4, .sgq-panel h3, .overview-priority,
+  .sgq-kpi b, .overview-kpi b, .ro-summary-card b, .sum-card b
+) {color:var(--text)}
+html[data-nucleo-theme="dark"] :is(
+  .sgq-kpi span, .overview-kpi span, .ro-summary-card span, .sum-card span,
+  .sgq-chart-sub, .sgq-month-label, .sgq-status-mini span, .sgq-donut-center span,
+  .overview-eyebrow, .overview-panel-kicker, .overview-quick small,
+  .overview-priority-copy small, #actionsDashboardBody td[colspan]
+) {color:var(--muted) !important}
+html[data-nucleo-theme="dark"] :is(.overview-priority,.sgq-row) {border-color:var(--line)}
+html[data-nucleo-theme="dark"] :is(.sgq-kpi.warn,.overview-kpi.warn,.ro-summary-card.alert) b {color:var(--warn)}
+html[data-nucleo-theme="dark"] :is(.sgq-kpi.danger,.overview-kpi.danger) b {color:var(--danger)}
+html[data-nucleo-theme="dark"] .sgq-kpi.ok b {color:var(--ok)}
+html[data-nucleo-theme="dark"] :is(.sgq-bar-track,.sgq-donut:not([style*="conic-gradient"])) {background:var(--soft) !important}
+html[data-nucleo-theme="dark"] .sgq-donut::after {background:var(--card)}
+html[data-nucleo-theme="dark"] :is(.sgq-bar-fill,.sgq-month-bar) {background:var(--nucleo-main)}
+html[data-nucleo-theme="dark"] .sidebar :is(.side-title,.brand-name) {color:var(--nucleo-main) !important}
+html[data-nucleo-theme="dark"] .sidebar :is(.side-item,.side-module-head,.side-independent-module) {color:var(--text) !important}
+html[data-nucleo-theme="dark"] .sidebar :is(.side-item,.side-module-head,.side-independent-module) small {color:var(--muted) !important}
+html[data-nucleo-theme="dark"] .sidebar #modulePersonal .side-module-body .side-item:hover {background:var(--nucleo-nav-hover) !important}
+html[data-nucleo-theme="dark"] .sidebar #modulePersonal .side-module-body .side-item.active {background:var(--nucleo-nav-active) !important}
+html[data-nucleo-theme="dark"] .workspace :is(.status-badge,.badge) {
+  background:var(--soft) !important;
+  border-color:var(--line) !important;
+  color:var(--text) !important;
+}
+html[data-nucleo-theme="dark"] .workspace :is(.status-badge.pending,.badge.warn) {
+  background:#412e20 !important;
+  border-color:#68503a !important;
+  color:var(--warn) !important;
+}
+html[data-nucleo-theme="dark"] .workspace .status-badge:is(.answered,.approved) {
+  background:#17352e !important;
+  border-color:#31584d !important;
+  color:var(--ok) !important;
+}
+html[data-nucleo-theme="dark"] .workspace .status-badge.rejected {
+  background:#482a30 !important;
+  color:var(--danger) !important;
+}
+html[data-nucleo-theme="dark"] #roListView :is(
+  .assigned-operational-icons button, td.operational-action-col > button,
+  td.operational-action-col [data-ro-resend-email]
+) {
+  background:var(--soft) !important;
+  border-color:var(--line) !important;
+  color:var(--text) !important;
+}
+html[data-nucleo-theme="dark"] #roListView :is(
+  .assigned-operational-icons button, td.operational-action-col > button,
+  td.operational-action-col [data-ro-resend-email]
+):hover {background:var(--nucleo-nav-active) !important}
+html[data-nucleo-theme="dark"] #roListView .assigned-operational-icons button.ro-delete-btn {color:var(--danger) !important}
+html[data-nucleo-theme="dark"] .overview-customize-btn {
+  background:var(--soft);
+  border-color:var(--line);
+}
+html[data-nucleo-theme="dark"] .overview-customize-btn:hover {background:var(--nucleo-nav-active)}
+html[data-nucleo-theme="dark"] .workspace .badge.ok {
+  background:#17352e !important;
+  border-color:#31584d !important;
+  color:var(--ok) !important;
+}
+html[data-nucleo-theme="dark"] .workspace .badge.danger {
+  background:#482a30 !important;
+  color:var(--danger) !important;
 }
 </style>
 </body></html>
