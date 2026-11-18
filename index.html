@@ -3422,9 +3422,9 @@ html[data-nucleo-theme="dark"] :is(.side-item,.small,.help,.crumbs,.label){color
     </select></label>
     <fieldset><legend>Aparência</legend>
       <div class="personal-style-options">
-        <label>Cor de destaque <select id="nucleoPersonalAccent"><option value="blue">Azul</option><option value="green">Verde</option><option value="wine">Vinho</option></select></label>
-        <label>Fonte <select id="nucleoPersonalFont"><option value="normal">Padrão</option><option value="large">Maior</option></select></label>
-        <label>Densidade <select id="nucleoPersonalDensity"><option value="comfortable">Padrão</option><option value="compact">Compacta</option></select></label>
+        <label class="personal-appearance-field"><span>Cor de destaque</span><select id="nucleoPersonalAccent"><option value="blue">Azul</option><option value="green">Verde</option><option value="wine">Vinho</option></select></label>
+        <label class="personal-appearance-field"><span>Fonte</span><select id="nucleoPersonalFont"><option value="normal">Padrão</option><option value="large">Maior</option></select></label>
+        <label class="personal-appearance-field"><span>Densidade</span><select id="nucleoPersonalDensity"><option value="comfortable">Padrão</option><option value="compact">Compacta</option></select></label>
       </div>
     </fieldset>
     <details class="personal-menu-options">
@@ -3448,6 +3448,7 @@ html[data-nucleo-theme="dark"] :is(.side-item,.small,.help,.crumbs,.label){color
     </fieldset>
     <button class="btn primary" type="submit" disabled>Salvar preferências</button>
     <p id="nucleoPersonalStatus" role="status"></p>
+    <p id="nucleoPersonalVersion" class="small"></p>
   </form>
   <div class="personal-history">
     <section>
@@ -6298,7 +6299,7 @@ function renderSupplierIndicatorsWorkspace(){
 <script src="assets/modules-v2/indicators/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/modules-v2/announcements/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/team-load-local-v47.js?v=20261027-team-local-central"></script>
-<script src="assets/nucleo-app-sistema-v142.js"></script>
+<script src="assets/nucleo-app-sistema-v143.js"></script>
 <script src="assets/api-source-lock-v20.js?v=20261110-periodo-central-v72"></script>
 
 <script id="nucleoModuleMaintenanceGuardV1">
@@ -8101,8 +8102,6 @@ html[data-nucleo-theme="dark"] #cfgBackend .admin-correction-note {
 #moduleManagement>div {display:flex;flex-direction:column}
 .personal-menu-options {margin:12px 0;padding:12px;border:1px solid var(--line);border-radius:8px}
 .personal-menu-options summary {cursor:pointer}
-#nucleoPersonalMenuEditor>div {display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:6px}
-#nucleoPersonalMenuEditor>div>span {flex:1;min-width:140px}
 .personal-style-options {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,155px),1fr));gap:6px}
 .personal-ro-views {margin:10px 0}
 #personalRoView {width:auto;max-width:100%}
@@ -8130,5 +8129,22 @@ html:is([data-nucleo-accent="green"],[data-nucleo-accent="wine"]) .side-nav .sid
   border-inline-start:3px solid var(--personal-accent);
 }
 html[data-nucleo-font="large"] #nucleoPersonalView label {font-size:16px}
+</style>
+<style>
+
+#nucleoPersonalView .personal-style-options .personal-appearance-field {display:grid;grid-template-columns:minmax(0,1fr);align-items:start;gap:6px;min-width:0;overflow-wrap:normal}
+#nucleoPersonalView .personal-appearance-field select {width:100%;min-width:0}
+#nucleoPersonalMenuEditor .personal-menu-group {display:block;margin-top:12px;min-width:0}
+#nucleoPersonalMenuEditor .personal-menu-group h3 {margin:8px 0;font-size:14px}
+.personal-menu-group .personal-menu-row {
+  display:grid;grid-template-columns:minmax(0,1fr) auto;
+  align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--line)
+}
+.personal-menu-name {min-width:0;overflow-wrap:break-word}
+.personal-menu-row .personal-menu-actions {display:flex;align-items:center;justify-content:flex-start;gap:6px;flex-wrap:wrap}
+#nucleoPersonalView .personal-menu-actions label {display:inline-flex;align-items:center;gap:5px;margin:0;padding:0;white-space:nowrap}
+#nucleoPersonalView .personal-menu-actions input {width:auto;margin:0}
+.personal-menu-actions button {padding:6px 10px;min-width:32px}
+@media(max-width:420px){.personal-menu-group .personal-menu-row {grid-template-columns:minmax(0,1fr)}}
 </style>
 </body></html>
