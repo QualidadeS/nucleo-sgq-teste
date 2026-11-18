@@ -3307,6 +3307,7 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
   <p class="side-copy sidebar-intro">Gestão integrada do Sistema de Gestão da Qualidade.</p>
 
   <nav class="side-nav">
+    <div id="nucleoPersonalFavorites" aria-label="Módulos favoritos" hidden></div>
     <button class="side-item active" id="navRos" onclick="showList();setNav('ros')"><span class="side-num side-icon"><svg viewBox="0 0 24 24"><path d="M4 13h6V4H4v9Zm0 7h6v-4H4v4Zm10 0h6v-9h-6v9Zm0-16v4h6V4h-6Z"/></svg></span><span><b>Visão geral</b><small>Ocorrências atribuídas</small></span></button>
 
     <div class="side-module" id="moduleRo">
@@ -3417,8 +3418,29 @@ html[data-nucleo-theme="dark"] :is(.side-item,.small,.help,.crumbs,.label){color
   <h2 id="nucleoPersonalTitle">Configurações pessoais</h2>
   <form id="nucleoPersonalForm" onsubmit="event.preventDefault();nucleoSavePersonalSettings()">
     <label>Tema <select id="nucleoPersonalTheme" onchange="nucleoApplyPersonalTheme(this.value)">
-      <option value="light">Claro</option><option value="dark">Escuro</option>
+      <option value="light">Claro</option><option value="dark">Escuro</option><option value="system">Do sistema</option>
     </select></label>
+    <fieldset><legend>Aparência</legend>
+      <div class="personal-style-options">
+        <label>Cor de destaque <select id="nucleoPersonalAccent"><option value="blue">Azul</option><option value="green">Verde</option><option value="wine">Vinho</option></select></label>
+        <label>Fonte <select id="nucleoPersonalFont"><option value="normal">Padrão</option><option value="large">Maior</option></select></label>
+        <label>Densidade <select id="nucleoPersonalDensity"><option value="comfortable">Padrão</option><option value="compact">Compacta</option></select></label>
+      </div>
+    </fieldset>
+    <details class="personal-menu-options">
+      <summary>Ordem do menu e favoritos</summary>
+      <div id="nucleoPersonalMenuEditor"></div>
+    </details>
+    <fieldset id="nucleoPersonalRoColumns" hidden><legend>Colunas das R.O.s atribuídas</legend>
+      <div class="personal-style-options">
+        <label><input type="checkbox" value="unidade"> Unidade</label>
+        <label><input type="checkbox" value="setor"> Setor responsável</label>
+        <label><input type="checkbox" value="origem"> Origem</label>
+        <label><input type="checkbox" value="prazo"> Prazo</label>
+        <label><input type="checkbox" value="status"> Status</label>
+        <label><input type="checkbox" value="pdca"> PDCA</label>
+      </div>
+    </fieldset>
     <fieldset><legend>Notificações no Núcleo</legend><div id="nucleoPersonalNucleus"></div></fieldset>
     <fieldset><legend>Cópias de avisos por e-mail</legend>
       <p class="small">Você continua recebendo mensagens enviadas diretamente para sua conta, como atribuições e documentos.</p>
@@ -3610,6 +3632,13 @@ html[data-nucleo-theme="dark"] :is(.side-item,.small,.help,.crumbs,.label){color
     <select id="assignedOriginFilter" onchange="render()"><option value="all">Todas as origens</option><option value="Interna">Interna</option><option value="Externa">Externa</option></select>
     <select id="assignedUnitFilter" onchange="render()"><option value="all">Todas as unidades</option></select>
     <select id="filter" onchange="render()"><option value="todas">Todas as situações</option><option value="precisa_resposta">Precisa de resposta</option><option value="aguarda_apresentacao">Aguardando apresentação</option><option value="ja_respondeu">Já tem resposta</option><option value="cancelada">Cancelada</option><option value="registro">Registro</option><option value="obsoleto">Obsoleto</option></select>
+  </div>
+  <div id="personalRoViewsToolbar" class="actions personal-ro-views" hidden>
+    <select id="personalRoView" aria-label="Visualizações salvas" onchange="nucleoApplyPersonalRoView(this.value)"><option value="">Selecionar visualização</option></select>
+    <button type="button" class="btn secondary" onclick="nucleoChangePersonalRoViews('save')">Salvar filtros atuais</button>
+    <button type="button" class="btn secondary" onclick="nucleoChangePersonalRoViews('default')">Alternar como padrão</button>
+    <button type="button" class="btn secondary" onclick="nucleoChangePersonalRoViews('delete')">Excluir visualização</button>
+    <span id="personalRoViewStatus" class="small" role="status"></span>
   </div>
   <dialog id="assignedFilterDialog" aria-labelledby="assignedFilterTitle">
     <form onsubmit="applyAssignedFilters(event)">
@@ -5200,7 +5229,11 @@ Diretoria"></textarea>
   </div>
 
   <div id="cfgUsers" class="config-section active"><h2 style="margin:0 0 12px">1. Usuários e acessos</h2><button class="btn secondary" type="button" onclick="openPersonIdentityManager()">Identidades e confirmação de reclamantes</button>
-    <div class="settings-block sgq-only" id="sgqAdminRegistration">
+    <details class="settings-block sgq-only" id="sgqAdminRegistration">
+      <summary class="btn secondary unit-settings-toggle">
+        <span class="unit-settings-open-label">Abrir cadastro de administrador</span>
+        <span class="unit-settings-close-label">Fechar cadastro de administrador</span>
+      </summary>
       <h3>Administradores / SGQ</h3>
       <p class="help">Usuários com acesso à triagem, indicadores, conferência de ações e configurações.</p>
       <div class="settings-grid">
@@ -5213,7 +5246,7 @@ Diretoria"></textarea>
         <button class="btn primary" type="button" onclick="addAdmin()">Cadastrar administrador</button>
       </div>
       <div id="adminUsersList" class="admin-users"></div>
-    </div>
+    </details>
 
     <div class="settings-block">
       <div style="margin-bottom:12px">
@@ -6267,7 +6300,7 @@ function renderSupplierIndicatorsWorkspace(){
 <script src="assets/modules-v2/indicators/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/modules-v2/announcements/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/team-load-local-v47.js?v=20261027-team-local-central"></script>
-<script src="assets/nucleo-app-sistema-v139.js"></script>
+<script src="assets/nucleo-app-sistema-v141.js"></script>
 <script src="assets/api-source-lock-v20.js?v=20261110-periodo-central-v72"></script>
 
 <script id="nucleoModuleMaintenanceGuardV1">
@@ -8046,21 +8079,46 @@ html[data-nucleo-theme="dark"] #cfgBackend .admin-correction-note {
 #nucleoTestMail[hidden] { display:none !important; }
 </style>
 <style>
-#unitQualitySettings:not([open]) {
+:is(#unitQualitySettings, #sgqAdminRegistration):not([open]) {
   background:transparent !important;
   border-color:transparent !important;
   padding:0 !important;
   box-shadow:none;
 }
-#unitQualitySettings > .unit-settings-toggle {
+:is(#unitQualitySettings, #sgqAdminRegistration) > .unit-settings-toggle {
   display:inline-flex;
   width:fit-content;
   list-style:none;
   cursor:pointer;
 }
-#unitQualitySettings > .unit-settings-toggle::-webkit-details-marker { display:none; }
-#unitQualitySettings[open] > .unit-settings-toggle { margin-bottom:18px; }
-#unitQualitySettings:not([open]) .unit-settings-close-label,
-#unitQualitySettings[open] .unit-settings-open-label { display:none; }
+:is(#unitQualitySettings, #sgqAdminRegistration) > .unit-settings-toggle::-webkit-details-marker { display:none; }
+:is(#unitQualitySettings, #sgqAdminRegistration)[open] > .unit-settings-toggle { margin-bottom:18px; }
+:is(#unitQualitySettings, #sgqAdminRegistration):not([open]) .unit-settings-close-label,
+:is(#unitQualitySettings, #sgqAdminRegistration)[open] .unit-settings-open-label { display:none; }
+</style>
+<style>
+
+#nucleoPersonalFavorites {order:-1;display:grid;gap:3px;border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:4px}
+#nucleoPersonalFavorites[hidden],#personalRoViewsToolbar[hidden],#nucleoPersonalRoColumns[hidden] {display:none!important}
+#moduleManagement>div {display:flex;flex-direction:column}
+.personal-menu-options {margin:12px 0;padding:12px;border:1px solid var(--line);border-radius:8px}
+.personal-menu-options summary {cursor:pointer}
+#nucleoPersonalMenuEditor>div {display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:6px}
+#nucleoPersonalMenuEditor>div>span {flex:1;min-width:140px}
+.personal-style-options {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,155px),1fr));gap:6px}
+.personal-ro-views {margin:10px 0}
+#personalRoView {width:auto;max-width:100%}
+html[data-nucleo-accent="green"] {--personal-accent:#196344}
+html[data-nucleo-accent="wine"] {--personal-accent:#84294b}
+html:is([data-nucleo-accent="green"],[data-nucleo-accent="wine"]) .btn.primary {background:var(--personal-accent);border-color:var(--personal-accent);color:#fff}
+html[data-nucleo-font="large"] .workspace :is(input,select,textarea,td,th,button) {font-size:16px}
+html[data-nucleo-font="large"] .sidebar :is(.side-item,.side-module-head) {font-size:15px}
+html[data-nucleo-density="compact"] .workspace :is(th,td) {padding-block:5px!important}
+html[data-nucleo-ro-columns~="unidade"] .personal-assigned-table tr > :is(th,td):nth-child(2):not([colspan]) {display:none!important}
+html[data-nucleo-ro-columns~="setor"] .personal-assigned-table tr > :is(th,td):nth-child(3):not([colspan]) {display:none!important}
+html[data-nucleo-ro-columns~="origem"] .personal-assigned-table tr > :is(th,td):nth-child(4):not([colspan]) {display:none!important}
+html[data-nucleo-ro-columns~="prazo"] .personal-assigned-table tr > :is(th,td):nth-child(5):not([colspan]) {display:none!important}
+html[data-nucleo-ro-columns~="status"] .personal-assigned-table tr > :is(th,td):nth-child(6):not([colspan]) {display:none!important}
+html[data-nucleo-ro-columns~="pdca"] .personal-assigned-table tr > :is(th,td):nth-child(7):not([colspan]) {display:none!important}
 </style>
 </body></html>
