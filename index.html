@@ -3378,6 +3378,7 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
       </button>
       <div class="top-sync-controls">
         <button class="top-btn" type="button" onclick="syncNow()">↻ Sincronizar</button>
+        <button class="top-btn" type="button" id="nucleoTestMail" hidden>Enviar teste</button>
         <button class="top-btn top-kpi-button" type="button" onclick="nucleoOpenKpiEditor()" title="Personalizar indicadores" aria-label="Personalizar indicadores">⚙</button>
       </div>
       <span id="syncMsg" role="status" title="Clique para ler a mensagem completa" onclick="if(this.textContent)alert(this.textContent)" style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;cursor:pointer"></span>
@@ -5186,6 +5187,7 @@ Diretoria"></textarea>
     <button type="button" onclick="document.getElementById('cfgUnits')?.scrollIntoView({behavior:'smooth'})">🏭 Setores</button>
     <button type="button" onclick="document.getElementById('cfgSectorAliases')?.scrollIntoView({behavior:'smooth'})">≋ Padronização de setores</button>
     <button class="sgq-only" type="button" onclick="document.getElementById('cfgTriage')?.scrollIntoView({behavior:'smooth'})">↳ Triagem de R.O.</button>
+    <button id="navSacEmailSettings" type="button" hidden onclick="document.getElementById('unitQualitySettings')?.scrollIntoView({behavior:'smooth'})">Destinatários dos SACs</button>
     <button type="button" onclick="document.getElementById('cfgNotifications')?.scrollIntoView({behavior:'smooth'})">🔔 Avisos e e-mails</button>
     <button type="button" onclick="document.getElementById('cfgBackend')?.scrollIntoView({behavior:'smooth'})">☁ Base central</button>
   </div>
@@ -5392,7 +5394,7 @@ Cancelada</textarea></label>
       <button class="btn danger" type="button" onclick="adminDeleteTestDataForRo()">Excluir os dois</button>
     </div>
 
-    <div class="small" style="margin-top:10px;color:#8a3b12">
+    <div class="small admin-correction-note" style="margin-top:10px;color:#8a3b12">
       <b>Corrigir envio</b> preserva a triagem e o PDCA: volta o envio para <b>Não enviado</b>, limpa a data do envio e registra a correção no Resultado quando essa coluna existir. As opções de exclusão continuam removendo somente os vínculos indicados.
     </div>
   </div>
@@ -6256,7 +6258,6 @@ function renderSupplierIndicatorsWorkspace(){
 <script src="assets/modules-v2/ro/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/modules-v2/pdca/module.js?v=20261028-pdca-history-delivery-v1"></script>
 <script src="assets/modules-v2/sac/module.js?v=20261023-modular-full-test-v4-safe"></script>
-<script src="assets/modules-v2/sac-origin-fix.js?v=20261028-sac-origin-fix-v1"></script>
 <script src="assets/modules-v2/audit5s/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/modules-v2/equipment/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/modules-v2/training/module.js?v=20261023-modular-full-test-v4-safe"></script>
@@ -6266,7 +6267,7 @@ function renderSupplierIndicatorsWorkspace(){
 <script src="assets/modules-v2/indicators/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/modules-v2/announcements/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/team-load-local-v47.js?v=20261027-team-local-central"></script>
-<script src="assets/nucleo-app-sistema-v136.js"></script>
+<script src="assets/nucleo-app-sistema-v138.js"></script>
 <script src="assets/api-source-lock-v20.js?v=20261110-periodo-central-v72"></script>
 
 <script id="nucleoModuleMaintenanceGuardV1">
@@ -8009,5 +8010,39 @@ html[data-nucleo-theme="dark"] .workspace .badge.danger {
   background:#482a30 !important;
   color:var(--danger) !important;
 }
+</style>
+<style id="central-diagnostics-dark">
+html[data-nucleo-theme="dark"] #cfgBackend :is(.statusline, .rule-lock, #adminCleanupRo) {
+  background:var(--soft);
+  color:var(--text);
+  border-color:var(--line);
+}
+html[data-nucleo-theme="dark"] #cfgBackend .rule-lock span {
+  color:var(--muted);
+}
+html[data-nucleo-theme="dark"] #cfgBackend :is(.rule-lock strong, .statusline.okline) {
+  color:var(--ok);
+}
+html[data-nucleo-theme="dark"] #cfgBackend .statusline.okline {
+  background:#17352e;
+  border-color:#31584d;
+}
+#cfgBackend .diagnostic-error { color:var(--danger); }
+html[data-nucleo-theme="dark"] #cfgBackend :is(.btn.danger, .statusline.diagnostic-error) {
+  background:#482a30;
+  color:var(--danger);
+  border-color:#74505a;
+}
+html[data-nucleo-theme="dark"] #cfgBackend .admin-correction-note {
+  color:var(--warn) !important;
+}
+</style>
+<style>
+.test-email-dialog { width:min(490px,calc(100vw - 24px)); max-height:90vh; margin:auto; overflow:auto; color:var(--text); background:var(--card); }
+.test-email-dialog::backdrop { background:rgba(10,17,29,.65); }
+.test-email-dialog form { display:grid; gap:12px; }
+.test-email-dialog label { display:grid; gap:5px; }
+.test-email-dialog .actions { justify-content:flex-end; }
+#nucleoTestMail[hidden] { display:none !important; }
 </style>
 </body></html>
