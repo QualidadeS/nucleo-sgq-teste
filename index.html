@@ -8206,4 +8206,32 @@ html[data-nucleo-accent] .workspace :is(input,select,textarea):focus-visible {
   outline-offset:2px;
 }
 </style>
+<style id="sidebar-personal-color-v147">
+html[data-nucleo-accent="blue"] {--personal-sidebar:#f0f8fd;--personal-sidebar-icon:#e1f1fb;--personal-sidebar-heading:#0c5792}
+html[data-nucleo-accent="green"] {--personal-sidebar:#eff7f2;--personal-sidebar-icon:#dfeee5;--personal-sidebar-heading:#196344}
+html[data-nucleo-accent="wine"] {--personal-sidebar:#faf0f4;--personal-sidebar-icon:#f1dfe7;--personal-sidebar-heading:#84294b}
+html[data-nucleo-theme="dark"][data-nucleo-accent="blue"] {--personal-sidebar:#142538;--personal-sidebar-icon:#243d57;--personal-sidebar-heading:#b9dcfa}
+html[data-nucleo-theme="dark"][data-nucleo-accent="green"] {--personal-sidebar:#172d25;--personal-sidebar-icon:#29473a;--personal-sidebar-heading:#b4dfc8}
+html[data-nucleo-theme="dark"][data-nucleo-accent="wine"] {--personal-sidebar:#2b202b;--personal-sidebar-icon:#48303e;--personal-sidebar-heading:#edc4d4}
+html[data-nucleo-accent] .sidebar,
+html[data-nucleo-accent] .sidebar .sidebar-bottom-icons {
+  background:var(--personal-sidebar) !important;
+  border-color:var(--personal-outline) !important;
+}
+html[data-nucleo-accent] .sidebar :is(.side-title,.brand-name,.side-kicker) {
+  color:var(--personal-sidebar-heading) !important;
+}
+html[data-nucleo-accent] .sidebar :is(.side-num,.sidebar-icon-btn,.sidebar-collapse-btn) {
+  background:var(--personal-sidebar-icon) !important;
+  border-color:var(--personal-outline) !important;
+  color:var(--personal-sidebar-heading) !important;
+}
+html[data-nucleo-accent] .sidebar :is(.side-item,.side-module-head):hover,
+html[data-nucleo-accent] .sidebar #modulePersonal .side-module-body .side-item:hover {
+  background:var(--personal-sidebar-icon) !important;
+}
+html[data-nucleo-accent] .sidebar #modulePersonal .side-module-body .side-item.active {
+  background:var(--personal-sidebar-icon) !important;
+}
+</style>
 </body></html>
