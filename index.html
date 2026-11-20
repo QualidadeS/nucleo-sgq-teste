@@ -4796,7 +4796,7 @@ Diretoria"></textarea>
 </section>
 
 <section id="simpleReworkView" class="card hidden">
-<div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap"><div><h2>Retrabalho / reposição</h2><p class="small">Pedidos, andamento e histórico de retrabalhos e reposições.</p></div><button class="btn primary" onclick="openSimpleRework()">Novo retrabalho / reposição</button></div>
+<div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap"><div><h2>Retrabalho / reposição</h2><p class="small">Pedidos, andamento e histórico de retrabalhos e reposições.</p></div><button class="btn primary rework-new-button" onclick="openSimpleRework()">Novo retrabalho / reposição</button></div>
 <p class="small" role="status">Ambiente de teste: estes registros ficam somente nesta sessão e são descartados ao recarregar a página ou trocar a sessão. A base central continua apenas para consulta.</p><div id="simpleReworkFilters" style="margin-top:16px"></div>
 <div id="simpleReworkContent" style="margin-top:16px"></div>
 </section>
@@ -6306,7 +6306,7 @@ function renderSupplierIndicatorsWorkspace(){
 <script src="assets/modules-v2/indicators/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/modules-v2/announcements/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/team-load-local-v47.js?v=20261027-team-local-central"></script>
-<script src="assets/nucleo-app-retrabalho-teste-v157.js"></script>
+<script src="assets/nucleo-app-retrabalho-teste-v158.js"></script>
 <script src="assets/api-source-lock-v20.js?v=20261110-periodo-central-v72"></script>
 
 <script id="nucleoModuleMaintenanceGuardV1">
@@ -8251,4 +8251,17 @@ html[data-nucleo-accent] .sidebar #modulePersonal .side-module-body .side-item.a
 .simple-rework-dialog label{display:grid;gap:5px;min-width:0}
 .simple-rework-dialog input,.simple-rework-dialog select,.simple-rework-dialog textarea{width:100%;min-width:0}
 .simple-rework-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:12px;margin-top:12px}
+</style><style>
+#simpleReworkView>.rework-header{align-items:center}
+#simpleReworkView .rework-new-button{align-self:center;flex:0 0 auto;min-height:0;height:auto;max-height:40px;width:auto;padding:9px 14px;font-size:13px;line-height:1.2}
+.rework-filter-builder{display:grid;grid-template-columns:minmax(150px,1fr) minmax(150px,1fr) auto;align-items:end;gap:12px;margin-top:12px;max-width:900px}
+.rework-filter-builder label{display:grid;gap:5px;min-width:0}
+.rework-filter-builder input,.rework-filter-builder select{width:100%;min-width:0}
+.rework-filter-builder button{height:fit-content;align-self:end}
+.rework-active-filters{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.rework-active-filters:empty{display:none}
+.rework-indicators{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:16px 0}
+.rework-indicators .card{padding:16px;display:grid;gap:8px}
+.rework-indicators strong{font-size:26px;line-height:1.15;color:var(--text)}
+@media(max-width:600px){.rework-filter-builder{grid-template-columns:1fr}.rework-indicators{gap:8px}.rework-indicators .card{padding:10px}.rework-indicators strong{font-size:22px}}
 </style></body></html>
