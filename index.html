@@ -3330,6 +3330,7 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
         <button class="side-item hidden" id="navMySacs" type="button" onclick="showMySacs()" style="display:none"><span class="side-num">SAC</span><span><b>Meus SACs</b><small>Reclamações em que sou representante</small></span><span id="mySacSidebarBadge" class="side-pending-badge hidden">0</span></button>
         <button class="side-item admin-only" id="navExternalRoControl" type="button" onclick="showExternalRoControl()" style="display:none"><span class="side-num">SAC</span><span><b>Classificação e encaminhamento do SAC</b><small>Tratativas e prazos</small></span><span id="externalRoSidebarBadge" class="side-pending-badge hidden">0</span></button>
         <button class="side-item admin-only" id="navSacTracking" type="button" onclick="showSacTracking()" style="display:none"><span class="side-num">↻</span><span><b>Acompanhamento SAC</b><small>Retrabalho, histórico e PDFs</small></span></button>
+        <button class="side-item admin-only" id="navSimpleRework" type="button" onclick="showSimpleRework()" style="display:none"><span class="side-num">↔</span><span><b>Retrabalho / reposição</b><small>Pedidos e acompanhamento</small></span></button>
       </div>
     </div>
 
@@ -3405,7 +3406,7 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
 #nucleoPersonalNucleus,#nucleoPersonalEmail{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,175px),1fr));gap:8px}
 #nucleoPersonalView fieldset label{display:flex;gap:8px;align-items:center;padding:8px;margin:0}
 #nucleoPersonalView .personal-history{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,270px),1fr));gap:12px;margin-top:20px}
-#nucleoPersonalView .personal-history section{min-width:0;border:1px solid var(--line);border-radius:10px;padding:12px}
+#nucleoPersonalView .personal-history :is(section,details){min-width:0;border:1px solid var(--line);border-radius:10px;padding:12px}
 #nucleoPersonalView .personal-history h3{margin:0 0 8px}
 #nucleoPersonalView .personal-history ul{margin:0;padding-inline-start:20px}
 #nucleoPersonalView fieldset input{width:auto}
@@ -3451,15 +3452,15 @@ html[data-nucleo-theme="dark"] :is(.side-item,.small,.help,.crumbs,.label){color
     <p id="nucleoPersonalVersion" class="small"></p>
   </form>
   <div class="personal-history">
-    <section>
-      <h3>Histórico de notificações</h3>
+    <details class="personal-history-panel">
+      <summary>Histórico de notificações</summary>
       <ul id="nucleoPersonalNotificationHistory"></ul>
-    </section>
-    <section>
-      <h3>Histórico de e-mails</h3>
+    </details>
+    <details class="personal-history-panel">
+      <summary>Histórico de e-mails</summary>
       <p class="small">Horário de envio registrado pelo Núcleo.</p>
       <ul id="nucleoPersonalEmailHistory"></ul>
-    </section>
+    </details>
   </div>
 </section>
 
@@ -4792,6 +4793,12 @@ Diretoria"></textarea>
     <button id="sacTrackTabPdf" class="btn secondary" type="button" onclick="setSacTrackingTab('pdf')">PDFs do SAC</button>
   </div>
   <div id="sacTrackingContent" style="margin-top:16px"></div>
+</section>
+
+<section id="simpleReworkView" class="card hidden">
+<div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap"><div><h2>Retrabalho / reposição</h2><p class="small">Pedidos, andamento e histórico de retrabalhos e reposições.</p></div><button class="btn primary" onclick="openSimpleRework()">Novo retrabalho / reposição</button></div>
+<p class="small" role="status">Ambiente de teste: estes registros ficam somente nesta sessão e são descartados ao recarregar a página ou trocar a sessão. A base central continua apenas para consulta.</p><div id="simpleReworkFilters" style="margin-top:16px"></div>
+<div id="simpleReworkContent" style="margin-top:16px"></div>
 </section>
 
 <section id="contestationsView" class="card hidden">
@@ -6299,7 +6306,7 @@ function renderSupplierIndicatorsWorkspace(){
 <script src="assets/modules-v2/indicators/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/modules-v2/announcements/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/team-load-local-v47.js?v=20261027-team-local-central"></script>
-<script src="assets/nucleo-app-sistema-v144.js"></script>
+<script src="assets/nucleo-app-retrabalho-teste-v157.js"></script>
 <script src="assets/api-source-lock-v20.js?v=20261110-periodo-central-v72"></script>
 
 <script id="nucleoModuleMaintenanceGuardV1">
@@ -8147,4 +8154,101 @@ html[data-nucleo-font="large"] #nucleoPersonalView label {font-size:16px}
 .personal-menu-actions button {padding:6px 10px;min-width:32px}
 @media(max-width:420px){.personal-menu-group .personal-menu-row {grid-template-columns:minmax(0,1fr)}}
 </style>
-</body></html>
+<style id="personal-panel-accent-v146">
+/* A cor pessoal acompanha os contornos e as superfícies de navegação. */
+html[data-nucleo-accent="blue"] {
+  --personal-accent:#0c5792;
+  --personal-outline:#a6c9e2;
+  --personal-tint:#edf6fc;
+}
+html[data-nucleo-accent="green"] {
+  --personal-accent:#196344;
+  --personal-outline:#9bbda9;
+  --personal-tint:#eff7f2;
+}
+html[data-nucleo-accent="wine"] {
+  --personal-accent:#84294b;
+  --personal-outline:#c9a2b1;
+  --personal-tint:#faf0f4;
+}
+html[data-nucleo-theme="dark"][data-nucleo-accent="blue"] {
+  --personal-outline:#497ba3;
+  --personal-tint:#1a3047;
+}
+html[data-nucleo-theme="dark"][data-nucleo-accent="green"] {
+  --personal-outline:#518772;
+  --personal-tint:#1b3530;
+}
+html[data-nucleo-theme="dark"][data-nucleo-accent="wine"] {
+  --personal-outline:#a16c84;
+  --personal-tint:#382735;
+}
+html[data-nucleo-accent] .workspace :is(
+  .card,.settings-block,.unit-settings-card,.unit-settings-section,
+  .overview-panel,.sgq-panel,.sgq-chart-card,.sgq-kpi,.overview-kpi,
+  .ro-summary-card,.sum-card,.triage-box,.personal-menu-options,
+  #nucleoPersonalView fieldset,#nucleoPersonalView .personal-history :is(section,details)
+) {
+  border-color:var(--personal-outline) !important;
+}
+html[data-nucleo-accent] .workspace :is(
+  .unit-settings-section,.admin-config-intro,.rule-lock,
+  .sgq-status-mini,.inline-team-person
+) {
+  background:var(--personal-tint) !important;
+  border-color:var(--personal-outline) !important;
+}
+html[data-nucleo-accent] .sidebar {
+  border-color:var(--personal-outline) !important;
+}
+html[data-nucleo-accent] .sidebar .side-module-body {
+  border-color:var(--personal-outline) !important;
+}
+html[data-nucleo-accent] .sidebar :is(.side-item.active,.side-module-head.active,.sidebar-icon-btn.active) {
+  background:var(--personal-tint) !important;
+  border-color:var(--personal-outline) !important;
+}
+html[data-nucleo-accent] .workspace :is(input,select,textarea):focus-visible {
+  outline:2px solid var(--personal-outline) !important;
+  outline-offset:2px;
+}
+</style>
+<style id="sidebar-personal-color-v147">
+html[data-nucleo-accent="blue"] {--personal-sidebar:#f0f8fd;--personal-sidebar-icon:#e1f1fb;--personal-sidebar-heading:#0c5792}
+html[data-nucleo-accent="green"] {--personal-sidebar:#eff7f2;--personal-sidebar-icon:#dfeee5;--personal-sidebar-heading:#196344}
+html[data-nucleo-accent="wine"] {--personal-sidebar:#faf0f4;--personal-sidebar-icon:#f1dfe7;--personal-sidebar-heading:#84294b}
+html[data-nucleo-theme="dark"][data-nucleo-accent="blue"] {--personal-sidebar:#142538;--personal-sidebar-icon:#243d57;--personal-sidebar-heading:#b9dcfa}
+html[data-nucleo-theme="dark"][data-nucleo-accent="green"] {--personal-sidebar:#172d25;--personal-sidebar-icon:#29473a;--personal-sidebar-heading:#b4dfc8}
+html[data-nucleo-theme="dark"][data-nucleo-accent="wine"] {--personal-sidebar:#2b202b;--personal-sidebar-icon:#48303e;--personal-sidebar-heading:#edc4d4}
+html[data-nucleo-accent] .sidebar,
+html[data-nucleo-accent] .sidebar .sidebar-bottom-icons {
+  background:var(--personal-sidebar) !important;
+  border-color:var(--personal-outline) !important;
+}
+html[data-nucleo-accent] .sidebar :is(.side-title,.brand-name,.side-kicker) {
+  color:var(--personal-sidebar-heading) !important;
+}
+html[data-nucleo-accent] .sidebar :is(.side-num,.sidebar-icon-btn,.sidebar-collapse-btn) {
+  background:var(--personal-sidebar-icon) !important;
+  border-color:var(--personal-outline) !important;
+  color:var(--personal-sidebar-heading) !important;
+}
+html[data-nucleo-accent] .sidebar :is(.side-item,.side-module-head):hover,
+html[data-nucleo-accent] .sidebar #modulePersonal .side-module-body .side-item:hover {
+  background:var(--personal-sidebar-icon) !important;
+}
+html[data-nucleo-accent] .sidebar #modulePersonal .side-module-body .side-item.active {
+  background:var(--personal-sidebar-icon) !important;
+}
+</style>
+<style>
+#nucleoPersonalView .personal-history-panel {align-self:start}
+#nucleoPersonalView .personal-history-panel summary {font-weight:700;cursor:pointer}
+#nucleoPersonalView .personal-history-panel[open] summary {margin-bottom:12px}
+#nucleoPersonalView .personal-history-panel[open] ul {max-height:360px;overflow-y:auto;padding-right:8px}
+</style>
+<style>.simple-rework-dialog{width:min(800px,calc(100vw - 24px));max-height:90vh;overflow:auto;background:var(--card);color:var(--text)}
+.simple-rework-dialog label{display:grid;gap:5px;min-width:0}
+.simple-rework-dialog input,.simple-rework-dialog select,.simple-rework-dialog textarea{width:100%;min-width:0}
+.simple-rework-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:12px;margin-top:12px}
+</style></body></html>
