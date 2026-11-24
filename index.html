@@ -3328,7 +3328,8 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
       <div class="side-module-body">
         <button class="side-item" id="navSacsConsult" type="button" onclick="nucleoOpenAccessConsultation('sac')" hidden><span class="side-num side-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4V5zM8 9h8m-8 3h5"/></svg></span><span><b>Consultar SACs</b><small>Detalhes e PDF</small></span></button>
         <button class="side-item hidden" id="navMySacs" type="button" onclick="showMySacs()" style="display:none"><span class="side-num">SAC</span><span><b>Meus SACs</b><small>Reclamações em que sou representante</small></span><span id="mySacSidebarBadge" class="side-pending-badge hidden">0</span></button>
-        <button class="side-item admin-only" id="navExternalRoControl" type="button" onclick="showExternalRoControl()" style="display:none"><span class="side-num">SAC</span><span><b>Classificação e encaminhamento do SAC</b><small>Tratativas e prazos</small></span><span id="externalRoSidebarBadge" class="side-pending-badge hidden">0</span></button>
+        <button class="side-item admin-only" id="navExternalRoControl" type="button" onclick="showExternalRoControl()" style="display:none"><span class="side-num">SAC</span><span><b>R.O.s para avaliar</b><small>Avaliar necessidade de SAC</small></span><span id="externalRoSidebarBadge" class="side-pending-badge hidden">0</span></button>
+        <button class="side-item admin-only" id="navSacClassified" type="button" onclick="showExternalRoControl('classified')" style="display:none"><span class="side-num">SAC</span><span><b>SACs classificados</b><small>Atualizações e acompanhamento</small></span></button>
         <button class="side-item admin-only" id="navSacTracking" type="button" onclick="showSacTracking()" style="display:none"><span class="side-num">↻</span><span><b>Acompanhamento SAC</b><small>Retrabalho, histórico e PDFs</small></span></button>
         <button class="side-item admin-only" id="navSimpleRework" type="button" onclick="showSimpleRework()" style="display:none"><span class="side-num">↔</span><span><b>Retrabalho / reposição</b><small>Pedidos e acompanhamento</small></span></button>
       </div>
@@ -4457,16 +4458,14 @@ Diretoria"></textarea>
 <section id="externalRoControlView" class="card hidden"><div id="sacLocalPending" class="settings-block" hidden></div>
   <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
     <div class="small sac-analysis-notice" style="margin:8px 0 12px;padding:10px 12px;border:1px solid #dbe4ee;border-radius:10px;background:#f8fafc"><b>Análise iniciada em 24/09/2026.</b> A partir desta data, toda R.O. Externa aparece primeiro para avaliação. Se não exigir atendimento de SAC, marque <b>Somente R.O.</b> e ela sai desta visualização. Se exigir SAC, crie o SAC e siga a tratativa normal.</div><div>
-      <h2 style="margin:0">Análise e acompanhamento de SAC</h2>
-      <p class="small" style="margin:5px 0 0">R.O. Externa continua sendo R.O. até o SGQ confirmar que há necessidade de SAC.</p>
+      <h2 id="sacControlTitle" style="margin:0">R.O.s para avaliar</h2>
+      <p id="sacControlDescription" class="small" style="margin:5px 0 0">Avalie se a R.O. externa precisa de SAC.</p>
     </div>
     
   </div>
 
   <div id="sacQuickTabs" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px">
-    <button id="sacTabAll" class="btn primary" type="button" onclick="setSacQuickTab('all')">Visão geral</button>
-    <button id="sacTabUnclassified" class="btn secondary" type="button" onclick="setSacQuickTab('unclassified')">R.O.s para avaliar</button>
-    <button id="sacTabDefined" class="btn secondary" type="button" onclick="setSacQuickTab('defined')" title="SACs que já possuem tratativa, setor e prazo definidos">SACs classificados</button>
+    <button id="sacTabAll" class="btn primary" type="button" onclick="setSacQuickTab('all')">Todos os SACs</button>
     <button id="sacTabForm" class="btn secondary" type="button" onclick="setSacQuickTab('form')" title="Ficha SAC com pelo menos metade dos campos preenchidos">Ficha preenchida</button>
     <button id="sacTabActive" class="btn secondary" type="button" onclick="setSacQuickTab('active')">Em andamento</button>
     <button id="sacTabDone" class="btn secondary" type="button" onclick="setSacQuickTab('done')">Concluídos</button>
@@ -6306,7 +6305,7 @@ function renderSupplierIndicatorsWorkspace(){
 <script src="assets/modules-v2/indicators/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/modules-v2/announcements/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/team-load-local-v47.js?v=20261027-team-local-central"></script>
-<script src="assets/nucleo-app-teste-sac-opcional-v177.js"></script>
+<script src="assets/nucleo-app-teste-sac-submodulos-v178.js"></script>
 <script src="assets/api-source-lock-teste-v171.js"></script>
 
 <script id="nucleoModuleMaintenanceGuardV1">
