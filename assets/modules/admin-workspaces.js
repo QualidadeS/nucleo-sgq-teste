@@ -537,6 +537,7 @@ function openAdminOperationalWorkspace(key,index){
       const sector=document.getElementById('admModSector');if(sector&&!sector.value)sector.value=getSession()?.sector||'';
       const rec=document.getElementById('admModRecipient');if(rec&&!rec.value)rec.value=getSession()?.name||'';
       const mail=document.getElementById('admModRecipientEmail');if(mail&&!mail.value)mail.value=getSession()?.email||'';
+      nucleoInstallDocumentRequestCatalog();
     }
     return;
   }
@@ -1544,3 +1545,42 @@ async function nucleoEditRoModelVisual(kind='ro',inlineRender=false){
  await load();
 }
 
+
+// Lista de documentos da categoria consultada diretamente na base central.
+function nucleoInstallDocumentRequestCatalog(){
+ const type=document.getElementById('admModCode'),unit=document.getElementById('ndRequestUnit'),title=document.getElementById('admModTitle');
+ if(!type||!unit||!title)return;
+ const label=title.closest('label');label.style.display='none';title.value='';
+ const container=document.createElement('label'),caption=document.createElement('span'),select=document.createElement('select'),status=document.createElement('span'),retry=document.createElement('button');
+ caption.className='small';caption.textContent='Qual documento você precisa? *';select.id='ndRequestDocument';status.className='small';status.setAttribute('role','status');retry.type='button';retry.className='btn secondary';retry.textContent='Tentar consultar novamente';retry.hidden=true;
+ container.append(caption,select,status,retry);label.after(container);
+ let generation=0,autoProduct='',autoLanguage='';
+ const clearAuto=()=>{const product=document.getElementById('admModProduct'),lang=document.getElementById('admModLanguage');if(product&&autoProduct&&product.value===autoProduct)product.value='';if(lang&&autoLanguage&&lang.value===autoLanguage)lang.value='Português';autoProduct='';autoLanguage='';};
+ const option=(value,text)=>{const op=document.createElement('option');op.value=value;op.textContent=text;return op;};
+ const refresh=async()=>{
+  const revision=++generation,category=type.value,selectedUnit=unit.value;
+  clearAuto();title.value='';select.replaceChildren(option('',category?'Consultando documentos…':'Selecione primeiro a categoria'));select.disabled=true;retry.hidden=true;status.textContent='';
+  if(!category||!selectedUnit)return;
+  try{
+    const res=await portalJsonp({acao:'nucleo_test_docs_read',mode:'catalog',unit:selectedUnit,code:category},30000);
+    if(revision!==generation||!select.isConnected)return;
+    if(!res?.sucesso)throw Error(res?.erro||'Consulta não confirmada.');
+    const rows=Array.isArray(res.documents)?res.documents:[];
+    select.replaceChildren(option('',rows.length?'Selecione o documento':'Nenhum documento cadastrado nesta categoria'));
+    rows.forEach(d=>{
+     const details=[d.productCode?'Produto: '+d.productCode:'',d.language||'',d.version?'Rev. '+d.version:'',d.fillable?'Requer preparação pelo SGQ':''].filter(Boolean);
+     const o=option(d.id,d.name+(details.length?' — '+details.join(' · '):''));o.dataset.title=d.name;o.dataset.product=d.productCode||'';o.dataset.language=d.language||'';select.append(o);
+    });
+    select.append(option('__other__','Não encontrei o documento — solicitar ao SGQ'));
+    select.disabled=false;status.textContent=rows.length?rows.length+' documento(s) vigente(s) disponíveis.':'Nenhum documento vigente cadastrado. Você pode encaminhar a necessidade ao SGQ.';
+  }catch(e){if(revision!==generation||!select.isConnected)return;select.replaceChildren(option('','Não foi possível consultar os documentos'));status.textContent=e.message;retry.hidden=false;}
+ };
+ select.addEventListener('change',()=>{
+  clearAuto();const chosen=select.selectedOptions[0];
+  title.value=select.value==='__other__'?standardDocumentTypeLabel(type.value,unit.value)+' — solicitação ao SGQ':chosen?.dataset.title||'';
+  const product=document.getElementById('admModProduct'),lang=document.getElementById('admModLanguage');
+  if(product&&chosen?.dataset.product){product.value=chosen.dataset.product;autoProduct=product.value;}
+  if(lang&&chosen?.dataset.language&&Array.from(lang.options).some(o=>o.value===chosen.dataset.language)){lang.value=chosen.dataset.language;autoLanguage=lang.value;}
+ });
+ type.addEventListener('change',refresh);unit.addEventListener('change',refresh);retry.onclick=refresh;refresh();
+}
