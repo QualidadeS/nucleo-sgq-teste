@@ -19192,6 +19192,10 @@ function nucleoOpenTestEmail(kind = 'ro', selectedId = '') {
         submit.disabled=false;
         return;
       }
+      if(request.kind==='ro'&&check.roInvestigationPdf!==true){
+        status.textContent='A implantação de teste ainda não incorpora os complementos da investigação ao PDF. Atualize e reimplante o Apps Script antes de enviar.';
+        submit.disabled=false;return;
+      }
       const result = await portalJsonp(request,120000,base);
       if (!result?.sucesso) {
         status.textContent = result?.codigo === 'TESTE_SOMENTE_LEITURA' ? result.erro :
@@ -19199,7 +19203,7 @@ function nucleoOpenTestEmail(kind = 'ro', selectedId = '') {
         submit.disabled = false;
         return;
       }
-      status.textContent = 'Enviado para '+result.recipient+' com o anexo '+result.attachment+'.';
+      status.textContent = 'Enviado para '+result.recipient+' com o anexo '+result.attachment+'.'+(result.investigationIncluded?' PDF: '+result.investigationCount+' complemento(s), '+result.photoCount+' foto(s), '+result.assignmentCount+' direcionamento(s) e '+result.noteCount+' justificativa(s) gerais.':'');
     } catch (error) {
       status.textContent = error?.message?.startsWith('Não foi possível verificar') ? error.message : 'O envio ficou sem confirmação. Confira a caixa de entrada antes de tentar novamente.';
     } finally {
