@@ -14,13 +14,13 @@ function renderStandardDocumentsWorkspace(){
   const docs=getStandardDocuments().slice().sort((a,b)=>String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||'')));
   host.innerHTML=`<div style="grid-column:1/-1">
     <button class="btn secondary" type="button" onclick="showAdminOperationalModule('documents')">← Voltar ao módulo</button>
-    <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;margin-top:14px"><div><h3 style="margin:0">Documentos padrão</h3><div class="small" style="margin-top:4px">Arquivos vigentes podem ser enviados automaticamente quando uma solicitação compatível for criada.</div></div><button class="btn primary" type="button" onclick="openStandardDocumentCreate()">＋ Novo documento padrão</button></div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-top:16px">
-      ${docs.length?docs.map(d=>`<div class="card" style="padding:16px">
+    <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;margin-top:14px"><div><h3 style="margin:0">Consultar documentos cadastrados</h3><div class="small" style="margin-top:4px">Arquivos vigentes podem ser enviados automaticamente quando uma solicitação compatível for criada.</div></div><button class="btn primary" type="button" onclick="openStandardDocumentCreate()">＋ Novo documento padrão</button></div>
+    <input id="stdDocSearch" placeholder="Buscar nome, tipo, produto, unidade ou arquivo" style="margin-top:12px;width:100%" oninput="document.querySelectorAll('.std-doc-card').forEach(el=>el.style.display=el.textContent.toLowerCase().includes(this.value.toLowerCase())?'':'none')"><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-top:16px">
+      ${docs.length?docs.map(d=>`<div class="card std-doc-card" style="padding:16px">
         <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div><b>${escapeHtml(d.name||'Documento')}</b><div class="small" style="margin-top:3px">${escapeHtml(standardDocumentTypeLabel(d.code,explicitRecordUnit(d)))}${d.productCode?' · '+escapeHtml(d.productCode):''}</div></div><span class="pill">${d.uploadPending&&!d.fileId?'Enviando':standardDocumentIsValid(d)?'Vigente':'Indisponível'}</span></div>
-        <div class="small" style="margin-top:12px;line-height:1.6">Versão: <b>${escapeHtml(d.version||'—')}</b><br>Idioma: ${escapeHtml(d.language||'Qualquer')}<br>Validade: ${escapeHtml(adminModuleDate(d.validUntil))}<br>Arquivo: ${escapeHtml(d.fileName||'—')}</div>
+        <div class="small" style="margin-top:12px;line-height:1.6">Unidade: ${escapeHtml(d.unit==='filial'?'Linhares':d.unit==='matriz'?'Matriz':'Não informada')}<br>Versão: <b>${escapeHtml(d.version||'—')}</b><br>Idioma: ${escapeHtml(d.language||'Qualquer')}<br>Validade: ${escapeHtml(adminModuleDate(d.validUntil))}<br>Arquivo: ${escapeHtml(d.fileName||'—')}</div>
         ${d.description?`<div class="small" style="margin-top:8px">${escapeHtml(d.description)}</div>`:''}
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button class="btn secondary" type="button" onclick="toggleStandardDocument('${escapeHtml(d.id)}')">${d.active===false?'Ativar':'Desativar'}</button><button class="btn secondary" type="button" onclick="deleteStandardDocument('${escapeHtml(d.id)}')">Excluir</button></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button class="btn primary" type="button" onclick="nucleoTestDocsPreview('standard','${escapeHtml(d.id)}')">Consultar arquivo</button><button class="btn secondary" type="button" onclick="nucleoTestDocsEditStandard('${escapeHtml(d.id)}')">Editar</button><button class="btn secondary" type="button" onclick="toggleStandardDocument('${escapeHtml(d.id)}')">${d.active===false?'Ativar':'Desativar'}</button><button class="btn secondary" type="button" onclick="deleteStandardDocument('${escapeHtml(d.id)}')">Excluir</button></div>
       </div>`).join(''):'<div class="card" style="padding:24px"><b>Nenhum documento padrão cadastrado.</b><div class="small" style="margin-top:5px">Cadastre os arquivos que podem ser entregues automaticamente.</div></div>'}
     </div>
   </div>`;
@@ -28,7 +28,7 @@ function renderStandardDocumentsWorkspace(){
 
 function renderDocumentDeliveriesWorkspace(){
   if(!isAdmin())return;const host=document.getElementById('adminModuleContent');if(!host)return;const rows=getDocumentDeliveries().slice().sort((a,b)=>String(b.deliveredAt||'').localeCompare(String(a.deliveredAt||'')));
-  host.innerHTML=`<div style="grid-column:1/-1"><button class="btn secondary" type="button" onclick="showAdminOperationalModule('documents')">← Voltar ao módulo</button><div class="card" style="margin-top:14px;padding:0;overflow:hidden">${rows.length?`<table style="width:100%"><thead><tr><th>Documento</th><th>Solicitação</th><th>Destinatário</th><th>Data</th><th>Resultado</th></tr></thead><tbody>${rows.map(x=>`<tr><td><b>${escapeHtml(x.documentName||x.standardDocumentId||'Documento')}</b><div class="small">${escapeHtml(x.fileName||'')}</div></td><td>${escapeHtml(x.requestTitle||x.requestId||'—')}</td><td>${escapeHtml(x.recipientEmail||'—')}</td><td>${escapeHtml(formatDateTimeBR(x.deliveredAt)||x.deliveredAt||'—')}</td><td><span class="pill">Enviado</span></td></tr>`).join('')}</tbody></table>`:`<div style="padding:26px"><b>Nenhuma entrega automática registrada.</b></div>`}</div></div>`;
+  host.innerHTML=`<div style="grid-column:1/-1"><button class="btn secondary" type="button" onclick="showAdminOperationalModule('documents')">← Voltar ao módulo</button><div class="card" style="margin-top:14px;padding:0;overflow:hidden">${rows.length?`<table style="width:100%"><thead><tr><th>Documento</th><th>Solicitação</th><th>Destinatário</th><th>Data</th><th>Resultado</th></tr></thead><tbody>${rows.map(x=>`<tr><td><b>${escapeHtml(x.documentName||x.standardDocumentId||'Documento')}</b><div class="small">${escapeHtml(x.fileName||'')}</div></td><td>${escapeHtml(x.requestTitle||x.requestId||'—')}</td><td>${escapeHtml(x.recipientEmail||'—')}</td><td>${escapeHtml(formatDateTimeBR(x.deliveredAt)||x.deliveredAt||'—')}</td><td><span class="pill">${x.simulated?'Entrega simulada':x.testOnly?'E-mail de teste':'Enviado'}</span> ${x.fileId?`<button class="btn secondary" onclick="nucleoTestDocsPreview('delivery','${escapeHtml(x.id)}')">Consultar</button>`:""}</td></tr>`).join('')}</tbody></table>`:`<div style="padding:26px"><b>Nenhuma entrega automática registrada.</b></div>`}</div></div>`;
 }
 
 function nucleoEquipmentCategories(){
@@ -420,21 +420,21 @@ function showAdminOperationalModule(key){
     return;
   }
   const m=ADMIN_OPERATIONAL_MODULES[key]; if(!m)return;
-  const navMap={equipment:'navEquipment',training:'navTraining',nccapa:'navNcCapa',documents:(isAdmin()?'navDocuments':'navDocumentRequests'),processes:'navProcesses'};
+  const navMap={equipment:'navEquipment',training:'navTraining',nccapa:'navNcCapa',documents:'navDocumentRequests',processes:'navProcesses'};
   view('adminModuleView'); setNav(navMap[key]);
   const title=document.getElementById('adminModuleTitle'), sub=document.getElementById('adminModuleSubtitle'), list=document.getElementById('adminModuleContent'), eyebrow=document.getElementById('adminModuleEyebrow');
-  if(title)title.textContent=m.title; if(sub)sub.textContent=m.desc; if(eyebrow)eyebrow.textContent=m.eyebrow; if(!list)return;
+  if(title)title.textContent=key==='documents'&&isAdmin()?'Gestão de documentos':m.title; if(sub)sub.textContent=key==='documents'&&isAdmin()?'Cadastre, anexe, consulte e prepare documentos; acompanhe as solicitações dos colaboradores.':m.desc; if(eyebrow)eyebrow.textContent=key==='documents'&&isAdmin()?'GESTÃO DE DOCUMENTOS':m.eyebrow; if(!list)return;
   if(list&&key==='documents'){}
   window.nucleoManagerModuleKey=key;
   const allModuleRecords=getAdminModuleRecords().filter(r=>r.module===key&&nucleoManagerScopeAllows(r)&&!(key==='nccapa'&&r.recordType==='supplier_profile')&&!(key==='processes'&&r.recordType==='nomenclature'));
   const records=(key==='documents'&&!isAdmin())
-    ? allModuleRecords.filter(r=>normalizeAnswer(r.createdBy||'')===normalizeAnswer(getSession()?.name||''))
+    ? allModuleRecords.filter(nucleoTestDocsOwnRequest)
     : allModuleRecords;
   const pending=records.filter(r=>isAdminModulePending(r,key)).length;
   const done=records.filter(r=>['done','published'].includes(r.status)).length;
-  const visibleCards=((key==='documents'&&!isAdmin())?m.cards.slice(0,2):m.cards).filter(c=>nucleoWorkspaceAllowed(key,c[2]||'history'));
+  const visibleCards=(key==='documents'?(isAdmin()?[m.cards[8],m.cards[2],m.cards[9],...m.cards.slice(4,7),m.cards[3],m.cards[7]]:m.cards.slice(0,2)):m.cards).filter(c=>nucleoWorkspaceAllowed(key,c[2]||'history'));
   list.innerHTML=`<div style="grid-column:1/-1">
-    <div style="font-size:11px;letter-spacing:.18em;color:#1455ff;font-weight:700;margin-bottom:10px">${escapeHtml(m.eyebrow)}</div>
+    <div style="font-size:11px;letter-spacing:.18em;color:#1455ff;font-weight:700;margin-bottom:10px">${escapeHtml(key==='documents'&&isAdmin()?'GESTÃO DE DOCUMENTOS':m.eyebrow)}</div>
     <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:18px">
       <div class="card" style="padding:16px"><span class="small">REGISTROS</span><div style="font-size:28px;font-weight:700;margin-top:5px">${records.length}</div></div>
       <div class="card" style="padding:16px"><span class="small">PENDÊNCIAS</span><div style="font-size:28px;font-weight:700;margin-top:5px">${pending}</div></div>
@@ -452,7 +452,7 @@ function showAdminOperationalModule(key){
       ? `<div id="ncModuleInlineOverview"></div>`
       : `<div class="card" style="padding:20px;display:flex;justify-content:space-between;gap:18px;align-items:center;flex-wrap:wrap">
           <div><b>Espaço de trabalho</b><p class="muted" style="margin:8px 0 0">Escolha uma das opções acima.</p></div>
-          ${(key==='processes'?nucleoPersonFeatureCan('processes','edit'):nucleoWorkspaceAllowed(key,m.cards[0][2]))?`<button class="btn primary" type="button" onclick="openAdminOperationalWorkspace('${key}',${key==='processes'?m.cards.findIndex(card=>card[2]==='adopt'):0})">＋ Novo registro</button>`:''}
+          ${(key==='documents'&&isAdmin()?false:key==='processes'?nucleoPersonFeatureCan('processes','edit'):nucleoWorkspaceAllowed(key,m.cards[0][2]))?`<button class="btn primary" type="button" onclick="openAdminOperationalWorkspace('${key}',${key==='processes'?m.cards.findIndex(card=>card[2]==='adopt'):0})">＋ Novo registro</button>`:''}
         </div>`}
   </div>`;
 
@@ -476,7 +476,7 @@ function openAdminOperationalWorkspace(key,index){
     (['processes','equipment','training','nccapa'].includes(key) && nucleoPersonCan(key==='nccapa'?'nc':key));
   if(!canOpen)return;
   const m=ADMIN_OPERATIONAL_MODULES[key], c=m?.cards?.[index]; if(!c)return;
-  if(!isAdmin()&&key==='documents'&&index>1)return;
+  if(key==='documents'&&((!isAdmin()&&index>1)||(isAdmin()&&index<2)))return;
   const mode=c[2]||'history';
   if(!nucleoWorkspaceAllowed(key,mode)){const [module,feature]=nucleoWorkspaceFeature(key,mode);nucleoFeatureRequire(module,feature);return;}
   const title=document.getElementById('adminModuleTitle'), sub=document.getElementById('adminModuleSubtitle'), list=document.getElementById('adminModuleContent'), eyebrow=document.getElementById('adminModuleEyebrow');
@@ -485,6 +485,8 @@ function openAdminOperationalWorkspace(key,index){
   if(!list)return;
   const records=filterAdminModuleRecords(key,mode);
   const back=`<button class="btn secondary" type="button" onclick="showAdminOperationalModule('${key}')">← Voltar ao módulo</button>`;
+  if(key==='documents'&&mode==='register'){openStandardDocumentCreate();return}
+  if(key==='documents'&&mode==='prepare_docs'){nucleoDriveOpen('requests');return}
   if(key==='documents'&&mode==='standards'){renderStandardDocumentsWorkspace();return}
   if(key==='documents'&&mode==='deliveries'){renderDocumentDeliveriesWorkspace();return}
   if(key==='processes'&&['master','review','history'].includes(mode)){renderProcessMasterWorkspace(mode);return}
@@ -781,6 +783,10 @@ function renderProcessTemplatesWorkspace(){
 function editAdminOperationalRecord(id){
   const r=adminModuleRecord(id); if(!r)return;
   const key=r.module, m=ADMIN_OPERATIONAL_MODULES[key];
+  if(key==='documents'&&!isAdmin()){
+    if(!nucleoTestDocsOwnRequest(r))return;
+    const host=document.getElementById('adminModuleContent');host.innerHTML=`<div style="grid-column:1/-1"><button class="btn secondary" onclick="showAdminOperationalModule('documents')">← Voltar</button><div class="card" style="padding:20px;margin-top:12px"><h3>${escapeHtml(r.title)}</h3><p>${escapeHtml(adminModuleStatusLabel(r.status))}</p><p>${escapeHtml(r.description||'')}</p><p>${escapeHtml(r.action||'')}</p>${r.status==='done'&&(r.testDeliveryId||r.generatedDocumentId)?`<button class="btn primary" onclick="nucleoTestDocsPreview('${r.testDeliveryId?'delivery':'requested'}','${escapeHtml(r.testDeliveryId||r.generatedDocumentId)}')">Consultar documento</button>`:''}</div></div>`;return;
+  }
   if(!isAdmin()){
     const podeDocumento=key==='documents'&&normalizeAnswer(r.createdBy||'')===normalizeAnswer(getSession()?.name||'');
     const podeRnc=key==='nccapa'&&canOperateNcCapa();
@@ -821,6 +827,10 @@ function editAdminOperationalRecord(id){
     activateNcCapaForm();
     setTimeout(activateNcCapaForm,0);
   }
+  if(key==='documents'&&isAdmin()){
+    const u=document.getElementById('ndRequestUnit');if(u){u.value=r.unit;u.disabled=true;document.getElementById('admModCode').innerHTML=documentTypeOptions(r.unit,r.code);}
+    const buttons=list.querySelector('.card');if(buttons){const area=document.createElement('div');area.style.marginTop='14px';area.innerHTML=`<button class="btn primary" onclick="nucleoTestDocsOpenRequest('${escapeHtml(r.id)}')">Preparar / anexar documento</button> ${r.generatedDocumentId?`<button class="btn secondary" onclick="nucleoTestDocsPreview('requested','${escapeHtml(r.generatedDocumentId)}')">Consultar arquivo</button>`:''}`;buttons.append(area);}const del=list.querySelector('button[onclick^="deleteAdminOperationalRecord"]');if(del)del.remove();if(r.status==='done'){list.querySelectorAll('input,select,textarea').forEach(el=>el.disabled=true);list.querySelector('button[onclick^="saveAdminOperationalRecord"]')?.remove();buttons?.querySelector('button[onclick^="nucleoTestDocsOpenRequest"]')?.remove();}if(r.testDeliveryId&&buttons){const b=document.createElement('button');b.className='btn secondary';b.textContent='Consultar documento entregue';b.onclick=()=>nucleoTestDocsPreview('delivery',r.testDeliveryId);buttons.append(b);}
+  }
   if(key==='documents'&&!isAdmin()){
     const st=document.getElementById('admModStatus');if(st)st.disabled=true;
     const resp=document.getElementById('admModResponsible');if(resp)resp.disabled=true;
@@ -828,8 +838,6 @@ function editAdminOperationalRecord(id){
   }
 }
 
-const ndOriginalShowAdmin=showAdminOperationalModule;
-showAdminOperationalModule=function(key){const result=ndOriginalShowAdmin(key);const host=document.getElementById('adminModuleContent');if(host&&key==='documents'&&nucleoPersonFeatureCan('documents','prepare')){const btn=document.createElement('button');btn.className='btn primary';btn.style.margin='12px 0';btn.textContent='Preencher e gerar documento solicitado';btn.onclick=()=>nucleoDriveOpen('requests');host.prepend(btn);}return result;};
 const ndOriginalAdminFields=adminModuleFields;
 adminModuleFields=function(key){let html=ndOriginalAdminFields(key);if(key==='documents'){const unit=getSession()?.role==='quality'?'filial':explicitPortalUnit(getSession()?.unit)||'matriz';html='<label>Unidade da solicitação<select id="ndRequestUnit" onchange="document.getElementById(\'admModCode\').innerHTML=documentTypeOptions(this.value)" '+(getSession()?.role==='quality'?'disabled':'')+'><option value="matriz" '+(unit==='matriz'?'selected':'')+'>SETA SC — Matriz</option><option value="filial" '+(unit==='filial'?'selected':'')+'>SETA ES — Unidade Linhares</option></select></label>'+html;}return html;};
 
