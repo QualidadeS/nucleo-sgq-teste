@@ -3380,7 +3380,7 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
         <button class="side-item" id="navMySubmittedRos" type="button" onclick="nucleoOpenRoHistoryList()"><span class="side-num">◎</span><span><b>R.O.s cadastradas por mim</b><small>Acompanhar registros</small></span></button> 
         <button class="side-item" id="navAssignedRos" type="button" onclick="showAssignedRos()"><span class="side-num">↳</span><span><b>R.O.s atribuídas</b><small>Ocorrências para atuação</small></span></button>
         <button class="side-item" id="navSent" onclick="showSentPdcas()"><span class="side-num">✓</span><span><b>PDCAs recebidos</b><small>Histórico de respostas</small></span><span id="pdcaSidebarBadge" class="side-pending-badge hidden">0</span></button>
-        <button class="side-item" id="navPresentations" type="button" onclick="showPendingPresentations()"><span class="side-num">↗</span><span><b>R.O.s a apresentar</b><small>Respostas aguardando apresentação</small></span></button>
+        <button class="side-item" id="navPresentations" hidden type="button" onclick="showPendingPresentations()"><span class="side-num">↗</span><span><b>R.O.s a apresentar</b><small>Respostas aguardando apresentação</small></span></button>
         <button class="side-item side-independent-module" id="navExternalPdcas" onclick="nucleoDriveOpen('pdca')"><span class="side-num">↥</span><span><b>Importar PDCAs</b><small>Importação, histórico e pendências</small></span></button>
         <button class="side-item admin-only" id="navTriage" type="button" onclick="showTriage()" style="display:none"><span class="side-num">↳</span><span><b>Triagem de R.O.s</b><small>Classificar e direcionar</small></span><span id="triageSidebarBadge" class="side-pending-badge hidden">0</span></button>
       </div>
@@ -3531,7 +3531,7 @@ html[data-nucleo-theme="dark"] :is(.side-item,.small,.help,.crumbs,.label){color
 </section>
 
 <style>
-#navSistemaTeste[hidden]{display:none!important}
+#navSistemaTeste[hidden],.side-nav .side-item[hidden],#pdcaPresentBtn[hidden]{display:none!important}
 #nucleoSistemaView table{width:100%}
 #nucleoSistemaView td{overflow-wrap:anywhere;white-space:pre-line}
 #nucleoSistemaView .system-table{overflow:auto}
@@ -6325,8 +6325,8 @@ function renderSupplierIndicatorsWorkspace(){
 <script src="assets/modules-v2/indicators/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/modules-v2/announcements/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/team-load-local-v47.js?v=20261027-team-local-central"></script>
-<script src="assets/nucleo-app-teste-sac-submodulos-v179.js?v=20261125-orcamentos"></script>
-<script src="assets/ro-apresentacao.js?v=20261124"></script>
+<script src="assets/nucleo-app-teste-sac-submodulos-v179.js?v=20261125-fluxo-documentos"></script>
+<script src="assets/ro-apresentacao.js?v=20261125-escopo-pessoal"></script>
 <script src="assets/acoes-manuais.js?v=20261125-acoes-isoladas-teste"></script>
 <script src="assets/api-source-lock-teste-v171.js"></script>
 
