@@ -799,6 +799,7 @@ function nucleoActionNeedsCentralConfirmation(action, params={}){
   action=String(action||'').toLowerCase();
   if(!action)return false;
   if(action==='nucleo_test_manual_actions')return ['save','delete'].includes(params.mode);
+  if(action==='nucleo_test_ro_investigation')return !['list','photo'].includes(params.mode);
   // O SAC é lido e confirmado pelo servidor, que valida o rascunho antes do envio.
   if(action==='portal_finalize_sac'&&params.id&&nucleoPersonFeatureCan('sac','finalize')){
     if(params.mode==='prepare')return false;
@@ -928,7 +929,7 @@ function portalJsonp(params,timeoutMs=60000,baseOverride='',options={}){
     const parts=[];
     const requestParams={...(params||{})};
     const actionName=String(requestParams.acao||'').toLowerCase();
-    if (!['nucleo_test_email','nucleo_test_mail_status','nucleo_test_personal_preferences','nucleo_test_integration','nucleo_test_integration_status','nucleo_test_load_part','nucleo_test_manual_actions'].includes(actionName) &&
+    if (!['nucleo_test_email','nucleo_test_mail_status','nucleo_test_personal_preferences','nucleo_test_integration','nucleo_test_integration_status','nucleo_test_load_part','nucleo_test_manual_actions','nucleo_test_ro_investigation'].includes(actionName) &&
         !nucleoTesteLeituraPermitida(actionName,requestParams)) {
       delete window[cb];
       reject(new Error('A base central está em modo de consulta. Para conferir um e-mail, use Enviar teste.'));
@@ -969,7 +970,7 @@ function portalJsonp(params,timeoutMs=60000,baseOverride='',options={}){
   });
 }
 function portalPostForm(params){
-  if (params?.acao !== 'portal_auth_v2') return false;
+  if (params?.acao !== 'portal_auth_v2' && !(params?.acao==='nucleo_test_ro_investigation'&&params.mode==='add')) return false;
   params={...(params||{})};if(params.acao==='portal_upload_standard_document'){const metadata=JSON.parse(params.metadata||'{}');if(!metadata.unit&&!metadata.unidade)metadata.unit=getSession()?.role==='quality'?'filial':document.getElementById('ndStandardUnit')?.value||document.getElementById('qualityConfigUnit')?.value||explicitPortalUnit(getSession()?.unit);params.metadata=JSON.stringify(metadata);}
   const authToken=getSession()?.authToken;if(authToken&&!params.token)params.token=authToken;
   if(authToken && nucleoActionNeedsCentralConfirmation(params.acao,params) && !nucleoCentralDataConfirmed())return false;
@@ -15349,7 +15350,7 @@ function view(id){
   setTimeout(refreshRoPdfAccess,0);
   setNav('ros');
 }function fillDetail(){
-  document.getElementById('submittedRoDecisionInfo')?.remove();dNumero.textContent=selected.numero;dCliente.textContent=selected.cliente;dStatus.textContent=selected.status;dStatus.className=badgeClass(selected.status);dUnidade.textContent=selected.unidade;dSetor.textContent=selected.setor;dData.textContent=selected.data;dPrazo.textContent=selected.prazo;dDescricao.textContent=selected.descricao;const noPDCA=['Cancelada','Somente para registro'].includes(selected.status),contest=selected.status==='Em contestação';const hasResponse=selectedRoHasPdcaResponse(selected);pdcaBtn.hidden=hasResponse;pdcaBtn.disabled=noPDCA||contest||hasResponse;contestBtn.disabled=!nucleoCanContestRo(selected);contestBtn.style.display=contestBtn.disabled||detailReturnView==='mysubmitted'?'none':'';if(pdcaBtn&&!pdcaBtn.disabled){const roKey=selected.numero||selected.id||selected.codigo||'';pdcaBtn.textContent=isPdcaStarted(roKey)?'Continuar a responder o PDCA':'Responder o PDCA';}dNotice.classList.toggle('hidden',!(noPDCA||contest));dNotice.textContent=contest?'O PDCA está suspenso enquanto a contestação estiver em análise pelo SGQ.':noPDCA?'Esta R.O. não exige PDCA.':'';refreshContestUserStatus();refreshFavoriteButton();renderRoTimeline();renderRoIntelligence()}
+  document.getElementById('submittedRoDecisionInfo')?.remove();dNumero.textContent=selected.numero;dCliente.textContent=selected.cliente;dStatus.textContent=selected.status;dStatus.className=badgeClass(selected.status);dUnidade.textContent=selected.unidade+(selected.raw?.__industrializacao?' · Industrialização':'');dSetor.textContent=selected.setor;dData.textContent=selected.data;dPrazo.textContent=selected.prazo;dDescricao.textContent=selected.descricao;const noPDCA=['Cancelada','Somente para registro'].includes(selected.status),contest=selected.status==='Em contestação';const hasResponse=selectedRoHasPdcaResponse(selected);pdcaBtn.hidden=hasResponse;pdcaBtn.disabled=noPDCA||contest||hasResponse;contestBtn.disabled=!nucleoCanContestRo(selected);contestBtn.style.display=contestBtn.disabled||detailReturnView==='mysubmitted'?'none':'';if(pdcaBtn&&!pdcaBtn.disabled){const roKey=selected.numero||selected.id||selected.codigo||'';pdcaBtn.textContent=isPdcaStarted(roKey)?'Continuar a responder o PDCA':'Responder o PDCA';}dNotice.classList.toggle('hidden',!(noPDCA||contest));dNotice.textContent=contest?'O PDCA está suspenso enquanto a contestação estiver em análise pelo SGQ.':noPDCA?'Esta R.O. não exige PDCA.':'';refreshContestUserStatus();refreshFavoriteButton();renderRoTimeline();renderRoIntelligence()}
 function roSummaryData(){
   const source=(typeof ROs!=='undefined' ? ROs : (typeof ros!=='undefined' ? ros : []));
   const triageMap=getSavedTriageMap();
