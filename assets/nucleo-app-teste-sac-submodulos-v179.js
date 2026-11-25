@@ -17260,7 +17260,7 @@ function applySettingsUnitSelection(){
 
 // Módulo de arquivos carregado sob demanda.
 let nucleoDriveModulePromise=null;
-function nucleoDriveLoad(){if(typeof nucleoDriveShow==='function')return Promise.resolve();if(!nucleoDriveModulePromise)nucleoDriveModulePromise=new Promise((resolve,reject)=>{const script=document.createElement('script');script.src=new URL('assets/modules/drive-documents.js?v=20261125-fluxo-documentos',document.baseURI).href;const timer=setTimeout(()=>finish(new Error('Tempo limite ao carregar o módulo de arquivos. Tente novamente.')),20000);function finish(error){clearTimeout(timer);script.onload=script.onerror=null;if(error){script.remove();nucleoDriveModulePromise=null;reject(error);}else resolve();}script.onload=()=>finish();script.onerror=()=>finish(new Error('Não foi possível carregar o módulo de arquivos.'));document.head.appendChild(script);});return nucleoDriveModulePromise;}
+function nucleoDriveLoad(){if(typeof nucleoDriveShow==='function')return Promise.resolve();if(!nucleoDriveModulePromise)nucleoDriveModulePromise=new Promise((resolve,reject)=>{const script=document.createElement('script');script.src=new URL('assets/modules/drive-documents.js?v=20261125-confirmacao-documentos',document.baseURI).href;const timer=setTimeout(()=>finish(new Error('Tempo limite ao carregar o módulo de arquivos. Tente novamente.')),20000);function finish(error){clearTimeout(timer);script.onload=script.onerror=null;if(error){script.remove();nucleoDriveModulePromise=null;reject(error);}else resolve();}script.onload=()=>finish();script.onerror=()=>finish(new Error('Não foi possível carregar o módulo de arquivos.'));document.head.appendChild(script);});return nucleoDriveModulePromise;}
 async function nucleoDriveOpen(tab){if(tab==='requests'&&!nucleoFeatureRequire('documents','prepare'))return;try{await nucleoDriveLoad();await nucleoDriveShow(tab);}catch(e){alert(e.message);}}
 function nucleoDriveSettingsShortcut(){
  const box=document.getElementById('nucleoSystemDriveFields');
@@ -19489,13 +19489,19 @@ function nucleoTestDocsApplyRequest(r){
 }
 async function nucleoTestDocsSaveRequest(r,existing){
  const form=document.getElementById('adminModuleContent');if(!existing&&form){const signature=JSON.stringify([r.unit,r.title,r.code,r.requestedStandardId,r.catalogChoice,r.product,r.description,r.language,r.recipientEmail,r.order,r.invoice,r.quantity,r.action,r.dueDate]);if(form._docRequestSignature===signature)r.id=form._docRequestId;else{form._docRequestSignature=signature;form._docRequestId=r.id;}}
+ document.getElementById('ndRequestSaveError')?.remove();
  try{
   const result=await nucleoTestDocsOperation(existing?'request_update':'request',{id:r.id,data:JSON.stringify(r)});
   nucleoTestDocsApplyRequest(result.record);nucleoTestDocsApplyHistory(result.history);
   if(form){delete form._docRequestId;delete form._docRequestSignature;}
   alert(existing?'Alteração confirmada.':result.record?.testDelivery?'Solicitação registrada. Entrega automática simulada no teste; nenhum e-mail real enviado.':'Solicitação registrada e encaminhada ao SGQ no ambiente de teste.');
   showAdminOperationalModule('documents');
- }catch(e){alert(e.message);}
+ }catch(e){
+  const raw=String(e?.message||e||''),temporary=/DOCS_BASE_TEMPORARIA|Supabase REST HTTP (408|429|5[0-9]{2})\b|timeout|timed out|confirmação demorou|não foi possível enviar a operação|sincronização não confirmada|falha de conexão|failed to fetch/i.test(raw);
+  const message=temporary?'A base central está temporariamente indisponível ou não confirmou a operação. Seus dados continuam no formulário. Clique em Salvar registro novamente para confirmar a mesma solicitação, sem duplicar.':raw;
+  let notice=document.getElementById('ndRequestSaveError');if(!notice&&form){notice=document.createElement('div');notice.id='ndRequestSaveError';notice.setAttribute('role','alert');notice.style.cssText='padding:12px;margin:12px 0;border-radius:8px;background:#fff0f0;color:#9a3030;grid-column:1/-1';form.prepend(notice);}
+  if(notice){notice.textContent=message;notice.scrollIntoView({block:'nearest'});}else alert(message);
+ }
 }
 function nucleoTestDocsEditStandard(id){
  const d=getStandardDocuments().find(x=>x.id===id);if(!d||!isAdmin())return;
