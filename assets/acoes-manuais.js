@@ -199,12 +199,12 @@ function unifiedDependencyUsers(unit,sector){
    .filter(u=>unifiedActionUserKey(u)&&userHasUnitSector(u,unit,sector))
    .map(u=>[unifiedActionUserKey(u),u])).values()];
 }
-function unifiedDependencyCheckbox(sector,key,name,checked,locked=false){
- return '<label style="display:flex;align-items:center;gap:6px;margin:4px 0"><input type="checkbox" data-dependency-sector="'+escapeHtml(sector)+'" data-dependency-key="'+escapeHtml(key)+'" style="width:auto" '+(checked?'checked ':'')+(locked?'disabled ':'')+'>'+escapeHtml(name)+(locked?' (concluída)':'')+'</label>';
+function unifiedDependencyRole(sector,key,name,role=''){
+ return '<label style="display:grid;grid-template-columns:minmax(0,1fr) minmax(120px,160px);gap:8px;align-items:center;margin:5px 0"><span>'+escapeHtml(name)+'</span><select style="width:100%" data-dependency-sector="'+escapeHtml(sector)+'" data-dependency-key="'+escapeHtml(key)+'">'+[['','Não participa'],['execute','Executa'],['aware','Para ciência']].map(([v,t])=>'<option value="'+v+'"'+(role===v?' selected':'')+'>'+t+'</option>').join('')+'</select></label>';
 }
 function readUnifiedSectorPeople(host){
  for(const field of host.querySelectorAll('[data-dependency-people]')){
-   unifiedSectorPeople.set(field.dataset.dependencyPeople,[...field.querySelectorAll('input:checked')].map(el=>el.dataset.dependencyKey));
+   unifiedSectorPeople.set(field.dataset.dependencyPeople,new Map([...field.querySelectorAll('select[data-dependency-key]')].map(el=>[el.dataset.dependencyKey,el.value])));
  }
 }
 function renderUnifiedSectorResponsibilities(){
@@ -216,10 +216,10 @@ function renderUnifiedSectorResponsibilities(){
  host.innerHTML=sectors.map(sector=>{
    const key=unit+'|'+sector;
    const users=unifiedDependencyUsers(unit,sector);
-   const selected=unifiedSectorPeople.get(key);
+   const selected=unifiedSectorPeople.get(key)||new Map();
    return '<div style="margin-top:10px"><label><div class="label">Parte do setor '+escapeHtml(sector)+'</div><textarea data-action-sector="'+escapeHtml(sector)+'" rows="2" maxlength="2000" placeholder="Descreva o que este setor precisa fazer nesta ação">'+escapeHtml(unifiedSectorDescriptions.get(sector)||'')+'</textarea></label>'+
-     '<div data-dependency-people="'+escapeHtml(key)+'"><b class="small">Quem precisa concluir?</b>'+
-     (users.length?users.map(u=>{const id=unifiedActionUserKey(u);return unifiedDependencyCheckbox(sector,id,u.name||u.email,!!selected&&selected.includes(id));}).join(''):'<div class="small">'+(unit?'Nenhum usuário ativo neste setor.':'Selecione a R.O. ou unidade.')+'</div>')+'</div></div>';
+     '<div data-dependency-people="'+escapeHtml(key)+'"><b class="small">Quem executa e quem precisa ter ciência?</b>'+
+     (users.length?users.map(u=>{const id=unifiedActionUserKey(u);return unifiedDependencyRole(sector,id,u.name||u.email,selected.get(id)||'');}).join(''):'<div class="small">'+(unit?'Nenhum usuário ativo neste setor.':'Selecione a R.O. ou unidade.')+'</div>')+'</div></div>';
  }).join('');
  host.hidden=sectors.length===0;
 }
@@ -231,7 +231,7 @@ function unifiedActionSelectedDependencies(){
  const unit=unifiedActionDependencyUnit();
  const external=String(document.getElementById('unifiedActionExternalDependencies')?.value||'').split(/\n|;/).map(x=>x.trim()).filter(Boolean);
  return {sectors:[...new Set(sectors)],external:[...new Set(external)],
-   sectorResponsibilities:[...new Set(sectors)].map(sector=>({sector,description:String(unifiedSectorDescriptions.get(sector)||'').trim(),people:unifiedSectorPeople.get(unit+'|'+sector)||[]}))};
+   sectorResponsibilities:[...new Set(sectors)].map(sector=>{const chosen=[...(unifiedSectorPeople.get(unit+'|'+sector)||new Map())];return {sector,description:String(unifiedSectorDescriptions.get(sector)||'').trim(),people:chosen.filter(([,v])=>v==='execute').map(([k])=>k),awareness:chosen.filter(([,v])=>v==='aware').map(([k])=>k)};})};
 }
 function unifiedActionDependencyText(a){
  const deps=a?.dependencies||{},sectors=Array.isArray(deps.sectors)?deps.sectors:[],external=Array.isArray(deps.external)?deps.external:[];
@@ -258,7 +258,7 @@ function unifiedActionDependencyDetails(a){
      const people=assigned.map(child=>{
        const completed=unifiedManualActionStatus(child).code==='done';
        return '<div class="small" style="margin-top:4px">'+(completed?'✓ ':'○ ')+escapeHtml(unifiedSharedNames(child,'execute'))+
-         ' · '+(completed?'Concluída':'Pendente')+
+         ' · '+(completed?'Concluída':'Pendente')+(unifiedSharedNames(child,'aware')?'<div class="small">Para ciência: '+escapeHtml(unifiedSharedNames(child,'aware'))+'</div>':'')+
          (unifiedSharedCanEdit(child)?' <button class="btn secondary" type="button" onclick="document.getElementById(\'actionDetailsDialog\').close();openUnifiedActionEdit(\''+escapeHtml(child.id)+'\')">Editar</button>':'')+(!completed&&unifiedManualActionCanComplete(child)?' <button class="btn secondary" type="button" data-dependency-complete="'+escapeHtml(child.id)+'">Concluir</button>':'')+'</div>';
      }).join('');
      return '<div style="border:1px solid var(--line);padding:10px;border-radius:8px"><b>'+ (checked?'✓ ':'○ ')+escapeHtml(sector)+'</b>'+
@@ -451,14 +451,14 @@ async function createUnifiedAction(){
       const key=unifiedActionUserKey(user);
       if(recipientKeys.has(key))continue;
       recipientKeys.add(key);
-      deliveries.push({key,name:user.name||user.email,unit,sector:part.sector,description:part.description});
+      deliveries.push({key,name:user.name||user.email,unit,sector:part.sector,description:part.description,awarenessKeys:part.awareness||[]});
     }
   }
 
   await loadUnifiedManualActions();
   const list=getUnifiedManualActions();
   const main={...assignees[0],executorKeys:assignees.map(u=>u.key),awarenessKeys};
-  const grouped=new Map();for(const d of deliveries){if(!grouped.has(d.sector))grouped.set(d.sector,{...d,executorKeys:[],awarenessKeys:[]});grouped.get(d.sector).executorKeys.push(d.key);}
+  const grouped=new Map();for(const d of deliveries){if(!grouped.has(d.sector))grouped.set(d.sector,{...d,executorKeys:[],awarenessKeys:[...d.awarenessKeys]});grouped.get(d.sector).executorKeys.push(d.key);}
   const destinations=[main,...grouped.values()];
   const signature=JSON.stringify({creatorKey,mode,ro,text,deadline,note,type,project,subject,dependencies,urgency,nextStep,progress,remaining,destinations});
   if(unifiedActionPendingCreation?.signature!==signature){
@@ -923,91 +923,48 @@ function unifiedExistingDependencyParts(parent,records){
  return [...parts].map(([sector,description])=>({sector,description}));
 }
 function unifiedExistingPeopleEditor(parent){
- const records=getUnifiedManualActions();
- const groupId=parent.groupId||parent.id;
- const unit=explicitPortalUnit(parent.roUnit||parent.unit);
- const parts=unifiedExistingDependencyParts(parent,records);
- if(!parts.length)return '';
- return '<details style="margin:12px 0"><summary>Escolher responsáveis por setor</summary>'+parts.map(part=>{
-   const assigned=records.filter(a=>a.groupId===groupId&&a.dependencySector===part.sector);
-   const users=new Map(unifiedDependencyUsers(unit,part.sector).map(u=>[unifiedActionUserKey(u),u.name||u.email]));
-   for(const record of assigned)if(!users.has(record.assigneeKey))users.set(record.assigneeKey,record.assigneeName||record.assigneeKey);
-   return '<fieldset style="margin:8px 0;padding:10px;border:1px solid var(--line)"><legend>'+escapeHtml(part.sector)+'</legend>'+
-     [...users].map(([key,name])=>{const record=assigned.find(a=>a.assigneeKey===key);return unifiedDependencyCheckbox(part.sector,key,name,!assigned.length||!!record,!!record&&unifiedManualActionStatus(record).code==='done');}).join('')+'</fieldset>';
+ const records=getUnifiedManualActions(),groupId=parent.groupId||parent.id,unit=explicitPortalUnit(parent.roUnit||parent.unit);
+ const parts=unifiedExistingDependencyParts(parent,records);if(!parts.length)return '';
+ return '<details style="margin:12px 0" open><summary>Escolher execução e ciência por setor</summary><p class="small">Uma atividade por setor. Quem tem ciência visualiza, mas não precisa concluir.</p>'+parts.map(part=>{
+   const assigned=records.filter(a=>a.groupId===groupId&&a.dependencySector===part.sector),users=new Map(unifiedDependencyUsers(unit,part.sector).map(u=>[unifiedActionUserKey(u),u.name||u.email]));
+   const roles=new Map();
+   for(const record of assigned){
+    for(const key of unifiedSharedObservers(record)){if(!users.has(key))users.set(key,unifiedActionUserDisplay(key));if(!roles.has(key))roles.set(key,'aware');}
+    for(const key of unifiedSharedExecutors(record)){if(!users.has(key))users.set(key,unifiedActionUserDisplay(key));roles.set(key,'execute');}
+   }
+   return '<fieldset style="margin:8px 0;padding:10px;border:1px solid var(--line)" data-role-sector="'+escapeHtml(part.sector)+'"><legend>'+escapeHtml(part.sector)+'</legend>'+
+     [...users].map(([key,name])=>unifiedDependencyRole(part.sector,key,name,roles.get(key)||'')).join('')+'</fieldset>';
  }).join('')+'</details>';
 }
 async function distributeExistingActionParts(id,button){
-  if(button.disabled)return;
-  button.disabled=true;
-  try{
-    await loadUnifiedManualActions();
-    const list=getUnifiedManualActions();
-    const parent=list.find(a=>a.id===id);
-    if(!parent||(!isAdmin()&&parent.createdByKey!==unifiedCurrentUserKey()))return;
-    const unit=explicitPortalUnit(parent.roUnit||parent.unit);
-    if(!unit)throw new Error('A unidade da ação precisa estar identificada.');
-    const parts=unifiedExistingDependencyParts(parent,list);
-    const selected=new Map(parts.map(part=>[part.sector,new Set()]));
-    const unchecked=new Map(parts.map(part=>[part.sector,new Set()]));
-    document.getElementById('actionDetailsContent').querySelectorAll('#dependencyPeopleEditor input[data-dependency-key]').forEach(el=>{
-      const target=el.checked?selected:unchecked;
-      target.get(el.dataset.dependencySector)?.add(el.dataset.dependencyKey);
-    });
-    const users=getOperationalUsers().filter(unifiedActionIsActiveUser);
-    const groupId=parent.groupId||parent.id;
-    let sequence=unifiedActionCodeStart(list,unifiedActionCodeScope(parent));
-    const existing=new Set(list.map(a=>a.id));
-    const records=[];
-    const removeIds=new Set();
-    for(const part of parts){
-      const description=String(part.description||'').trim();
-      if(!description)continue;
-      const chosen=selected.get(part.sector)||new Set();
-      if(!chosen.size)throw new Error('Selecione pelo menos um responsável em '+part.sector+'.');
-      const assigned=list.filter(a=>a.groupId===groupId&&a.dependencySector===part.sector);
-      for(const record of assigned)if(unchecked.get(part.sector)?.has(record.assigneeKey)&&unifiedManualActionStatus(record).code!=='done')removeIds.add(record.id);
-      const recipients=new Map(users.filter(u=>chosen.has(unifiedActionUserKey(u))&&userHasUnitSector(u,unit,part.sector))
-        .map(u=>[unifiedActionUserKey(u),u]).filter(([key])=>key));
-      if(!recipients.size&&!assigned.some(a=>chosen.has(a.assigneeKey)))throw new Error('Não há responsáveis disponíveis em '+part.sector+'.');
-      const previous=list.find(a=>a.groupId===groupId&&a.dependencySector===part.sector);
-      const partSequence=previous?.actionSequence||sequence;
-      const code=previous?.actionCode||unifiedActionCodePrefix(parent.ro)+partSequence;
-      for(const [key,user] of recipients){
-        const childId=await unifiedDependencyRecordId(parent.id,part.sector,key);
-        if(existing.has(childId)||list.some(a=>a.groupId===groupId&&a.dependencySector===part.sector&&a.assigneeKey===key))continue;
-        existing.add(childId);
-        records.push({
-          id:childId,groupId,source:'assigned',recordKind:'manual_action',
-          dependencySector:part.sector,actionCode:code,actionSequence:partSequence,
-          ro:parent.ro,roUnit:parent.roUnit,sourceRoOrigin:parent.sourceRoOrigin,
-          action:description,deadline:parent.deadline,type:parent.type,project:parent.project,
-          subject:parent.subject,urgency:parent.urgency,sector:part.sector,unit,
-          assigneeKey:key,assigneeName:user.name||user.email,
-          createdByKey:parent.createdByKey,createdByName:parent.createdByName,
-          createdAt:new Date().toISOString(),progress:0,history:[]
-        });
-      }
-      if(!previous&&records.some(a=>a.actionCode===code))sequence++;
-    }
-    if(records.length||removeIds.size){
-      await saveUnifiedManualActions(list.filter(a=>!removeIds.has(a.id)).concat(records));
-      for(const record of records){
-        createNotification({type:'action',skipEmail:true,audience:'user',userKey:record.assigneeKey,
-          sector:record.sector,title:'Nova ação atribuída',message:record.action});
-      }
-    }
-    renderActionsDashboard();
-    const updated=actionDashboardItems().find(row=>row.manualAction?.id===id);
-    if(updated)openUnifiedActionDetails(updated);
-    alert(records.length||removeIds.size?'Responsáveis atualizados.':'Os responsáveis já estão atualizados.');
-  }catch(error){
-    try{
-      await loadUnifiedManualActions();
-      renderActionsDashboard();
-    }catch(refreshError){console.warn('Não foi possível atualizar as ações.',refreshError);}
-    alert(error.message||String(error));
+ if(button.disabled)return;button.disabled=true;
+ const parent=getUnifiedManualActions().find(a=>a.id===id);
+ if(!parent||!unifiedSharedCanEdit(parent)){button.disabled=false;return;}
+ const old=getUnifiedManualActions(),group=parent.groupId||parent.id,host=document.getElementById('dependencyPeopleEditor'),updates=[];
+ const guard=e=>{e.preventDefault();e.returnValue='';};
+ try{
+  for(const field of host.querySelectorAll('[data-role-sector]')){
+   const sector=field.dataset.roleSector,choices=[...field.querySelectorAll('select[data-dependency-key]')],executorKeys=choices.filter(x=>x.value==='execute').map(x=>x.dataset.dependencyKey),awarenessKeys=choices.filter(x=>x.value==='aware').map(x=>x.dataset.dependencyKey);
+   const children=old.filter(a=>a.groupId===group&&a.dependencySector===sector);
+   if(!executorKeys.length)throw Error('Selecione pelo menos um executor em '+sector+'.');
+   const expected=children.map(a=>({id:a.id,updatedAt:a.updatedAt||a.createdAt||''}));
+   if(children.length===1&&children[0].sharedAction&&JSON.stringify([...executorKeys].sort())===JSON.stringify([...unifiedSharedExecutors(children[0])].sort())&&JSON.stringify([...awarenessKeys].sort())===JSON.stringify([...unifiedSharedObservers(children[0])].sort()))continue;
+   updates.push({sector,executorKeys,awarenessKeys,expected});
   }
-  finally{button.disabled=false;}
+  if(!updates.length){alert('Os participantes já estão atualizados.');return;}
+  window.addEventListener('beforeunload',guard);
+  await withNucleoLoading('Confirmando participantes por setor…',async()=>{
+   for(const update of updates){
+    const r=await portalJsonp({acao:'nucleo_test_manual_actions',mode:'dependency_roles',id,dados:JSON.stringify(update)},90000);
+    if(!r?.sucesso||!r.registro)throw Error(r?.erro||'A distribuição não foi confirmada.');
+   }
+   await loadUnifiedManualActions();
+  },'Salvar responsáveis');
+  renderActionsDashboard();refreshUserPendingActionAlert();
+  const current=actionDashboardItems().find(row=>row.manualAction?.id===id);if(current)openUnifiedActionDetails(current);
+  alert('Participantes atualizados. Execução e ciência compartilham a mesma atividade do setor.');
+ }catch(error){alert(error.message||String(error));try{await loadUnifiedManualActions();renderActionsDashboard();const current=actionDashboardItems().find(r=>r.manualAction?.id===id);if(current)openUnifiedActionDetails(current);}catch(_){}}
+ finally{window.removeEventListener('beforeunload',guard);button.disabled=false;}
 }
 
 function openUnifiedActionDetails(x){
@@ -1046,12 +1003,12 @@ function openUnifiedActionDetails(x){
     };
   });
   const action=x.manualAction;
-  if(action&&!action.sharedAction&&!action.dependencySector&&unifiedExistingDependencyParts(action,getUnifiedManualActions()).some(part=>String(part.description||'').trim())
-    &&(isAdmin()||action.createdByKey===unifiedCurrentUserKey())){
+  if(action&&!action.dependencySector&&unifiedExistingDependencyParts(action,getUnifiedManualActions()).some(part=>String(part.description||'').trim())
+    &&unifiedSharedCanEdit(action)){
     const distribute=document.createElement('button');
     distribute.type='button';
     distribute.className='btn secondary';
-    distribute.textContent='Salvar responsáveis e distribuir';
+    distribute.textContent='Salvar execução e ciência';
     const editor=document.createElement('div');
     editor.id='dependencyPeopleEditor';
     editor.innerHTML=unifiedExistingPeopleEditor(action);

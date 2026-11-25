@@ -800,7 +800,7 @@ function nucleoRequireCentralData(action='continuar'){
 function nucleoActionNeedsCentralConfirmation(action, params={}){
   action=String(action||'').toLowerCase();
   if(!action)return false;
-  if(action==='nucleo_test_manual_actions')return ['save','delete'].includes(params.mode);
+  if(action==='nucleo_test_manual_actions')return ['save','delete','dependency_roles'].includes(params.mode);
   if(action==='nucleo_test_ro_investigation')return !['list','photo'].includes(params.mode);
   if(action==='nucleo_test_save_triage'||action==='nucleo_test_correct_type')return true;
   if(action==='nucleo_test_system_history'||action==='nucleo_test_docs_read')return false;
