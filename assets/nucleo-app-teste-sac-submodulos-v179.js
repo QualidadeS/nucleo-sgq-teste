@@ -7,7 +7,7 @@ if(new URLSearchParams(location.search).get('recuperar')==='1'){
   try{sessionStorage.removeItem('ro-pdca-session-v63')}catch(e){}
 }
 const NUCLEO_DEFAULT_DECISIONS=[{"id":"directed","label":"Direcionar para tratativa","behavior":"directed","active":true,"requireSector":true,"requireReason":true,"pdcaRequired":true,"deadlineDays":null,"color":"#eef4ff"},{"id":"record","label":"Somente para registro","behavior":"record","active":true,"requireSector":false,"requireReason":true,"pdcaRequired":false,"deadlineDays":null,"color":"#fff9e5"},{"id":"cancelled","label":"Cancelar R.O.","behavior":"cancelled","active":true,"requireSector":false,"requireReason":true,"pdcaRequired":false,"deadlineDays":null,"color":"#fff0f0"},{"id":"obsolete","label":"Obsoleta","behavior":"obsolete","active":true,"requireSector":false,"requireReason":true,"pdcaRequired":false,"deadlineDays":null,"color":"#f0f1f3"},{"id":"falta_caixa","label":"Falta de caixa","behavior":"record","active":true,"requireSector":false,"requireReason":false,"pdcaRequired":false,"deadlineDays":null,"color":"#fff9e5"}];
-const NUCLEO_FEATURE_BUTTONS={"showList":["ros","consult"],"showAssignedRos":["ros","assigned"],"showTriage":["ros","triage"],"openTriageRecord":["ros","triage"],"saveTriageRecord":["ros","triage"],"showContestations":["ros","reviewContests"],"reviewContestation":["ros","reviewContests"],"submitContest":["ros","contest"],"openContest":["ros","contest"],"startPdcaFromList":["pdca","respond"],"openPDCA":["pdca","respond"],"finishPDCA":["pdca","respond"],"showSentPdcas":["pdca","received"],"showActionsDashboard":["pdca","actions"],"showPendingActions":["pdca","reviewActions"],"confirmActionCompletion":["pdca","reviewActions"],"markActionCompleted":["pdca","reviewActions"],"registerActionEvidence":["pdca","completeAction"],"presentPdca":["pdca","present"],"presentCurrentPdca":["pdca","present"],"savePdcaPresentationRecord":["pdca","present"],"finalizeAndSendSac":["sac","finalize"],"saveSacEditForm":["sac","edit"],"saveExternalRoControl":["sac","edit"],"saveSacDecisionLocally":["sac","edit"],"publishAnnouncement":["announcements","publish"],"openStandardDocumentCreate":["documents","standards"],"saveStandardDocument":["documents","standards"],"toggleStandardDocument":["documents","standards"],"deleteStandardDocument":["documents","standards"],"addOperationalUser":["users","create"],"approvePortalUser":["users","approve"],"rejectPortalUser":["users","approve"],"openUserRegistrationEditor":["users","edit"],"saveUserRegistrationEditor":["users","edit"],"saveSectorConfiguration":["sectors","edit"],"saveFixedEmailCopies":["sectors","emails"],"saveRncProcessTemplateFromForm":["processes","templates"],"deleteAssignedDirection":["ros","triage"],"openAssignedSectorEdit":["ros","triage"],"endAnnouncement":["announcements","publish"],"openUnitUserAccess":["users","permissions"],"showAnnouncementsAdmin":["announcements","publish"],"openAdminResetPassword":["users","edit"]};
+const NUCLEO_FEATURE_BUTTONS={"showPendingPresentations":["pdca","present"],"showList":["ros","consult"],"showAssignedRos":["ros","assigned"],"showTriage":["ros","triage"],"openTriageRecord":["ros","triage"],"saveTriageRecord":["ros","triage"],"showContestations":["ros","reviewContests"],"reviewContestation":["ros","reviewContests"],"submitContest":["ros","contest"],"openContest":["ros","contest"],"startPdcaFromList":["pdca","respond"],"openPDCA":["pdca","respond"],"finishPDCA":["pdca","respond"],"showSentPdcas":["pdca","received"],"showActionsDashboard":["pdca","actions"],"showPendingActions":["pdca","reviewActions"],"confirmActionCompletion":["pdca","reviewActions"],"markActionCompleted":["pdca","reviewActions"],"registerActionEvidence":["pdca","completeAction"],"presentPdca":["pdca","present"],"presentCurrentPdca":["pdca","present"],"savePdcaPresentationRecord":["pdca","present"],"finalizeAndSendSac":["sac","finalize"],"saveSacEditForm":["sac","edit"],"saveExternalRoControl":["sac","edit"],"saveSacDecisionLocally":["sac","edit"],"publishAnnouncement":["announcements","publish"],"openStandardDocumentCreate":["documents","standards"],"saveStandardDocument":["documents","standards"],"toggleStandardDocument":["documents","standards"],"deleteStandardDocument":["documents","standards"],"addOperationalUser":["users","create"],"approvePortalUser":["users","approve"],"rejectPortalUser":["users","approve"],"openUserRegistrationEditor":["users","edit"],"saveUserRegistrationEditor":["users","edit"],"saveSectorConfiguration":["sectors","edit"],"saveFixedEmailCopies":["sectors","emails"],"saveRncProcessTemplateFromForm":["processes","templates"],"deleteAssignedDirection":["ros","triage"],"openAssignedSectorEdit":["ros","triage"],"endAnnouncement":["announcements","publish"],"openUnitUserAccess":["users","permissions"],"showAnnouncementsAdmin":["announcements","publish"],"openAdminResetPassword":["users","edit"]};
 const NUCLEO_PERSON_FEATURES={"ros":{"consult":["Consultar R.O.s disponíveis",false,"view"],"submitted":["R.O.s cadastradas por mim",false,"view"],"assigned":["R.O.s atribuídas",false,"view"],"triage":["Triar, classificar e direcionar",true,"manage"],"contest":["Criar contestações",true,"view"],"reviewContests":["Analisar contestações",true,"manage"],"claimant":["Alterar e confirmar reclamante",true,"manage"]},"pdca":{"received":["Consultar PDCAs recebidos",false,"view"],"respond":["Responder e continuar PDCA",true,"view"],"actions":["Consultar ações",false,"view"],"completeAction":["Registrar conclusão e evidências",true,"view"],"reviewActions":["Conferir e aprovar ações",true,"manage"],"import":["Importar e vincular respostas",true,"manage"],"present":["Registrar apresentação",true,"manage"],"dispatch":["Despachar resposta ao reclamante",true,"manage"]},"sac":{"consult":["Consultar SACs",false,"view"],"edit":["Classificar e editar SACs",true,"manage"],"finalize":["Finalizar e enviar SAC",true,"manage"]},"documents":{"consult":["Consultar documentos e solicitações",false,"view"],"request":["Criar solicitação de documento",true,"view"],"standards":["Cadastrar e alterar documentos padrão",true,"manage"],"prepare":["Preencher e armazenar documento solicitado",true,"manage"],"deliver":["Enviar e entregar documentos",true,"manage"],"history":["Consultar histórico de entregas",false,"manage"]},"indicators":{"consult":["Consultar indicadores",false,"view"]},"announcements":{"consult":["Consultar comunicados",false,"view"],"publish":["Emitir, alterar e encerrar comunicados",true,"manage"]},"equipment":{"consult":["Consultar equipamentos",false,"view"],"pending":["Consultar calibrações pendentes",false,"view"],"history":["Consultar histórico metrológico",false,"view"],"edit":["Cadastrar e alterar equipamentos",true,"manage"],"delete":["Excluir equipamentos",true,"manage"]},"training":{"consult":["Consultar treinamentos",false,"view"],"pending":["Consultar reciclagens pendentes",false,"view"],"history":["Consultar histórico de competências",false,"view"],"edit":["Cadastrar e alterar treinamentos",true,"manage"],"delete":["Excluir treinamentos",true,"manage"]},"nc":{"consult":["Consultar RNCs e tratamento",false,"view"],"edit":["Cadastrar e alterar RNCs",true,"manage"],"send":["Enviar RNC e anexar fotos",true,"manage"],"delete":["Excluir RNCs",true,"manage"]},"processes":{"consult":["Consultar documentos vigentes",false,"view"],"review":["Consultar documentos em revisão",false,"view"],"history":["Consultar histórico documental",false,"view"],"edit":["Cadastrar e alterar documentos internos",true,"manage"],"templates":["Alterar modelos e estrutura dos formulários",true,"manage"],"delete":["Excluir documentos internos",true,"manage"]},"users":{"consult":["Consultar cadastros",false,"manage"],"create":["Cadastrar pessoas",true,"manage"],"edit":["Editar nomes, dados e setores",true,"manage"],"approve":["Aprovar e bloquear cadastros",true,"manage"],"permissions":["Definir permissões de outras pessoas",true,"manage"]},"sectors":{"decisions":["Editar decisões e regras de R.O.",true,"manage"],"consult":["Consultar configurações da unidade",false,"manage"],"edit":["Cadastrar e alterar setores",true,"manage"],"emails":["Alterar destinatários e cópias padrão",true,"manage"],"folders":["Alterar e validar pastas do Drive",true,"manage"],"documentTypes":["Editar tipos de documentos",true,"manage"]}};
 let nucleoSidebarAuditAccess=null;
 const NUCLEO_ACCESS_CONSULTATIONS={
@@ -798,6 +798,7 @@ function nucleoRequireCentralData(action='continuar'){
 function nucleoActionNeedsCentralConfirmation(action, params={}){
   action=String(action||'').toLowerCase();
   if(!action)return false;
+  if(action==='nucleo_test_manual_actions')return ['save','delete'].includes(params.mode);
   // O SAC é lido e confirmado pelo servidor, que valida o rascunho antes do envio.
   if(action==='portal_finalize_sac'&&params.id&&nucleoPersonFeatureCan('sac','finalize')){
     if(params.mode==='prepare')return false;
@@ -927,7 +928,7 @@ function portalJsonp(params,timeoutMs=60000,baseOverride='',options={}){
     const parts=[];
     const requestParams={...(params||{})};
     const actionName=String(requestParams.acao||'').toLowerCase();
-    if (!['nucleo_test_email','nucleo_test_mail_status','nucleo_test_personal_preferences','nucleo_test_integration','nucleo_test_integration_status','nucleo_test_load_part'].includes(actionName) &&
+    if (!['nucleo_test_email','nucleo_test_mail_status','nucleo_test_personal_preferences','nucleo_test_integration','nucleo_test_integration_status','nucleo_test_load_part','nucleo_test_manual_actions'].includes(actionName) &&
         !nucleoTesteLeituraPermitida(actionName,requestParams)) {
       delete window[cb];
       reject(new Error('A base central está em modo de consulta. Para conferir um e-mail, use Enviar teste.'));
@@ -1868,6 +1869,7 @@ function pendingTriageCount(){
 }
 
 function refreshMenuNotificationBadges(){
+  if(typeof refreshPendingPresentationView==='function')refreshPendingPresentationView();
   const s=getSession();
   if(!s)return;
 
@@ -1884,7 +1886,7 @@ function refreshMenuNotificationBadges(){
   });
 
   const candidateIds=[
-    'navRos','navMySubmittedRos','navSent','navActions','navPendingHub',
+    'navRos','navMySubmittedRos','navSent','navPresentations','navActions','navPendingHub',
     'navPendingActions','navTriage','navExternalRoControl','navSacClassified','navMySacs','navSacTracking','navSimpleRework','navContests','navAnnouncements','navEquipment','navTraining','navNcCapa','navDocuments','navProcesses','navAdmin'
   ];
 
@@ -1898,6 +1900,7 @@ function refreshMenuNotificationBadges(){
     // Triagem é uma pendência operacional: mostra TODAS as R.O.s ainda sem
     // direcionamento, mesmo que a notificação correspondente já tenha sido lida.
     if(navId==='navTriage' && isAdmin())count=pendingTriageCount();
+    if(navId==='navPresentations'&&typeof pendingPresentationRows==='function')count=pendingPresentationRows().length;
     if(navId==='navExternalRoControl' && isAdmin())count=externalRoPendingCount();
 
     badge.textContent=count>99?'99+':String(count);
@@ -10014,7 +10017,8 @@ async function completeCurrentPdcaPresentation(){
 
   // Mesmo que a apresentação já tenha sido marcada localmente antes,
   // se a planilha ainda não tem a data do reclamante, o Núcleo corrige/backfill.
-  if(existing?.presentationCompleted && (origin!=='Interna' || alreadyInSheet)){
+  if(existing?.presentationCompleted && (origin!=='Interna' || alreadyInSheet) &&
+      typeof pendingPresentationCompleted==='function' && pendingPresentationCompleted(p)){
     refreshPresentationScreenState();
     refreshViewedPdcaPresentation();
     return;
@@ -10045,8 +10049,9 @@ async function completeCurrentPdcaPresentation(){
       });
       if(!result?.sucesso)throw new Error(result?.erro||'A planilha não confirmou a gravação.');
     }
+    await nucleoSavePdcaPresented(p);
   }catch(sheetError){
-    alert('A apresentação NÃO foi concluída porque a planilha não confirmou a data do reclamante.\n\n'+String(sheetError?.message||sheetError));
+    alert('A apresentação NÃO foi concluída porque a base não confirmou o registro.\n\n'+String(sheetError?.message||sheetError));
     return;
   }
 
@@ -14745,9 +14750,9 @@ function restoreSideModules(){
     setSideModuleOpen(id,s[id]===undefined?defaultOpen:!!s[id],false);
   });
 }
-function openModuleForNav(id){const m={navNewRo:'moduleRo',navMySubmittedRos:'moduleRo',navAssignedRos:'moduleRo',navSent:'moduleRo',navActions:'moduleRo',navPendingActions:'moduleRo',navTriage:'moduleRo',navContests:'moduleRo',navNewExternalRo:'moduleRo',navExternalRoControl:'moduleSac',navSacClassified:'moduleSac',navMySacs:'moduleSac',navSacsConsult:'moduleSac',navSacTracking:'moduleSac',navSimpleRework:'moduleSac',navPendingHub:'modulePersonal',navDocumentRequests:'modulePersonal',navIndicators:'moduleManagement',navAnnouncements:'moduleManagement',navEquipment:'moduleManagement',navTraining:'moduleManagement',navNcCapa:'moduleManagement',navDocuments:'moduleManagement',navProcesses:'moduleManagement'};if(m[id])setSideModuleOpen(m[id],true)}
+function openModuleForNav(id){const m={navNewRo:'moduleRo',navMySubmittedRos:'moduleRo',navAssignedRos:'moduleRo',navSent:'moduleRo',navPresentations:'moduleRo',navActions:'moduleRo',navPendingActions:'moduleRo',navTriage:'moduleRo',navContests:'moduleRo',navNewExternalRo:'moduleRo',navExternalRoControl:'moduleSac',navSacClassified:'moduleSac',navMySacs:'moduleSac',navSacsConsult:'moduleSac',navSacTracking:'moduleSac',navSimpleRework:'moduleSac',navPendingHub:'modulePersonal',navDocumentRequests:'modulePersonal',navIndicators:'moduleManagement',navAnnouncements:'moduleManagement',navEquipment:'moduleManagement',navTraining:'moduleManagement',navNcCapa:'moduleManagement',navDocuments:'moduleManagement',navProcesses:'moduleManagement'};if(m[id])setSideModuleOpen(m[id],true)}
 function setNav(which){
-  ['navPersonalSettings','navSistemaTeste','navRos','navNewRo','navNewExternalRo','navMySubmittedRos','navAssignedRos','navSent','navActions','navPendingHub','navDocumentRequests','navProfile','navTriage','navExternalRoControl','navSacClassified','navMySacs','navContests','navIndicators','navPendingActions','navAnnouncements','navEquipment','navTraining','navNcCapa','navDocuments','navProcesses','navMyAccess',...Object.values(NUCLEO_ACCESS_CONSULTATIONS).map(([id])=>id),'navAdmin'].forEach(function(id){
+  ['navPersonalSettings','navSistemaTeste','navRos','navNewRo','navNewExternalRo','navMySubmittedRos','navAssignedRos','navSent','navPresentations','navActions','navPendingHub','navDocumentRequests','navProfile','navTriage','navExternalRoControl','navSacClassified','navMySacs','navContests','navIndicators','navPendingActions','navAnnouncements','navEquipment','navTraining','navNcCapa','navDocuments','navProcesses','navMyAccess',...Object.values(NUCLEO_ACCESS_CONSULTATIONS).map(([id])=>id),'navAdmin'].forEach(function(id){
     var el=document.getElementById(id);
     if(el) el.classList.remove('active');
   });
@@ -14756,7 +14761,7 @@ function setNav(which){
     ros:'navRos',
     mysubmitted:'navMySubmittedRos',
     assigned:'navAssignedRos',
-    sent:'navSent',
+    sent:'navSent',presentations:'navPresentations',
     actions:'navActions',
     triage:'navTriage',
     externalro:'navExternalRoControl',
@@ -14955,6 +14960,7 @@ async function nucleoSavePdcaPresented(pdca){
   }
   if(getSession()?.authToken!==session.authToken)throw new Error('A sessão mudou. Sincronize para consultar o registro.');
   localStorage.setItem(SENT_PDCA_KEY,JSON.stringify(getAllSentPdcas().map(item=>String(item.id||item.pdcaId||'')===id?updated:item)));
+  refreshMenuNotificationBadges();
 }
 
 async function nucleoMarkAssignedPresented(button){
@@ -15322,7 +15328,7 @@ function view(id){
   const sacModal=document.getElementById('externalRoControlModalOverlay');
   if(sacModal)sacModal.classList.remove('open');
   document.body.style.overflow='';
-  ['audit5sView','nucleoPersonalView','nucleoSistemaView','pdcaImportView','listView','roListView','adminModuleView','mySubmittedRosView','detailView','pdcaView','sentView','pdcaReportView','pendingHubView','actionsDashboardView','triageView','externalRoControlView','mySacsView','sacTrackingView','simpleReworkView','contestationsView','sgqIndicatorsView','managementView','pendingActionsView','profileView','announcementsView','settingsView'].forEach(function(x){
+  ['pendingPresentationsView','audit5sView','nucleoPersonalView','nucleoSistemaView','pdcaImportView','listView','roListView','adminModuleView','mySubmittedRosView','detailView','pdcaView','sentView','pdcaReportView','pendingHubView','actionsDashboardView','triageView','externalRoControlView','mySacsView','sacTrackingView','simpleReworkView','contestationsView','sgqIndicatorsView','managementView','pendingActionsView','profileView','announcementsView','settingsView'].forEach(function(x){
     var el=document.getElementById(x);
     if(el) el.classList.add('hidden');
   });
@@ -15771,14 +15777,18 @@ function openRoHistory(number,unit){
       ['Justificativa da triagem',t.note||'Não registrada'],['Justificativa do direcionamento',t.assignmentReason],
       ['PDCA',t.pdcaRequired===true?'Obrigatório':t.pdcaRequired===false?'Dispensado':''],['Prazo do PDCA',t.pdcaDeadline&&formatDateBR(t.pdcaDeadline)]
     ])):[card('Triagem',[['Situação','Nenhuma triagem registrada']])]),
-    ...(pdcas.length?pdcas.map(p=>{
+    ...(pdcas.length?pdcas.map((p,index)=>{
       const answers=p.answers||p.respostas||{};
       const actions=allPdcaActionsForRecord(p);
+      const attached=nucleoPdcaUsesAttachedPdf(p);
+      const action=attached
+        ? '<button class="btn secondary" type="button" data-history-pdca="'+index+'">Ver PDF original</button>'
+        : p.id?'<button class="btn secondary" type="button" data-history-pdca="'+index+'">Ver resposta do PDCA</button>':'';
       return card('Resposta · '+(p.id||'PDCA'),[
-        ['Data da resposta',date(p.sentAt||p.envio)||'Não registrada'],['Respondida por',p.responsavel],['Setor',p.setor],
+        ['Data da resposta',date(p.sentAt||p.envio)||'Não registrada'],['Respondida por',p.responsavel],['Setor',p.setor||p.sector],['Arquivo',p.fileName],['Versão',p.version],
         ['Problema',answers.p1],['Causa raiz',answers.p7],['Meta',answers.p8],['Status da meta',answers.p10],
         ['Resultado da verificação',answers.c1],['Padronização',answers.a2],['Apresentado em',date(p.apresentadoEm)]
-      ])+actions.map(a=>card('Ação do '+(p.id||'PDCA'),[
+      ]).replace('</article>',action+'</article>')+actions.map(a=>card('Ação do '+(p.id||'PDCA'),[
         ['Ação',a.action],['Responsáveis',a.owner],['Prazo',a.deadline&&date(a.deadline)],
         ['Situação',inferActionStatus({...p,answers:{...answers,p12:a.deadline},acaoConferidaEm:a.completedAt||a.acaoConferidaEm||(a.id?.endsWith('-A1')?p.acaoConferidaEm:'')}).label],
         ['Conclusão registrada',date(a.completedAt||a.acaoConferidaEm||(!a.id?.endsWith('-A1')?'':p.acaoConferidaEm))],['Evidência',a.evidenceNote]
@@ -15793,7 +15803,31 @@ function openRoHistory(number,unit){
       ['Definida em',date(r.treatmentDefinedAt)],['Concluída em',date(r.treatmentCompletedAt)],['Orientação da Qualidade',r.qualityNote]
     ]))
   ];
-  document.getElementById('roHistoryContent').innerHTML=sections.join('');
+  const content=document.getElementById('roHistoryContent');
+  content.innerHTML=sections.join('');
+  content.querySelectorAll('[data-history-pdca]').forEach(button=>{
+    button.onclick=async()=>{
+      const p=pdcas[Number(button.dataset.historyPdca)];
+      if(!p||!canConsultRoHistory()||!canViewPdca(p))return;
+      if(!nucleoPdcaUsesAttachedPdf(p)){
+        modal.close();
+        openPdcaReport(p.id);
+        return;
+      }
+      const token=getSession()?.authToken;
+      button.disabled=true;
+      try{
+        const attachment=await nucleoResolvePdcaAttachment(p);
+        if(getSession()?.authToken!==token||!modal.open||!content.contains(button))return;
+        modal.close();
+        await nucleoDriveOpenExternalPdf(attachment,false);
+      }catch(error){
+        alert(error.message||'PDF original indisponível.');
+      }finally{
+        button.disabled=false;
+      }
+    };
+  });
   if(!modal.open)modal.showModal();
 }
 
@@ -17042,78 +17076,18 @@ async function finishPDCA(){
   }
 }
 async function syncNow(){
-  // Sincronizar é uma ação operacional: qualquer usuário autenticado pode executar.
-  // Links, chave, regras e período continuam protegidos na Administração.
-  if(syncNow.inProgress)return;
-  syncNow.inProgress=true;
-  nucleoSetCentralSyncState('syncing','Sincronização manual em andamento. Os dados locais ainda não estão confirmados.');
-  const syncMsg=document.getElementById('syncMsg');
   const token=getSession()?.authToken;
-  let s=getSavedIntegrationSettings();
-  await showNucleoLoading('Buscando '+integrationPeriodLabel(s)+' nas abas Interna e Externa...','Sincronizando com a planilha');
+  if(!token)return false;
 
-  if(!s.apiUrl){
-    syncMsg.textContent='Configure primeiro a URL do Web App/API em Administração.';
-    syncMsg.className='statusline';
-    hideNucleoLoading();
-    syncNow.inProgress=false;
-    return;
+  const confirmed=await nucleoRunFullSync({source:'manual',foreground:true});
+  if(!confirmed||getSession()?.authToken!==token||!nucleoCentralDataConfirmed())return false;
+
+  const status=document.getElementById('syncMsg');
+  if(status){
+    status.textContent='Sincronização concluída e confirmada.';
+    status.className='statusline okline';
   }
-
-  syncMsg.textContent='Sincronizando...';
-  syncMsg.className='statusline';
-
-  try{
-    // Se a carga automática estiver em andamento, aguarda pouco tempo. Se ela
-    // travou, libera apenas a referência do front e executa uma leitura manual.
-    // O backend continua seguro porque a leitura não grava na planilha.
-    if(nucleoRoCentralRefreshPromise){
-      syncMsg.textContent='Conferindo a carga automática em andamento...';
-      const autoResult=await Promise.race([
-        Promise.resolve(nucleoRoCentralRefreshPromise).then(v=>v===true?'ok':'failed').catch(()=> 'failed'),
-        new Promise(resolve=>setTimeout(()=>resolve('timeout'),5000))
-      ]);
-      if(autoResult==='ok'){
-        nucleoRenderCentralSyncState();
-        return;
-      }
-      if(autoResult==='timeout')nucleoRoCentralRefreshPromise=null;
-      syncMsg.textContent='Executando uma leitura manual da base central...';
-      updateNucleoLoading('Executando uma leitura manual da base central...');
-    }
-    s=await resolveRoSyncSettings(token);
-    if(!s||getSession()?.authToken!==token)return;
-    const data=await loadOfficialRosPaged(s,(loaded,total,message)=>{
-      updateNucleoLoading(message);
-      syncMsg.textContent=message;
-    });
-
-    if(getSession()?.authToken!==token)return;
-    if(currentRoSyncPeriodSignature(s)!==currentRoSyncPeriodSignature()){
-      throw new Error('O período de busca mudou durante a leitura. Clique em Sincronizar novamente.');
-    }
-    if(data?.sucesso===false) throw new Error(data.erro||'Falha informada pelo Apps Script.');
-    if(!Array.isArray(data?.dados)) throw new Error('Resposta sem a lista "dados".');
-
-    updateNucleoLoading('Organizando '+data.dados.length+' R.O.s recebidas...');
-    await new Promise(resolve=>requestAnimationFrame(resolve));
-    const qty=applyImportedRos(data.dados,data);
-    updateNucleoLoading('Confirmando configurações e cadastros na base central...');
-    const centralOk=await syncPortalBackend(false,{foreground:false});
-    if(!centralOk)throw new Error('As R.O.s foram lidas, mas a base central não confirmou todos os dados do Núcleo.');
-    const bases=(typeof data.quantidadeInterna!=='undefined')?' · Interna: '+data.quantidadeInterna+' · Externa/SAC: '+(data.quantidadeExterna||0):'';
-    syncMsg.textContent='Sincronização concluída e confirmada: '+qty+' R.O.(s) carregada(s)'+bases+' · período: '+integrationPeriodLabel(s)+' · '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+'.';
-    syncMsg.className='statusline okline';
-  }catch(err){
-    const detail=String(err?.message||err||'Erro não informado');
-    nucleoSetCentralSyncState('error','Sincronização não confirmada: '+detail);
-    syncMsg.textContent='Não foi possível concluir a carga das R.O.s: '+detail+'.';
-    syncMsg.className='statusline';
-    console.error('[NÚCLEO SYNC] Falha na sincronização manual',err);
-  }finally{
-    hideNucleoLoading();
-    syncNow.inProgress=false;
-  }
+  return true;
 }
 try{localStorage.removeItem(IMPORTED_RAW_KEY)}catch(e){}
 ensurePreviewSession();
@@ -17681,7 +17655,7 @@ function nucleoApplyPersonAccess(){
   nucleoRefreshAccessConsultations(user);
   return;
  }
- const map={navRos:'ros',navAssignedRos:'ros',navMySubmittedRos:'ros',navTriage:'ros',navContests:'ros',navSent:'pdca',navActions:'pdca',navPendingActions:'pdca',navExternalPdcas:'pdca',navExternalRoControl:'sac',navSacClassified:'sac',navMySacs:'sac',navSacTracking:'sac',navSimpleRework:'sac',navDocuments:'documents',navDocumentRequests:'documents',navIndicators:'indicators',navAnnouncements:'announcements',navEquipment:'equipment',navTraining:'training',navNcCapa:'nc',navProcesses:'processes'};
+ const map={navRos:'ros',navAssignedRos:'ros',navMySubmittedRos:'ros',navTriage:'ros',navContests:'ros',navSent:'pdca',navPresentations:'pdca',navActions:'pdca',navPendingActions:'pdca',navExternalPdcas:'pdca',navExternalRoControl:'sac',navSacClassified:'sac',navMySacs:'sac',navSacTracking:'sac',navSimpleRework:'sac',navDocuments:'documents',navDocumentRequests:'documents',navIndicators:'indicators',navAnnouncements:'announcements',navEquipment:'equipment',navTraining:'training',navNcCapa:'nc',navProcesses:'processes'};
  Object.entries(map).forEach(([id,module])=>{const el=document.getElementById(id);if(!el)return;const allowed=nucleoPersonCan(module,id==='navTriage'||id==='navExternalRoControl'||id==='navSacClassified');if(!allowed){el.style.setProperty('display','none','important');el.classList.add('hidden');}else{el.style.removeProperty('display');el.classList.remove('hidden');}});
  nucleoApplyFeatureAccess();
  nucleoRefreshAccessConsultations(user);
@@ -17743,7 +17717,7 @@ function nucleoShowMyAccess(tab='permissions'){
  if(!host)return;
  const navigation={
   ros:['navAssignedRos','navMySubmittedRos','navRos','navTriage'],
-  pdca:['navSent','navActions','navExternalPdcas'],sac:['navExternalRoControl','navSacClassified','navMySacs'],
+  pdca:['navSent','navPresentations','navActions','navExternalPdcas'],sac:['navExternalRoControl','navSacClassified','navMySacs'],
   indicators:['navIndicators'],
   equipment:['navEquipment'],training:['navTraining'],nc:['navNcCapa'],processes:['navProcesses']
  };
@@ -17912,7 +17886,7 @@ function nucleoFeatureEditor(user,parent){
 }
 function nucleoApplyFeatureAccess(){
  if(getSession()?.permissions?.detailVersion!==1)return;
- const nav={navRos:['ros','consult'],navAssignedRos:['ros','assigned'],navMySubmittedRos:['ros','submitted'],navTriage:['ros','triage'],navContests:['ros','reviewContests'],navSent:['pdca','received'],navActions:['pdca','actions'],navPendingActions:['pdca','reviewActions'],navExternalPdcas:['pdca','import'],navExternalRoControl:['sac','edit'],navSacClassified:['sac','edit'],navMySacs:['sac','consult'],navSacTracking:['sac','consult'],navSimpleRework:['sac','consult'],navDocuments:['documents','*'],navDocumentRequests:['documents','*'],navIndicators:['indicators','consult'],navAnnouncements:['announcements','*'],navEquipment:['equipment','*'],navTraining:['training','*'],navNcCapa:['nc','*'],navProcesses:['processes','*']};
+ const nav={navRos:['ros','consult'],navAssignedRos:['ros','assigned'],navMySubmittedRos:['ros','submitted'],navTriage:['ros','triage'],navContests:['ros','reviewContests'],navSent:['pdca','received'],navPresentations:['pdca','present'],navActions:['pdca','actions'],navPendingActions:['pdca','reviewActions'],navExternalPdcas:['pdca','import'],navExternalRoControl:['sac','edit'],navSacClassified:['sac','edit'],navMySacs:['sac','consult'],navSacTracking:['sac','consult'],navSimpleRework:['sac','consult'],navDocuments:['documents','*'],navDocumentRequests:['documents','*'],navIndicators:['indicators','consult'],navAnnouncements:['announcements','*'],navEquipment:['equipment','*'],navTraining:['training','*'],navNcCapa:['nc','*'],navProcesses:['processes','*']};
  Object.entries(nav).forEach(([id,[module,key]])=>{const el=document.getElementById(id);if(el&&!(id==='navMySubmittedRos'?(canConsultRoHistory()||nucleoPersonFeatureCan(module,key)):id==='navDocumentRequests'?['consult','request','prepare'].some(feature=>nucleoPersonFeatureCan(module,feature)):id==='navAnnouncements'?(nucleoPersonFeatureCan(module,'consult')||isAdmin()&&nucleoPersonFeatureCan(module,'publish')):key==='*'?nucleoPersonCan(module):nucleoPersonFeatureCan(module,key))){el.style.setProperty('display','none','important');el.classList.add('hidden');}});
 }
 
