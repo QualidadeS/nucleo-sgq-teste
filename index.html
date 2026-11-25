@@ -3898,6 +3898,7 @@ html[data-nucleo-theme="dark"] :is(.side-item,.small,.help,.crumbs,.label){color
     <span id="dStatus" class="badge"></span>
   </div>
 </div><div class="grid" style="margin-top:18px"><div><div class="label">Unidade</div><div id="dUnidade" class="value"></div></div><div><div class="label">Setor responsável</div><div id="dSetor" class="value"></div></div><div><div class="label">Data da R.O.</div><div id="dData" class="value"></div></div><div><div class="label">Prazo de resposta</div><div id="dPrazo" class="value"></div></div><div class="full"><div class="label">Descrição da ocorrência</div><div id="dDescricao" class="value"></div></div></div><div id="dNotice" class="notice hidden"></div>
+<section id="roInvestigationDetail" class="settings-block" style="margin:12px 0"></section>
 <div id="contestUserStatusBox" class="hidden" style="margin-top:14px;padding:14px 16px;border:1px solid #f0c36a;background:#fff8e6;border-radius:12px">
   <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap">
     <div><b id="contestUserStatusTitle">Contestação em análise</b><div id="contestUserStatusText" class="small" style="margin-top:5px"></div></div>
@@ -3982,6 +3983,7 @@ html[data-nucleo-theme="dark"] :is(.side-item,.small,.help,.crumbs,.label){color
   <div><h2 style="margin:0">Responder PDCA</h2><div id="pRo" class="small"></div></div>
   <span class="badge">26 perguntas obrigatórias</span>
 </div>
+<section id="roInvestigationPdca" class="settings-block" style="margin:12px 0"></section>
 <div style="margin:14px 0 0;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
   <span class="status-badge">Nº PDCA: <b id="pdcaOwnNumber">será gerado no envio</b></span>
   <span id="pdcaDraftState" class="small">Rascunho ainda não salvo.</span>
@@ -4615,7 +4617,8 @@ Diretoria"></textarea>
       <button class="btn secondary" type="button" onclick="closeExternalRoControlModal()">Fechar</button>
     </div>
     <div class="triage-modal-body" style="max-height:76vh;overflow:auto">
-      <input id="externalRoControlId" type="hidden">
+      <section id="roInvestigationSac" class="settings-block" style="margin:12px 0"></section>
+<input id="externalRoControlId" type="hidden">
       <div id="externalTreatmentFollowupSummary" class="hidden" style="margin-bottom:12px;padding:12px;border:1px solid #dbe3ea;border-radius:10px;background:#f8fafc"></div>
       <div class="settings-grid">
         <label><div class="label">Nº da R.O. *</div><input id="externalRoNumber" placeholder="Ex.: RO-00123" onchange="prefillSacFromRo()" readonly></label>
@@ -5579,7 +5582,8 @@ Cancelada</textarea></label>
 
     <div class="triage-modal-body">
       <div id="triageRoSummary" class="triage-ro-summary"></div>
-      <div id="triageDuplicateWarning" class="intel-panel hidden" style="margin-top:12px">
+      <section id="roInvestigationTriage" class="settings-block" style="margin:12px 0"></section>
+<div id="triageDuplicateWarning" class="intel-panel hidden" style="margin-top:12px">
         <div class="duplicate-panel-head">
           <b>Possível duplicidade / reincidência</b>
           <button id="triageDuplicateExpandBtn" class="duplicate-expand-btn" type="button" onclick="openTriageDuplicateDetails()">Expandir ↗</button>
@@ -5788,7 +5792,8 @@ Cancelada</textarea></label>
       <button class="btn secondary" type="button" onclick="closeSacEditModal()">Fechar</button>
     </div>
     <div class="triage-modal-body">
-      <input id="sacEditRecordId" type="hidden">
+      <section id="roInvestigationSacEdit" class="settings-block" style="margin:12px 0"></section>
+<input id="sacEditRecordId" type="hidden">
 
       <div class="settings-block">
         <h3 style="margin-top:0">Identificação</h3>
@@ -6307,7 +6312,7 @@ function renderSupplierIndicatorsWorkspace(){
 <script src="assets/modules-v2/indicators/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/modules-v2/announcements/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/team-load-local-v47.js?v=20261027-team-local-central"></script>
-<script src="assets/nucleo-app-teste-sac-submodulos-v179.js?v=20261125-producao-teste"></script>
+<script src="assets/nucleo-app-teste-sac-submodulos-v179.js?v=20261125-investigacao-teste"></script>
 <script src="assets/ro-apresentacao.js?v=20261124"></script>
 <script src="assets/acoes-manuais.js?v=20261125-acoes-isoladas-teste"></script>
 <script src="assets/api-source-lock-teste-v171.js"></script>
@@ -8428,4 +8433,4 @@ html[data-nucleo-accent] .sidebar #modulePersonal .side-module-body .side-item.a
   ['fetch','portalJsonp','jsonpRequest','withNucleoLoading'].forEach(name=>wrap(name));
 })();
 </script>
-</body></html>
+<script src="assets/ro-investigacao.js?v=20261125"></script></body></html>
