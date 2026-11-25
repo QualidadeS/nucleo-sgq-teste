@@ -12,7 +12,13 @@ async function nucleoDriveMutation(action,params){
   if(!navigator.onLine)throw new Error('Conecte à internet para salvar na base central.');
   if(!portalPostForm({acao:action,unit:nucleoDriveState.unit,eventoId:id,...params}))throw new Error('Não foi possível enviar a operação.');
   const until=Date.now()+150000;
-  while(Date.now()<until){await new Promise(r=>setTimeout(r,1800));const result=await portalJsonp({acao:'nucleo_drive_status',eventoId:id},30000);if(result?.pending)continue;if(!result?.sucesso)throw new Error(result?.erro||'Falha na operação.');return result;}
+  while(Date.now()<until){
+   await new Promise(r=>setTimeout(r,1800));let result;
+   try{result=await portalJsonp({acao:'nucleo_drive_status',eventoId:id},Math.min(30000,Math.max(1000,until-Date.now())));}
+   catch(err){if(action==='nucleo_test_docs_mutation'&&params.mode==='request'&&Date.now()<until)continue;throw err;}
+   if(result?.pending)continue;
+   if(!result?.sucesso)throw new Error(result?.erro||'Falha na operação.');return result;
+  }
   timedOut=true;throw new Error('A confirmação demorou. Reabra a lista antes de tentar novamente para conferir se foi salvo.');
  }finally{nucleoDriveState.busy=false;}
 }
