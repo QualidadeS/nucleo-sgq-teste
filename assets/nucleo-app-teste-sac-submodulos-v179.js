@@ -31,7 +31,7 @@ function nucleoLoadAdminModule(){
   if(nucleoAdminModulePromise)return nucleoAdminModulePromise;
   nucleoAdminModulePromise=new Promise((resolve,reject)=>{
     const script=document.createElement('script');
-    script.src=new URL('assets/modules/admin-workspaces.js?v=20261111-contestacao-destinatario-v95',document.baseURI).href;
+    script.src=new URL('assets/modules/admin-workspaces.js?v=20261125-fluxo-documentos',document.baseURI).href;
     const timer=setTimeout(()=>finish(new Error('Tempo limite ao carregar o módulo.')),20000);
     function finish(error){clearTimeout(timer);script.onload=script.onerror=null;if(error){script.remove();nucleoAdminModulePromise=null;reject(error)}else resolve();}
     script.onload=()=>finish();
@@ -90,12 +90,14 @@ const ADMIN_OPERATIONAL_MODULES={
     cards:[
       ['Nova solicitação','Solicitar FISPQ, ficha técnica, certificado, laudo, documento de produto ou outro documento ao SGQ.','new'],
       ['Minhas solicitações','Acompanhar os pedidos que você abriu e o andamento informado pelo SGQ.','mine'],
-      ['Documentos padrão','Cadastrar e controlar arquivos que podem ser entregues automaticamente.','standards'],
+      ['Consultar documentos','Pesquisar, abrir, editar e controlar os documentos padrão cadastrados.','standards'],
       ['Histórico de entregas','Consultar documentos padrão enviados automaticamente pelo portal.','deliveries'],
       ['Em análise','Pedidos sem documento padrão compatível que precisam de análise do SGQ.','doc_analysis'],
       ['Em preparação','Documentos que o SGQ está providenciando.','doc_preparation'],
       ['Prontos para entrega','Documentos concluídos e aguardando envio/entrega.','doc_ready'],
-      ['Histórico de solicitações','Consultar todas as solicitações e entregas registradas.','history']
+      ['Histórico de solicitações','Consultar todas as solicitações e entregas registradas.','history'],
+      ['Cadastrar documento','Cadastrar e anexar arquivos do computador ou do Drive.','register'],
+      ['Preparar e anexar documentos','Gerar documentos a partir dos modelos ou anexar arquivos já preparados.','prepare_docs']
     ]
   },
   processes:{
@@ -801,7 +803,8 @@ function nucleoActionNeedsCentralConfirmation(action, params={}){
   if(action==='nucleo_test_manual_actions')return ['save','delete'].includes(params.mode);
   if(action==='nucleo_test_ro_investigation')return !['list','photo'].includes(params.mode);
   if(action==='nucleo_test_save_triage'||action==='nucleo_test_correct_type')return true;
-  if(action==='nucleo_test_system_history')return false;
+  if(action==='nucleo_test_system_history'||action==='nucleo_test_docs_read')return false;
+  if(action==='nucleo_test_docs_mutation')return true;
   // O SAC é lido e confirmado pelo servidor, que valida o rascunho antes do envio.
   if(action==='portal_finalize_sac'&&params.id&&nucleoPersonFeatureCan('sac','finalize')){
     if(params.mode==='prepare')return false;
@@ -931,7 +934,7 @@ function portalJsonp(params,timeoutMs=60000,baseOverride='',options={}){
     const parts=[];
     const requestParams={...(params||{})};
     const actionName=String(requestParams.acao||'').toLowerCase();
-    if (!['nucleo_test_email','nucleo_test_mail_status','nucleo_test_personal_preferences','nucleo_test_integration','nucleo_test_integration_status','nucleo_test_load_part','nucleo_test_manual_actions','nucleo_test_ro_investigation','nucleo_test_save_triage','nucleo_test_correct_type','nucleo_test_system_history'].includes(actionName) &&
+    if (!['nucleo_test_email','nucleo_test_mail_status','nucleo_test_personal_preferences','nucleo_test_integration','nucleo_test_integration_status','nucleo_test_load_part','nucleo_test_manual_actions','nucleo_test_ro_investigation','nucleo_test_save_triage','nucleo_test_correct_type','nucleo_test_system_history','nucleo_test_standard_list','nucleo_test_docs_read'].includes(actionName) &&
         !nucleoTesteLeituraPermitida(actionName,requestParams)) {
       delete window[cb];
       reject(new Error('A base central está em modo de consulta. Para conferir um e-mail, use Enviar teste.'));
@@ -972,7 +975,7 @@ function portalJsonp(params,timeoutMs=60000,baseOverride='',options={}){
   });
 }
 function portalPostForm(params){
-  if (params?.acao !== 'portal_auth_v2' && !(params?.acao==='nucleo_test_ro_investigation'&&params.mode==='add')) return false;
+  if (params?.acao !== 'portal_auth_v2' && !(params?.acao==='nucleo_test_ro_investigation'&&params.mode==='add') && !['nucleo_test_standard_upload','nucleo_test_docs_mutation'].includes(params?.acao)) return false;
   params={...(params||{})};if(params.acao==='portal_upload_standard_document'){const metadata=JSON.parse(params.metadata||'{}');if(!metadata.unit&&!metadata.unidade)metadata.unit=getSession()?.role==='quality'?'filial':document.getElementById('ndStandardUnit')?.value||document.getElementById('qualityConfigUnit')?.value||explicitPortalUnit(getSession()?.unit);params.metadata=JSON.stringify(metadata);}
   const authToken=getSession()?.authToken;if(authToken&&!params.token)params.token=authToken;
   if(authToken && nucleoActionNeedsCentralConfirmation(params.acao,params) && !nucleoCentralDataConfirmed())return false;
@@ -1872,6 +1875,7 @@ function pendingTriageCount(){
 }
 
 function refreshMenuNotificationBadges(){
+  if(typeof refreshPendingPresentationMenu==='function')refreshPendingPresentationMenu();
   if(typeof refreshPendingPresentationView==='function')refreshPendingPresentationView();
   const s=getSession();
   if(!s)return;
@@ -10039,6 +10043,7 @@ function refreshViewedPdcaPresentation(){
   const meta=document.getElementById('pdcaPresentationMeta');
   const btn=document.getElementById('pdcaPresentBtn');
   if(!p || !badge || !meta || !btn)return;
+  btn.hidden=!isAdmin()||!nucleoPersonFeatureCan('pdca','present');
 
   let rec=getPdcaPresentationMap().get(String(p.id||''));
   if(!rec){
@@ -12654,7 +12659,7 @@ function openStandardDocumentCreate(){
   if(!isAdmin())return;
   const host=document.getElementById('adminModuleContent');if(!host)return;
   host.innerHTML=`<div style="grid-column:1/-1">
-    <button class="btn secondary" type="button" onclick="openAdminOperationalWorkspace('documents',2)">← Voltar aos documentos padrão</button>
+    <button class="btn secondary" type="button" onclick="renderStandardDocumentsWorkspace()">← Voltar aos documentos cadastrados</button>
     <div class="card" style="margin-top:14px;padding:20px">
       <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap">
         <div><b>Disponibilizar documento padrão</b><div class="small" style="margin-top:4px">Somente o SGQ/ADM cadastra ou substitui arquivos usados na entrega automática.</div></div>
@@ -12759,8 +12764,8 @@ function isAdminModulePending(r,key){
 function filterAdminModuleRecords(key,mode){
   let list=getAdminModuleRecords().filter(r=>r.module===key);
   const mine=normalizeAnswer(getSession()?.name||'');
-  if(key==='documents'&&!isAdmin())list=list.filter(r=>normalizeAnswer(r.createdBy||'')===mine);
-  if(mode==='mine')return list.filter(r=>normalizeAnswer(r.createdBy||'')===mine);
+  if(key==='documents'&&!isAdmin())list=list.filter(nucleoTestDocsOwnRequest);
+  if(mode==='mine')return key==='documents'?list.filter(nucleoTestDocsOwnRequest):list.filter(r=>normalizeAnswer(r.createdBy||'')===mine);
   if(mode==='active')return list.filter(r=>!['done','published'].includes(r.status));
   if(mode==='pending')return list.filter(r=>isAdminModulePending(r,key));
   if(mode==='capa')return list.filter(r=>r.capa==='yes');
@@ -12769,9 +12774,9 @@ function filterAdminModuleRecords(key,mode){
   if(mode==='review')return list.filter(r=>r.status==='review');
   if(mode==='approval')return list.filter(r=>r.status==='approval');
   if(mode==='published')return list.filter(r=>r.status==='published');
-  if(mode==='doc_analysis')return list.filter(r=>r.status==='doc_analysis');
+  if(mode==='doc_analysis')return list.filter(r=>['open','doc_analysis'].includes(r.status));
   if(mode==='doc_preparation')return list.filter(r=>r.status==='doc_preparation');
-  if(mode==='doc_ready')return list.filter(r=>r.status==='doc_ready');
+  if(mode==='doc_ready')return list.filter(r=>['ready','doc_ready'].includes(r.status));
   return list;
 }
 
@@ -13313,6 +13318,7 @@ function saveAdminOperationalRecord(key,id){
     if(!['matriz','filial'].includes(r.unit)){alert('Selecione a unidade do documento.');return}
     if(existing?.processAttachments?.length&&explicitRecordUnit(existing)!==r.unit){alert('Remova os anexos antes de mudar a unidade do documento.');return}
   }
+  if(key==='documents'){void nucleoTestDocsSaveRequest(r,existing);return;}
   if(key==='processes'){void nucleoSaveProcessRecordConfirmed(r);return;}
   let all=getAdminModuleRecords();
   const ix=all.findIndex(x=>String(x.id)===String(r.id));
@@ -14840,7 +14846,7 @@ async function nucleoSavePdcaPresented(pdca){
 
 async function nucleoMarkAssignedPresented(button){
   const pdca=findSentPdcaById(button.dataset.pdcaId);
-  if(!pdca||!nucleoPersonFeatureCan('pdca','present')||!canViewPdca(pdca))return;
+  if(!pdca||!isAdmin()||!nucleoPersonFeatureCan('pdca','present')||!canViewPdca(pdca))return;
   if(!confirm('Marcar a resposta da '+pdca.ro+' · '+(pdca.setor||'')+' como apresentada?'))return;
   button.disabled=true;
   try{
@@ -16991,7 +16997,8 @@ try{refreshDocumentRequestAccess()}catch(e){}
 function refreshDocumentRequestAccess(){
   const el=document.getElementById('navDocumentRequests');
   if(!el)return;
-  const allowed=canRequestDocuments();
+  const admin=isAdmin(),allowed=admin?['consult','standards','prepare','deliver','history'].some(f=>nucleoPersonFeatureCan('documents',f)):canRequestDocuments();
+  const label=el.querySelector('b'),detail=el.querySelector('small');if(label)label.textContent=admin?'Documentos':'Solicitação de Documentos';if(detail)detail.textContent=admin?'Cadastro, consulta e entregas':'Pedidos de documentos ao SGQ';
   if(allowed)el.style.removeProperty('display');else el.style.setProperty('display','none','important');
   el.classList.toggle('hidden',!allowed);
 }
@@ -17246,7 +17253,7 @@ function applySettingsUnitSelection(){
 
 // Módulo de arquivos carregado sob demanda.
 let nucleoDriveModulePromise=null;
-function nucleoDriveLoad(){if(typeof nucleoDriveShow==='function')return Promise.resolve();if(!nucleoDriveModulePromise)nucleoDriveModulePromise=new Promise((resolve,reject)=>{const script=document.createElement('script');script.src=new URL('assets/modules/drive-documents.js?v=20261117-apresentacao-v118',document.baseURI).href;const timer=setTimeout(()=>finish(new Error('Tempo limite ao carregar o módulo de arquivos. Tente novamente.')),20000);function finish(error){clearTimeout(timer);script.onload=script.onerror=null;if(error){script.remove();nucleoDriveModulePromise=null;reject(error);}else resolve();}script.onload=()=>finish();script.onerror=()=>finish(new Error('Não foi possível carregar o módulo de arquivos.'));document.head.appendChild(script);});return nucleoDriveModulePromise;}
+function nucleoDriveLoad(){if(typeof nucleoDriveShow==='function')return Promise.resolve();if(!nucleoDriveModulePromise)nucleoDriveModulePromise=new Promise((resolve,reject)=>{const script=document.createElement('script');script.src=new URL('assets/modules/drive-documents.js?v=20261125-fluxo-documentos',document.baseURI).href;const timer=setTimeout(()=>finish(new Error('Tempo limite ao carregar o módulo de arquivos. Tente novamente.')),20000);function finish(error){clearTimeout(timer);script.onload=script.onerror=null;if(error){script.remove();nucleoDriveModulePromise=null;reject(error);}else resolve();}script.onload=()=>finish();script.onerror=()=>finish(new Error('Não foi possível carregar o módulo de arquivos.'));document.head.appendChild(script);});return nucleoDriveModulePromise;}
 async function nucleoDriveOpen(tab){if(tab==='requests'&&!nucleoFeatureRequire('documents','prepare'))return;try{await nucleoDriveLoad();await nucleoDriveShow(tab);}catch(e){alert(e.message);}}
 function nucleoDriveSettingsShortcut(){
  const box=document.getElementById('nucleoSystemDriveFields');
@@ -17371,7 +17378,7 @@ async function nucleoOpenAttachedPdca(p){
     const attachment=await nucleoResolvePdcaAttachment(p);
     if(getSession()?.authToken!==token)return;
     // Só mantém o registro de apresentação quando o arquivo pertence ao registro aberto.
-    const canPresent=Boolean(p.externalPdf&&p.fileId===attachment.fileId);
+    const canPresent=Boolean(isAdmin()&&nucleoPersonFeatureCan('pdca','present')&&p.externalPdf&&p.fileId===attachment.fileId);
     return nucleoDriveOpenExternalPdf(attachment,canPresent);
   }catch(e){alert(e.message);}
 }
@@ -17525,7 +17532,7 @@ function nucleoCanOpenBudgets(user){
 }
 function nucleoRefreshBudgetsMenu(user=getSession()){
   const button=document.getElementById('navBudgets');
-  if(button)button.hidden=!nucleoCanOpenBudgets(user);
+  if(button){const allowed=nucleoCanOpenBudgets(user);button.hidden=!allowed;button.classList.toggle('hidden',!allowed);}
 }
 function nucleoOpenBudgets(){
   if(!nucleoCanOpenBudgets(getSession()))return;
@@ -17534,6 +17541,7 @@ function nucleoOpenBudgets(){
 function nucleoApplyPersonAccess(){
  const user=getSession();
  nucleoRefreshBudgetsMenu(user);
+ if(typeof refreshPendingPresentationMenu==='function')refreshPendingPresentationMenu();
  const catalog=document.getElementById('navMyAccess');
  if(catalog)catalog.hidden=!user||(!user.permissions&&!user.managedSectors?.length)||(nucleoPersonPermissions(user).sgq===true&&!user.managedSectors?.length);
  nucleoRefreshAuditMenu(user);
@@ -17545,7 +17553,7 @@ function nucleoApplyPersonAccess(){
   nucleoRefreshAccessConsultations(user);
   return;
  }
- const map={navRos:'ros',navAssignedRos:'ros',navMySubmittedRos:'ros',navTriage:'ros',navContests:'ros',navSent:'pdca',navPresentations:'pdca',navActions:'pdca',navPendingActions:'pdca',navExternalPdcas:'pdca',navExternalRoControl:'sac',navSacClassified:'sac',navMySacs:'sac',navSacTracking:'sac',navSimpleRework:'sac',navDocuments:'documents',navDocumentRequests:'documents',navIndicators:'indicators',navAnnouncements:'announcements',navEquipment:'equipment',navTraining:'training',navNcCapa:'nc',navProcesses:'processes'};
+ const map={navRos:'ros',navAssignedRos:'ros',navMySubmittedRos:'ros',navTriage:'ros',navContests:'ros',navSent:'pdca',navActions:'pdca',navPendingActions:'pdca',navExternalPdcas:'pdca',navExternalRoControl:'sac',navSacClassified:'sac',navMySacs:'sac',navSacTracking:'sac',navSimpleRework:'sac',navDocuments:'documents',navDocumentRequests:'documents',navIndicators:'indicators',navAnnouncements:'announcements',navEquipment:'equipment',navTraining:'training',navNcCapa:'nc',navProcesses:'processes'};
  Object.entries(map).forEach(([id,module])=>{const el=document.getElementById(id);if(!el)return;const allowed=nucleoPersonCan(module,id==='navTriage'||id==='navExternalRoControl'||id==='navSacClassified');if(!allowed){el.style.setProperty('display','none','important');el.classList.add('hidden');}else{el.style.removeProperty('display');el.classList.remove('hidden');}});
  nucleoApplyFeatureAccess();
  nucleoRefreshAccessConsultations(user);
@@ -17643,6 +17651,7 @@ function nucleoShowMyAccess(tab='permissions'){
 }
 
 function nucleoOpenDocumentMenu(){
+ if(isAdmin())return showAdminOperationalModule('documents');
  if(!getSession()?.permissions||nucleoPersonFeatureCan('documents','request')||nucleoPersonFeatureCan('documents','prepare')){
   return showAdminOperationalModule('documents');
  }
@@ -17776,13 +17785,13 @@ function nucleoFeatureEditor(user,parent){
 }
 function nucleoApplyFeatureAccess(){
  if(getSession()?.permissions?.detailVersion!==1)return;
- const nav={navRos:['ros','consult'],navAssignedRos:['ros','assigned'],navMySubmittedRos:['ros','submitted'],navTriage:['ros','triage'],navContests:['ros','reviewContests'],navSent:['pdca','received'],navPresentations:['pdca','present'],navActions:['pdca','actions'],navPendingActions:['pdca','reviewActions'],navExternalPdcas:['pdca','import'],navExternalRoControl:['sac','edit'],navSacClassified:['sac','edit'],navMySacs:['sac','consult'],navSacTracking:['sac','consult'],navSimpleRework:['sac','consult'],navDocuments:['documents','*'],navDocumentRequests:['documents','*'],navIndicators:['indicators','consult'],navAnnouncements:['announcements','*'],navEquipment:['equipment','*'],navTraining:['training','*'],navNcCapa:['nc','*'],navProcesses:['processes','*']};
+ const nav={navRos:['ros','consult'],navAssignedRos:['ros','assigned'],navMySubmittedRos:['ros','submitted'],navTriage:['ros','triage'],navContests:['ros','reviewContests'],navSent:['pdca','received'],navActions:['pdca','actions'],navPendingActions:['pdca','reviewActions'],navExternalPdcas:['pdca','import'],navExternalRoControl:['sac','edit'],navSacClassified:['sac','edit'],navMySacs:['sac','consult'],navSacTracking:['sac','consult'],navSimpleRework:['sac','consult'],navDocuments:['documents','*'],navDocumentRequests:['documents','*'],navIndicators:['indicators','consult'],navAnnouncements:['announcements','*'],navEquipment:['equipment','*'],navTraining:['training','*'],navNcCapa:['nc','*'],navProcesses:['processes','*']};
  Object.entries(nav).forEach(([id,[module,key]])=>{const el=document.getElementById(id);if(el&&!(id==='navMySubmittedRos'?(canConsultRoHistory()||nucleoPersonFeatureCan(module,key)):id==='navDocumentRequests'?['consult','request','prepare'].some(feature=>nucleoPersonFeatureCan(module,feature)):id==='navAnnouncements'?(nucleoPersonFeatureCan(module,'consult')||isAdmin()&&nucleoPersonFeatureCan(module,'publish')):key==='*'?nucleoPersonCan(module):nucleoPersonFeatureCan(module,key))){el.style.setProperty('display','none','important');el.classList.add('hidden');}});
 }
 
 function nucleoWorkspaceFeature(key,mode){
  const module=key==='nccapa'?'nc':key;
- const maps={documents:{new:'request',mine:'consult',standards:'standards',deliveries:'history',doc_analysis:'prepare',doc_preparation:'prepare',doc_ready:'deliver',history:'consult'},processes:{new:'edit',master:'consult',published:'consult',review:'review',pending:'review',history:'history',adopt:'edit',import:'edit',nomenclature:'edit',templates:'templates'},equipment:{new:'edit',active:'consult',pending:'pending',history:'history'},training:{new:'edit',active:'consult',pending:'pending',history:'history'},nccapa:{new_rnc:'edit',new_internal:'edit',active:'consult',history:'consult',suppliers:'edit',supplier_indicators:'consult'}};
+ const maps={documents:{new:'request',mine:'consult',standards:'standards',register:'standards',prepare_docs:'prepare',deliveries:'history',doc_analysis:'prepare',doc_preparation:'prepare',doc_ready:'deliver',history:'consult'},processes:{new:'edit',master:'consult',published:'consult',review:'review',pending:'review',history:'history',adopt:'edit',import:'edit',nomenclature:'edit',templates:'templates'},equipment:{new:'edit',active:'consult',pending:'pending',history:'history'},training:{new:'edit',active:'consult',pending:'pending',history:'history'},nccapa:{new_rnc:'edit',new_internal:'edit',active:'consult',history:'consult',suppliers:'edit',supplier_indicators:'consult'}};
  return [module,maps[key]?.[mode]||(key==='processes'?'':'consult')];
 }
 function nucleoWorkspaceAllowed(key,mode){const [module,feature]=nucleoWorkspaceFeature(key,mode);return nucleoPersonFeatureCan(module,feature);}
@@ -19454,3 +19463,69 @@ function openSimpleReworkTestStage(id){
 function simpleReworkExtraFields(r){
  return '<p>'+[['Dt. Entr. Alt.',r.entryDateAlt?formatDateBR(r.entryDateAlt):''],['Dt. Ent. Orig.',r.entryDateOriginal?formatDateBR(r.entryDateOriginal):''],['Cód. Cli.',r.clientCode],['Ped. Cliente',r.customerOrder],['Motivo',r.reason],['Origem',r.reworkOrigin]].map(([label,value])=>escapeHtml(label)+': '+escapeHtml(value||'—')).join('<br>')+'</p>';
 }
+
+// Documentos: gravações confirmadas exclusivamente no ambiente de teste.
+async function nucleoTestDocsOperation(mode,params={}){
+ const guard=e=>{e.preventDefault();e.returnValue='';};
+ window.addEventListener('beforeunload',guard);
+ try{return await withNucleoLoading('Aguarde a confirmação da base central de teste…',async()=>{
+  if(!nucleoCentralDataConfirmed())await nucleoRunFullSync({source:'manual',foreground:false,forceRos:false});
+  if(!nucleoCentralDataConfirmed())throw new Error('Sincronização não confirmada. Nenhuma alteração enviada.');
+  await nucleoDriveLoad();
+  return nucleoDriveMutation('nucleo_test_docs_mutation',{mode,...params});
+ },'Documentos');}finally{window.removeEventListener('beforeunload',guard);}
+}
+function nucleoTestDocsApplyHistory(r){if(r){const all=getDocumentDeliveries().filter(d=>d.id!==r.id);safeStorageSet(DOCUMENT_DELIVERIES_KEY,JSON.stringify([r,...all]));}}
+function nucleoTestDocsApplyRequest(r){
+ if(!r)return;
+ const all=getAdminModuleRecordsRaw().filter(x=>x.id!==r.id);saveAdminModuleRecords([r,...all]);
+}
+async function nucleoTestDocsSaveRequest(r,existing){
+ const form=document.getElementById('adminModuleContent');if(!existing&&form){const signature=JSON.stringify([r.unit,r.title,r.code,r.product,r.description,r.language,r.recipientEmail,r.order,r.invoice,r.quantity,r.action,r.dueDate]);if(form._docRequestSignature===signature)r.id=form._docRequestId;else{form._docRequestSignature=signature;form._docRequestId=r.id;}}
+ try{
+  const result=await nucleoTestDocsOperation(existing?'request_update':'request',{id:r.id,data:JSON.stringify(r)});
+  nucleoTestDocsApplyRequest(result.record);nucleoTestDocsApplyHistory(result.history);
+  if(form){delete form._docRequestId;delete form._docRequestSignature;}
+  alert(existing?'Alteração confirmada.':result.record?.testDelivery?'Solicitação registrada. Entrega automática simulada no teste; nenhum e-mail real enviado.':'Solicitação registrada e encaminhada ao SGQ no ambiente de teste.');
+  showAdminOperationalModule('documents');
+ }catch(e){alert(e.message);}
+}
+function nucleoTestDocsEditStandard(id){
+ const d=getStandardDocuments().find(x=>x.id===id);if(!d||!isAdmin())return;
+ openStandardDocumentCreate();
+ const set=(key,value)=>{const el=document.getElementById(key);if(el)el.value=value??'';};
+ set('ndStandardUnit',d.unit);document.getElementById('ndStandardUnit').disabled=true;
+ document.getElementById('stdDocCode').innerHTML=documentTypeOptions(d.unit,d.code);
+ [['stdDocName','name'],['stdDocVersion','version'],['stdDocValidUntil','validUntil'],['stdDocProduct','productCode'],['stdDocLanguage','language'],['stdDocReviewDays','reviewDays'],['stdDocDescription','description']].forEach(([k,v])=>set(k,d[v]));
+ document.getElementById('stdDocFillable').checked=!!d.fillable;
+ const btn=document.getElementById('stdDocSave');btn.dataset.editId=d.id;btn.textContent='Salvar alterações';
+ document.getElementById('ndStandardDriveName').textContent='Arquivo atual: '+(d.fileName||'—')+'. Selecione outro somente para substituir.';
+}
+async function nucleoTestDocsStandardChange(id,mode){
+ if(!isAdmin()||!nucleoFeatureRequire('documents','standards'))return;
+ if(mode==='standard_delete'&&!confirm('Excluir este cadastro da base de teste? O arquivo original do Drive será preservado.'))return;
+ try{const r=await nucleoTestDocsOperation(mode,{id});const list=getStandardDocuments().filter(d=>d.id!==id);saveStandardDocumentsLocal(r.record?[r.record,...list]:list);renderStandardDocumentsWorkspace();alert(mode==='standard_delete'?'Cadastro excluído da base de teste.':'Disponibilidade atualizada.');}catch(e){alert(e.message);}
+}
+async function nucleoTestDocsPreview(kind,id){
+ try{const r=await withNucleoLoading('Consultando arquivo na base central…',()=>portalJsonp({acao:'nucleo_test_docs_read',mode:'file',kind,id},90000),'Consultar documento');
+ if(!r?.sucesso||!r.base64)throw Error(r?.erro||'Arquivo indisponível.');
+ const bytes=Uint8Array.from(atob(r.base64),c=>c.charCodeAt(0)),url=URL.createObjectURL(new Blob([bytes],{type:r.mimeType||'application/octet-stream'}));
+ const pane=document.createElement('div');pane.style.cssText='position:fixed;inset:0;z-index:2147482000;background:#0008;display:grid;place-items:center;padding:20px';
+ const box=document.createElement('div');box.style.cssText='background:white;border-radius:14px;padding:18px;width:min(1000px,100%);max-height:94vh;overflow:auto';
+ const title=document.createElement('h3');title.textContent=r.fileName;box.append(title);
+ const a=document.createElement('a');a.className='btn primary';a.href=url;a.download=r.fileName;a.textContent='Baixar arquivo';box.append(a);
+ const close=document.createElement('button');close.className='btn secondary';close.textContent='Fechar';close.onclick=()=>{pane.remove();URL.revokeObjectURL(url);};box.append(close);
+ if(/^application\/pdf$|^image\//.test(r.mimeType)){const frame=document.createElement('iframe');frame.title=r.fileName;frame.src=url;frame.style.cssText='display:block;width:100%;height:70vh;border:1px solid #ddd;margin-top:12px';box.append(frame);}
+ else{const info=document.createElement('p');info.textContent='Baixe o arquivo para abrir no programa correspondente.';box.append(info);}
+ pane.append(box);document.body.append(pane);
+ }catch(e){alert(e.message);}
+}
+async function nucleoTestDocsOpenRequest(id){
+ const r=adminModuleRecord(id);if(!r||!isAdmin())return;
+ try{await nucleoDriveLoad();await nucleoDriveShow('requests');if(nucleoDriveState.unit!==r.unit){nucleoDriveState.unit=r.unit;document.getElementById('ndUnit').value=r.unit;await nucleoDriveRefresh();}const sel=document.getElementById('ndRequest');if(sel)sel.value=id;}catch(e){alert(e.message);}
+}
+
+toggleStandardDocument=id=>nucleoTestDocsStandardChange(id,'standard_toggle');
+deleteStandardDocument=id=>nucleoTestDocsStandardChange(id,'standard_delete');
+
+function nucleoTestDocsOwnRequest(r){const s=getSession()||{};return r.createdByPersonId?!!s.personId&&r.createdByPersonId===s.personId:r.createdByEmail?!!s.email&&String(r.createdByEmail).toLowerCase()===String(s.email).toLowerCase():!!s.name&&normalizeAnswer(r.createdBy||'')===normalizeAnswer(s.name);}
