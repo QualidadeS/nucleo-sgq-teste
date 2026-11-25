@@ -6312,7 +6312,7 @@ function renderSupplierIndicatorsWorkspace(){
 <script src="assets/modules-v2/indicators/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/modules-v2/announcements/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/team-load-local-v47.js?v=20261027-team-local-central"></script>
-<script src="assets/nucleo-app-teste-sac-submodulos-v179.js?v=20261125-investigacao-teste"></script>
+<script src="assets/nucleo-app-teste-sac-submodulos-v179.js?v=20261125-investigacao-teste-v2"></script>
 <script src="assets/ro-apresentacao.js?v=20261124"></script>
 <script src="assets/acoes-manuais.js?v=20261125-acoes-isoladas-teste"></script>
 <script src="assets/api-source-lock-teste-v171.js"></script>
@@ -8433,4 +8433,8 @@ html[data-nucleo-accent] .sidebar #modulePersonal .side-module-body .side-item.a
   ['fetch','portalJsonp','jsonpRequest','withNucleoLoading'].forEach(name=>wrap(name));
 })();
 </script>
-<script src="assets/ro-investigacao.js?v=20261125"></script></body></html>
+<dialog id="roInvestigationDialog" style="width:min(760px,calc(100% - 24px));max-height:85dvh;overflow:auto;border:1px solid var(--line);border-radius:14px;padding:18px;background:var(--card,#fff);color:inherit">
+  <form method="dialog" style="display:flex;justify-content:flex-end"><button class="btn secondary">Fechar</button></form>
+  <div id="roInvestigationDialogContent"></div>
+</dialog>
+<script src="assets/ro-investigacao.js?v=20261125-v2"></script></body></html>
