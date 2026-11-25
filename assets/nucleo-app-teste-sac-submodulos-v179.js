@@ -788,6 +788,9 @@ function nucleoSetCentralSyncState(status,message='',serverAt=''){
     confirmedAt:status==='synced'?new Date().toLocaleString('pt-BR'):(nucleoCentralSyncState.confirmedAt||'')
   };
   nucleoRenderCentralSyncState();
+  const msg=document.getElementById('syncMsg');if(msg&&status!=='synced'&&msg.classList.contains('okline')){
+    msg.classList.remove('okline');msg.textContent=status==='error'?'Confirmação geral da base central indisponível.':'Confirmando dados da base central…';
+  }
 }
 function nucleoRequireCentralData(action='continuar'){
   if(nucleoCentralDataConfirmed())return true;
@@ -879,6 +882,7 @@ function nucleoTesteLeituraPermitida(acao, p) {
   return acao === 'portal_metrology_email_preferences' && p.mode === 'get';
 }
 
+let nucleoManualActionReadProof=null;
 function portalJsonp(params,timeoutMs=60000,baseOverride='',options={}){
   return new Promise((resolve,reject)=>{
     const base=baseOverride||portalApiBase();
@@ -917,6 +921,9 @@ function portalJsonp(params,timeoutMs=60000,baseOverride='',options={}){
         nucleoAuthenticatedApi={token:requestParams.token,base};
       }
 
+      if(action==='nucleo_test_manual_actions'&&requestParams.mode==='list'&&data?.sucesso===true&&Array.isArray(data.records)&&requestParams.token&&current?.authToken===requestParams.token){
+        nucleoManualActionReadProof={token:requestParams.token,base,at:Date.now()};
+      }
       // Não encerra a sessão por causa de UMA resposta de sincronização.
       // Confirma primeiro o token em uma rota mínima e específica.
       if(
@@ -951,8 +958,11 @@ function portalJsonp(params,timeoutMs=60000,baseOverride='',options={}){
       && ['matriz','filial'].includes(requestParams.unit)
       && nucleoPersonFeatureCan('sectors','emails')
       && Object.keys(JSON.parse(String(requestParams.data||'{}'))||{}).join('')==='sacEmailRecipients';
+    const actionMutation=actionName==='nucleo_test_manual_actions'&&['save','delete','dependency_roles'].includes(requestParams.mode);
+    const actionReadConfirmed=actionMutation&&options.manualActionRead===true&&sessionToken&&nucleoManualActionReadProof?.token===sessionToken&&nucleoManualActionReadProof.base===base&&Date.now()-nucleoManualActionReadProof.at<30000&&navigator.onLine;
+    if(actionMutation&&actionReadConfirmed)nucleoManualActionReadProof=null;
     if(sessionToken && nucleoActionNeedsCentralConfirmation(actionName,requestParams)
-      && !integrationReadConfirmed && !recipientSave && !nucleoCentralDataConfirmed()){
+      && !integrationReadConfirmed && !recipientSave && !actionReadConfirmed && !nucleoCentralDataConfirmed()){
       cleanup();
       reject(new Error('Dados ainda não confirmados pela base central. Aguarde o indicador ficar verde e tente novamente.'));
       return;

@@ -9,6 +9,28 @@ async function loadUnifiedManualActions(){
   if(!r?.sucesso||!Array.isArray(r.records))throw new Error(r?.erro||'A base não confirmou as ações.');
   unifiedCentralActions=r.records;unifiedCentralToken=token;
 }
+async function unifiedConfirmedActionMutation(params,timeout=60000){
+ const token=getSession()?.authToken,base=nucleoSessionApiBase(token)||portalApiBase();
+ if(!token||!base||!navigator.onLine)throw Error('Entre novamente e conecte-se à base central de ações.');
+ const fresh=await portalJsonp({acao:'nucleo_test_manual_actions',mode:'list',token},60000,base);
+ if(getSession()?.authToken!==token)throw Error('A sessão mudou. Entre novamente.');
+ if(!fresh?.sucesso||!Array.isArray(fresh.records))throw Error(fresh?.erro||'A base central não confirmou as ações; nenhuma alteração foi enviada.');
+ const records=fresh.records,old=records.find(r=>r.id===params.id),version=r=>String(r?.updatedAt||r?.createdAt||'');
+ if(params.mode==='save'){
+  const incoming=JSON.parse(params.dados||'{}'),expected=String(incoming._manualExpected||'');
+  if(old&&version(old)===String(incoming.updatedAt||'')&&old.action===incoming.action)return {sucesso:true,registro:old};
+  if((old&&version(old)!==expected)||(!old&&expected))throw Error('A ação mudou na base central. Reabra a ação antes de salvar.');
+ }else if(params.mode==='delete'){
+  if(!old||version(old)!==String(params.manualExpected||''))throw Error('A ação mudou na base central. Reabra antes de excluir.');
+ }else if(params.mode==='dependency_roles'){
+  if(!old)throw Error('A ação não está mais disponível.');
+  const data=JSON.parse(params.dados||'{}'),group=old.groupId||old.id,children=records.filter(r=>r.groupId===group&&r.dependencySector===data.sector);
+  const expected=data.expected||[];
+  if(children.length!==expected.length||children.some(r=>!expected.some(v=>v.id===r.id&&String(v.updatedAt||'')===version(r))))throw Error('Os participantes da dependência mudaram. Reabra a ação.');
+ }
+ return portalJsonp({acao:'nucleo_test_manual_actions',...params,token},timeout,base,{manualActionRead:true});
+}
+
 async function saveUnifiedManualActions(list){
  const token=getSession()?.authToken;if(!token)throw new Error('Entre novamente.');
  const before=getUnifiedManualActions().slice();
@@ -22,7 +44,7 @@ async function saveUnifiedManualActions(list){
    unifiedCentralToken=token;unifiedCentralActions=unifiedCentralActions.filter(x=>x.id!==record.id).concat(result.registro);
  }
  for(const removed of before.filter(x=>!list.some(y=>y.id===x.id))){
-   const r=await portalJsonp({acao:'nucleo_test_manual_actions',mode:'delete',id:removed.id,manualExpected:removed.updatedAt||removed.createdAt||''},60000);
+   const r=await unifiedConfirmedActionMutation({mode:'delete',id:removed.id,manualExpected:removed.updatedAt||removed.createdAt||''},60000);
    if(!r?.sucesso)throw new Error(r?.erro||'A exclusão não foi confirmada.');
    unifiedCentralActions=unifiedCentralActions.filter(x=>x.id!==removed.id);
  }
@@ -32,11 +54,12 @@ async function confirmNewUnifiedManualAction(record,token){
   try{
     // As ações manuais são registros pequenos. Recebe a resposta da própria
     // gravação, em vez de enviar por iframe e depender de outro endpoint.
-    const response=await portalJsonp({acao:'nucleo_test_manual_actions',mode:'save',id:record.id,dados:JSON.stringify(record)},60000);
+    const response=await unifiedConfirmedActionMutation({mode:'save',id:record.id,dados:JSON.stringify(record)},60000);
     if(response?.sucesso!==true)throw new Error(response?.erro||'Gravação não confirmada.');
     if(response.registro?.id===record.id&&response.registro.updatedAt===record.updatedAt)return response;
   }catch(error){
     saveError=error;
+    if(/mudou na base central|não confirmou as ações|sessão mudou|não está mais disponível/i.test(String(error.message||error)))throw error;
   }
   for(let attempt=0;attempt<3;attempt++){
     if(getSession()?.authToken!==token)throw new Error('A sessão mudou. Entre novamente.');
@@ -955,7 +978,7 @@ async function distributeExistingActionParts(id,button){
   window.addEventListener('beforeunload',guard);
   await withNucleoLoading('Confirmando participantes por setor…',async()=>{
    for(const update of updates){
-    const r=await portalJsonp({acao:'nucleo_test_manual_actions',mode:'dependency_roles',id,dados:JSON.stringify(update)},90000);
+    const r=await unifiedConfirmedActionMutation({mode:'dependency_roles',id,dados:JSON.stringify(update)},90000);
     if(!r?.sucesso||!r.registro)throw Error(r?.erro||'A distribuição não foi confirmada.');
    }
    await loadUnifiedManualActions();
