@@ -6454,6 +6454,7 @@ function renderExternalRoControl(){
         <div class="small" style="margin-top:12px">Esta é uma R.O. externa. Só será criada como SAC se o SGQ indicar que há necessidade de atendimento ao cliente.</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
           <button class="btn secondary" type="button" onclick="openRoReport('${escapeHtml(r.ro)}')">Ver R.O.</button>
+          <button class="btn secondary" type="button" onclick="nucleoOpenRoInvestigation('${escapeHtml(r.ro)}')">Investigação / Industrialização</button>
           ${isAdmin()?`<button class="btn secondary" type="button" onclick="markExternalRoAsRoOnly('${escapeHtml(r.id)}')">Somente R.O.</button>
           <button class="btn primary" type="button" onclick="promoteExternalRoToSac('${escapeHtml(r.id)}')">Criar SAC</button>`:''}
         </div>
@@ -6505,6 +6506,7 @@ function renderExternalRoControl(){
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:14px">
         ${isAdmin()?`
           <button class="btn secondary" type="button" onclick="openRoReport('${escapeHtml(r.ro)}')">Ver R.O.</button>
+          <button class="btn secondary" type="button" onclick="nucleoOpenRoInvestigation('${escapeHtml(r.ro)}')">Investigação / Industrialização</button>
           <button class="btn secondary" type="button" onclick="correctSacRepresentative('${escapeHtml(r.id)}')">Corrigir representante</button>
           <button class="btn secondary" type="button" onclick="openSacEditModal('${escapeHtml(r.id)}')">Preencher ficha SAC</button>
           ${!isSimpleRework(r)&&sacHasFilledForm(r)?`<button class="btn secondary" type="button" onclick="openSacOfficialFormPreview('${escapeHtml(r.id)}')">Ver ficha SAC</button>`:''}
@@ -15166,7 +15168,7 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
     const pendingPdca=awaitingPresentation?getPdcaReturnForRo(r,pdcaByRo):null;
     const displayDecisionLabel=awaitingPresentation?'Aguardando apresentação':nucleoAssignedDecisionLabel(r,tri,displayStatus);
 
-    const viewRoAction=`<button class="ro-eye-btn" type="button" onclick="openRoReport('${escapeHtml(r.numero)}')" title="Visualizar R.O." aria-label="Visualizar R.O. ${escapeHtml(r.numero)}">👁</button>`;
+    const viewRoAction=`<button class="ro-eye-btn" type="button" onclick="openRoReport('${escapeHtml(r.numero)}')" title="Visualizar R.O." aria-label="Visualizar R.O. ${escapeHtml(r.numero)}">👁</button><button class="btn secondary" type="button" onclick="nucleoOpenRoInvestigation('${escapeHtml(r.numero)}')">Investigação</button>`;
     let operationalActions='';
     if(!admin){
       const respondDisabled=noPdca||contest||alreadySent;

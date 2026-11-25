@@ -21,7 +21,12 @@
     const valid=()=>sessionKey()===token&&host.contains(content);
     async function request(mode,params={}){
       const result=await portalJsonp({acao:route,mode,ro:key,...params},60000);
-      if(!result?.sucesso)throw new Error(result?.erro||'A base não confirmou a operação.');
+      if(!result?.sucesso){
+        if(result?.codigo==='TESTE_SOMENTE_LEITURA'||/consulta a base central|somente leitura/i.test(result?.erro||'')){
+          throw new Error('O Apps Script de teste ainda está numa versão anterior à investigação. Atualize Código.txt e publique uma nova versão na implantação de teste.');
+        }
+        throw new Error(result?.erro||'A base não confirmou a operação.');
+      }
       return result;
     }
     async function refresh(){
@@ -142,6 +147,13 @@
       return {photo,mime:'image/jpeg',name:file.name};
     }finally{bitmap.close();}
   }
+  window.nucleoOpenRoInvestigation=function(key){
+    const ro=findRoByAnyNumber(key);
+    if(!ro){alert('R.O. não localizada na base.');return;}
+    const modal=document.getElementById('roInvestigationDialog');
+    if(!modal.open)modal.showModal();
+    mount(document.getElementById('roInvestigationDialogContent'),ro);
+  };
   function install(name,after){
     const original=window[name];
     if(typeof original!=='function')return;
