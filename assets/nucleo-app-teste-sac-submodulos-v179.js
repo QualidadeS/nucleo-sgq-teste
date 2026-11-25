@@ -800,6 +800,8 @@ function nucleoActionNeedsCentralConfirmation(action, params={}){
   if(!action)return false;
   if(action==='nucleo_test_manual_actions')return ['save','delete'].includes(params.mode);
   if(action==='nucleo_test_ro_investigation')return !['list','photo'].includes(params.mode);
+  if(action==='nucleo_test_save_triage'||action==='nucleo_test_correct_type')return true;
+  if(action==='nucleo_test_system_history')return false;
   // O SAC é lido e confirmado pelo servidor, que valida o rascunho antes do envio.
   if(action==='portal_finalize_sac'&&params.id&&nucleoPersonFeatureCan('sac','finalize')){
     if(params.mode==='prepare')return false;
@@ -929,7 +931,7 @@ function portalJsonp(params,timeoutMs=60000,baseOverride='',options={}){
     const parts=[];
     const requestParams={...(params||{})};
     const actionName=String(requestParams.acao||'').toLowerCase();
-    if (!['nucleo_test_email','nucleo_test_mail_status','nucleo_test_personal_preferences','nucleo_test_integration','nucleo_test_integration_status','nucleo_test_load_part','nucleo_test_manual_actions','nucleo_test_ro_investigation'].includes(actionName) &&
+    if (!['nucleo_test_email','nucleo_test_mail_status','nucleo_test_personal_preferences','nucleo_test_integration','nucleo_test_integration_status','nucleo_test_load_part','nucleo_test_manual_actions','nucleo_test_ro_investigation','nucleo_test_save_triage','nucleo_test_correct_type','nucleo_test_system_history'].includes(actionName) &&
         !nucleoTesteLeituraPermitida(actionName,requestParams)) {
       delete window[cb];
       reject(new Error('A base central está em modo de consulta. Para conferir um e-mail, use Enviar teste.'));
@@ -5609,6 +5611,7 @@ function getExternalRoControls(){
   // "Somente R.O." continua salvo tecnicamente, mas some da visualização de SAC.
   const normalized=[...byRo.values()].filter(r=>
     sacIsCurrentCycle(r) &&
+    !/^RO-IN-/i.test(String(r.ro||'')) &&
     sacDecision(r)!=='ro_only'
   );
 
@@ -8214,24 +8217,7 @@ async function saveTriageRecord(){
   // corrigir um cadastro de outra unidade (ex.: Linhares) sem assumir a decisão.
   // Portanto não cria/edita SGQ_TRIAGENS, não altera setor, Status, PDCA ou decisão.
   if(decision==='unit_correction'){
-    if(!portalBackendEnabled())throw new Error('Apps Script não configurado.');
-    updateNucleoLoading('Corrigindo somente a unidade da R.O. na planilha...','Processando');
-    await portalUpdateRoSheetConfirmed(String(key).split('::')[0],{unidade:roUnitValue});
-    updateRoUnitLocal(key,roUnitValue);
-    try{
-      updateNucleoLoading('Relendo a R.O. após a correção...','Processando');
-      await syncImportedRosFromConfiguredSources({silent:true,force:true});
-    }catch(syncErr){
-      console.warn('[NUCLEO TRIAGEM] unidade corrigida, mas a releitura imediata falhou',syncErr);
-    }
-    closeTriageModal();
-    populateTriageUnits();
-    renderTriage();
-    try{render()}catch(e){}
-    try{refreshRoSummary()}catch(e){}
-    hideNucleoLoading(true);
-    alert('Unidade corrigida. Nenhuma decisão de triagem, setor, Status ou PDCA foi alterado.');
-    return;
+    throw new Error('A correção direta da unidade na planilha fica bloqueada no teste. Para industrialização, utilize a classificação em Complementos da investigação.');
   }
 
   const map=getSavedTriageMap();
@@ -8268,150 +8254,34 @@ async function saveTriageRecord(){
     map.set(recordKey,record);savedRecords.push(record);
   }
 
-  // A decisão fica registrada localmente IMEDIATAMENTE.
-  // Assim a R.O. deixa de contar como "A triar" assim que o SGQ salva.
-  localStorage.setItem(TRIAGE_KEY,JSON.stringify([...map.values()]));
-  applyTriageDecisionLocal(roNumber,decision,savedRecords,roUnitValue);
-
-  try{renderTriage()}catch(e){}
-  try{refreshRoSummary()}catch(e){}
-  try{refreshMenuNotificationBadges()}catch(e){}
-
-  const syncWarnings=[];let centralTriageSaved=true;
-
-  // Depois sincroniza com a planilha/base central.
-  // Se a planilha estiver lenta/indisponível, a decisão local continua válida
-  // e o usuário recebe um AVISO, não fica preso no carregamento.
-  for(const record of savedRecords){
-    if(portalBackendEnabled()){
-      updateNucleoLoading('Atualizando a linha de '+(record.responsibleSector||roNumber)+' na planilha...','Processando');
-
-      try{
-        await Promise.race([
-          portalUpdateRoSheetConfirmed(roNumber,{
-            unidade:roUnitValue,
-            setor:record.responsibleSector||'',
-            setorAnterior:record.previousResponsibleSector||record.responsibleSector||'',
-            pessoa:decision==='directed'?(record.responsibleUserName||'Todo o setor'):'',
-            status:decision==='directed'?'Enviado':decision==='record'?(decisionRule.id==='falta_caixa'?'Falta de caixa':'Registro'):decision==='obsolete'?'Obsoleto':'Cancelada'
-          }),
-          new Promise((_,reject)=>setTimeout(()=>reject(new Error('Tempo excedido ao atualizar a planilha.')),18000))
-        ]);
-      }catch(syncErr){
-        console.warn('[NUCLEO TRIAGEM] decisão salva localmente, mas planilha não confirmou',syncErr);
-        syncWarnings.push(
-          'A planilha não confirmou a atualização: '+
-          String(syncErr?.message||syncErr||'erro não informado')
-        );
-      }
-
-      try{await portalBackendSaveConfirmed('triage',record.roKey,record);}catch(error){centralTriageSaved=false;syncWarnings.push('A base central não confirmou a classificação e o setor: '+error.message);}
-
-      const deletedKeys=getDeletedTriageKeys();
-      if(deletedKeys.delete(String(record.roKey||'')))saveDeletedTriageKeys(deletedKeys);
-    }
+  // No teste, a decisão é confirmada na coleção isolada antes de alterar a tela.
+  updateNucleoLoading('Confirmando triagem na base de teste...','Processando');
+  if(!nucleoCentralDataConfirmed()){
+    const confirmed=await nucleoRunFullSync({source:'manual',foreground:false});
+    if(!confirmed||!nucleoCentralDataConfirmed())throw new Error('Sincronização não confirmada: '+nucleoCentralSyncState.message);
   }
-
-  // Se um setor foi alterado pelo lápis, a chave antiga (RO::setor-antigo)
-  // também precisa sair da base central. Caso contrário o próximo portal_load
-  // traz o direcionamento antigo de volta e a tela parece "se desatualizar".
-  const newKeys=new Set(savedRecords.map(r=>String(r.roKey||'')));
-  const obsoleteKeys=previousRecords
-    .map(r=>String(r.roKey||''))
-    .filter(oldKey=>oldKey && !newKeys.has(oldKey));
-  for(const oldKey of obsoleteKeys){
-    if(portalBackendEnabled()){
-      updateNucleoLoading('Removendo o direcionamento anterior da base central...','Processando');
-      if(!centralTriageSaved)continue;
-      try{await nucleoDeleteTriageConfirmed(oldKey);const deletedKeys=getDeletedTriageKeys();deletedKeys.add(String(oldKey));saveDeletedTriageKeys(deletedKeys);}
-      catch(error){syncWarnings.push('A base central não confirmou a remoção do direcionamento anterior: '+error.message);}
-    }
-  }
-
-  localStorage.setItem(TRIAGE_KEY,JSON.stringify([...map.values()]));
-
-  updateRoUnitLocal(key,roUnitValue);
-
-  // A interface já foi atualizada localmente. A releitura completa da planilha
-  // acontece em segundo plano e não mantém o usuário preso no carregamento.
-  setTimeout(()=>{
-    syncImportedRosFromConfiguredSources({silent:true,force:true})
-      .then(()=>{
-        try{renderTriage()}catch(e){}
-        try{refreshRoSummary()}catch(e){}
-        try{refreshMenuNotificationBadges()}catch(e){}
-      })
-      .catch(syncErr=>console.warn('[NUCLEO TRIAGEM] releitura em segundo plano falhou',syncErr));
-  },300);
-
+  const token=getSession()?.authToken;
+  const result=await portalJsonp({acao:'nucleo_test_save_triage',ro:roNumber,
+    editKey:currentEditingTriageKey||'',dados:JSON.stringify(savedRecords)},90000);
+  if(getSession()?.authToken!==token)throw new Error('A sessão mudou. Entre novamente.');
+  if(result?.sucesso!==true||!Array.isArray(result.records))throw new Error(result?.erro||'A base de teste não confirmou a triagem.');
+  const confirmedMap=getSavedTriageMap();
+  for(const old of getTriageRecordsForRoNumber(roNumber,confirmedMap))confirmedMap.delete(String(old.roKey||''));
+  for(const record of result.records)confirmedMap.set(record.roKey,record);
+  safeStorageSet(TRIAGE_KEY,JSON.stringify([...confirmedMap.values()]));
+  applyTriageDecisionLocal(roNumber,decision,result.records,roUnitValue);
   closeTriageModal();
   populateTriageSectors();
   populateTriageUnits();
   renderTriage();
-
-  const roListView=document.getElementById('roListView');
-  if(roListView && !roListView.classList.contains('hidden')){
-    try{render()}catch(e){}
-  }
-  try{refreshRoSummary()}catch(e){}
-
-  const indicatorView=document.getElementById('sgqIndicatorsView');
-  if(indicatorView && !indicatorView.classList.contains('hidden')){
-    try{renderSgqIndicators()}catch(e){}
-  }
-
-  if(decision==='directed'){
-    const triageRo=getAllRoRecords().find(r=>String(r.numero||r.id||r.codigo||'').split('::')[0]===roNumber)||{};
-    const emailErrors=[];
-    let totalSent=0;
-    try{
-      updateNucleoLoading('Enviando os e-mails por setor…','Processando');
-      const result=await portalJsonp({acao:'portal_send_directed_ro_email',ro:roNumber,setor:savedRecords[0]?.responsibleSector||'',unidade:roUnitValue||triageRo.unidade||'',tipoRO:triageRo.tipoRO||triageRo.tipo||'',cliente:triageRo.cliente||'',registrante:triageRo.registrante||'',assignments:JSON.stringify(savedRecords.map(record=>({sector:record.responsibleSector,email:record.responsibleUserEmail||'',reason:'Motivo do direcionamento: '+(record.assignmentReason||'Não informado')+'. É necessário analisar a ocorrência e responder o PDCA.'})))},90000);
-      if(!Array.isArray(result?.results))throw new Error(result?.erro||'Atualize a implantação do Apps Script para a revisão 55.');
-      totalSent=result.results.filter(r=>r.sucesso).length;
-      result.results.filter(r=>!r.sucesso).forEach(r=>emailErrors.push(r.sector+': '+r.erro));
-    }catch(err){emailErrors.push(err.message||String(err));}
-    for(const record of savedRecords){
-      const sec=record.responsibleSector,email=record.responsibleUserEmail||'';
-      createNotification({type:'ro',skipEmail:true,audience:email?'user':'sector',userKey:email,sector:sec,ro:roNumber,unidade:roUnitValue||triageRo.unidade||'',title:'R.O. direcionada para tratativa',message:'A '+roNumber+' foi direcionada para '+sec+'. Motivo: '+(record.assignmentReason||'Não informado')+'.'});
-      notifyManagersOfDirectedRo(roNumber,sec,{...triageRo,unidade:roUnitValue||triageRo.unidade},record.responsibleUserName);
-    }
-    try{await refreshEmailHistory()}catch(_){ }
-
-    hideNucleoLoading(true);
-
-    const avisos=[...syncWarnings];
-    if(emailErrors.length)avisos.push('Falha em alguns e-mails: '+emailErrors.join(' | '));
-
-    alert(
-      'Triagem concluída com sucesso. '+savedRecords.length+' setor(es) direcionado(s) e '+totalSent+' e-mail(s) enviado(s).'+
-      (avisos.length?'\n\nAviso: '+avisos.join(' | '):'')
-    );
-  }else{
-    hideNucleoLoading(true);
-
-    const decisionLabel=decisionRule.label||triageDecisionLabel(decision);
-
-    alert(
-      'Triagem concluída com sucesso.\n\n'+
-      roNumber+' — '+decisionLabel+
-      (note?'\nMotivo: '+note:'')+
-      (syncWarnings.length?'\n\nAviso: '+syncWarnings.join(' | '):'')
-    );
-  }
+  try{render()}catch(e){}
+  try{refreshRoSummary();refreshMenuNotificationBadges()}catch(e){}
+  hideNucleoLoading();
+  alert('Triagem confirmada no ambiente de teste. '+(decision==='directed'?savedRecords.length+' setor(es) direcionado(s). Use Enviar teste para conferir o e-mail.':'Decisão registrada.'));
   } catch(err) {
-    console.error('[NUCLEO TRIAGEM] falha ao concluir triagem',err);
-    hideNucleoLoading(true);
-
-    alert(
-      'Não foi possível concluir toda a sincronização da triagem.\n\n'+
-      String(err?.message||err||'Falha desconhecida.')+
-      '\n\nA decisão já foi mantida localmente para não continuar aparecendo como “A triar”.'
-    );
-
-    try{renderTriage()}catch(e){}
-    try{refreshRoSummary()}catch(e){}
-    try{refreshMenuNotificationBadges()}catch(e){}
+    console.error('[NÚCLEO TRIAGEM] falha ao confirmar triagem de teste',err);
+    hideNucleoLoading();
+    alert('Triagem não confirmada. '+String(err?.message||err||'Falha desconhecida.')+' Confira a base antes de tentar novamente.');
   } finally {
     nucleoTriageSaving=false;
     hideNucleoLoading(true);
@@ -11944,7 +11814,7 @@ function compactRoForStorage(r){
   });
 
   [
-    '__origemBase','__ehSac','__numeroPlanilha','__numeroApp','__unidade','__descricaoProblema',
+    '__origemBase','__ehSac','__numeroPlanilha','__numeroApp','__unidade','__descricaoProblema','__numeroOrigem','__origemOriginal','__correcaoTipo','__industrializacao','__unidadeOrigem',
     '__setorResponsavel','__pessoaResponsavel','__pdcaReclamanteData',
     '__acaoPreventiva','__prazoConclusaoAcao','__statusOperacional',
     '__dataEnvioOperacional','__resultadoOperacional'
@@ -12286,7 +12156,8 @@ async function loadOfficialRosPaged(settings,onProgress){
     await new Promise(resolve=>setTimeout(resolve,0));
   }
   if(all.length!==total)throw new Error('A leitura terminou com registros faltando. Tente sincronizar novamente.');
-  return {...meta,quantidade:total,quantidadeInterna:internas,quantidadeExterna:externas,dados:all,__syncMode:'paged'};
+  const actualInternas=all.filter(r=>r.__origemBase==='Interna').length;
+  return {...meta,quantidade:total,quantidadeInterna:actualInternas,quantidadeExterna:all.length-actualInternas,dados:all,__syncMode:'paged'};
 }
 async function refreshLegacyRoCacheFromApi(force=false){
   if(nucleoRoCentralRefreshPromise)return nucleoRoCentralRefreshPromise;
@@ -18721,6 +18592,7 @@ async function nucleoOpenSistemaTeste() {
   }
   view('nucleoSistemaView');
   if(opening)void refreshEmailHistory();
+  if(typeof window.nucleoRenderOperationHistory==='function')void window.nucleoRenderOperationHistory();
   setNav('sistema');
   document.getElementById('crumbCurrent').textContent = 'Sistema';
   const tableIds = ['nucleoSistemaLogins','nucleoSistemaChanges','nucleoSistemaErrors','nucleoSistemaUsers'];
