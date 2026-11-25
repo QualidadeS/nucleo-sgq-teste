@@ -550,7 +550,8 @@ function openAdminOperationalWorkspace(key,index){
           <td>${escapeHtml(adminModuleDate(r.dueDate))}</td>
           <td><span class="pill">${escapeHtml(adminModuleStatusLabel(r.status))}</span></td>
           <td><div style="display:flex;gap:7px;flex-wrap:wrap">
-            <button class="btn secondary" type="button" onclick="editAdminOperationalRecord('${escapeHtml(r.id)}')">Abrir</button>
+            ${key==='documents'?nucleoDocumentListOpenButton(r):''}
+            <button class="btn secondary" type="button" onclick="editAdminOperationalRecord('${escapeHtml(r.id)}')">${key==='documents'?'Detalhes':'Abrir'}</button>
             ${key==='nccapa'&&r.ncType==='supplier'?`<button class="btn danger" type="button" onclick="deleteAdminOperationalRecord('${escapeHtml(r.id)}')">Excluir RNC</button>`:''}
           </div></td>
         </tr>`).join('')}
@@ -1583,4 +1584,16 @@ function nucleoInstallDocumentRequestCatalog(){
   if(lang&&chosen?.dataset.language&&Array.from(lang.options).some(o=>o.value===chosen.dataset.language)){lang.value=chosen.dataset.language;autoLanguage=lang.value;}
  });
  type.addEventListener('change',refresh);unit.addEventListener('change',refresh);retry.onclick=refresh;refresh();
+}
+
+// Abre o arquivo entregue diretamente na lista, usando a mesma consulta autenticada.
+function nucleoDocumentListOpenButton(r){
+ if(!r||!nucleoPersonFeatureCan('documents','consult'))return '';
+ const staff=isAdmin(),done=r.status==='done',ready=['doc_ready','ready'].includes(r.status);
+ if(!done&&!(staff&&ready))return '';
+ if(!staff&&!nucleoTestDocsOwnRequest(r))return '';
+ const history=done?(r.testDeliveryId||getDocumentDeliveries().filter(d=>d.requestId===r.id&&d.unit===r.unit&&d.fileId).sort((a,b)=>String(b.deliveredAt||b.sentAt||'').localeCompare(String(a.deliveredAt||a.sentAt||'')))[0]?.id):'';
+ const kind=history?'delivery':'requested',id=history||r.generatedDocumentId;
+ if(!id)return '';
+ return `<button class="btn primary" type="button" onclick="nucleoTestDocsPreview('${kind}','${escapeHtml(id)}')">Abrir documento</button>`;
 }
