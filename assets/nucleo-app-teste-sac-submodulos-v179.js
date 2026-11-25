@@ -906,6 +906,7 @@ function portalJsonp(params,timeoutMs=60000,baseOverride='',options={}){
           nucleoSistemaRegistrarErro(err?'Comunicação com a API':'Resposta de erro da API',actionName);
         }
       }
+      if(err||data?.sucesso===false)nucleoNoteUrlFetchQuota(err||data.erro||data.error);
       if(err)reject(err); else resolve(data);
     }
 
@@ -1390,6 +1391,16 @@ function applyPortalBackendSnapshot(snapshot){
   if(el)el.textContent=now;
   return true;
 }
+let nucleoUrlFetchQuotaUntil=0;
+function nucleoIsUrlFetchQuota(error){
+ const msg=String(error?.message||error||'');
+ return /url\s*fetch/i.test(msg)&&/muitas vezes no mesmo dia|too many times for one day|too many times per day|daily quota|cota diária|daily limit|quota exceeded/i.test(msg);
+}
+function nucleoNoteUrlFetchQuota(error){
+ if(!nucleoIsUrlFetchQuota(error))return false;
+ nucleoUrlFetchQuotaUntil=Date.now()+60*60*1000;
+ return true;
+}
 function nucleoSyncDetail(error){
   if(!navigator.onLine)return 'O dispositivo está sem conexão.';
   if(error?.name==='QuotaExceededError')return 'O armazenamento do navegador atingiu o limite ao salvar os dados.';
@@ -1416,6 +1427,10 @@ async function syncPortalBackend(showMessage=false,options={}){
 }
 async function loadPortalBackend(showMessage,options,load){
   const {token}=load;
+  if(Date.now()<nucleoUrlFetchQuotaUntil&&!options.foreground&&!showMessage){
+    nucleoSetCentralSyncState('error','Cota diária do Apps Script (UrlFetch) atingida. Atualização automática pausada; tente manualmente após a renovação da cota.');
+    return false;
+  }
   if(!portalBackendEnabled()){
     if(showMessage)alert('Configure primeiro a URL do Apps Script em Administração → Integração.');
     updateBackendStatus(false,'Apps Script não configurado.');
@@ -1457,7 +1472,18 @@ async function loadPortalBackend(showMessage,options,load){
       updateBackendStatus(null,'Sincronizando '+label+'...');
 
       const syncBase=nucleoSessionApiBase(token)||portalApiBase();
-      const res=await portalJsonp({acao:'nucleo_test_load_part',parte:part},90000,syncBase);
+      let res;
+      for(let attempt=0;attempt<2;attempt++){
+        try{
+          res=await portalJsonp({acao:'nucleo_test_load_part',parte:part},90000,syncBase);
+          if(!res||res.sucesso!==true)throw new Error(res?.erro||res?.error||'A base não confirmou a etapa.');
+          break;
+        }catch(error){
+          if(nucleoNoteUrlFetchQuota(error)||attempt===1||!navigator.onLine||getSession()?.authToken!==token)throw error;
+          if(!/HTTP (408|429|5[0-9]{2})|tempo limite|timeout|não conseguiu carregar/i.test(String(error.message||error)))throw error;
+          await new Promise(resolve=>setTimeout(resolve,900));
+        }
+      }
       if(getSession()?.authToken!==token)return false;
       if(!res||res.sucesso===false)throw new Error(res?.erro||res?.error||'A base não confirmou a etapa.');
       if(!res.dados||typeof res.dados!=='object'||Array.isArray(res.dados)){
@@ -1493,6 +1519,7 @@ async function loadPortalBackend(showMessage,options,load){
       }
     }
 
+    nucleoUrlFetchQuotaUntil=0;
     nucleoSetCentralSyncState('synced','Base central confirmada. Os dados em tela estão atualizados.',lastUpdated);
     updateBackendStatus(true,'Base central conectada.');
 
@@ -1527,7 +1554,7 @@ async function loadPortalBackend(showMessage,options,load){
     return true;
   }catch(e){
     if(getSession()?.authToken!==token)return false;
-    const detail=stage+' — '+nucleoSyncDetail(e);
+    const detail=stage+' — '+(nucleoNoteUrlFetchQuota(e)?'Cota diária do Apps Script (UrlFetch) atingida. A atualização automática foi pausada. Nenhuma confirmação geral foi registrada.':nucleoSyncDetail(e));
     nucleoSetCentralSyncState('error',detail);
     updateBackendStatus(false,detail);
     if(showMessage)alert('Não foi possível sincronizar: '+detail);
@@ -8783,6 +8810,7 @@ function nucleoAutoSyncIfDue(force=false){
   try{
     if(!getSession()?.authToken||document.visibilityState==='hidden'||nucleoFullSyncPromise||portalBackendSyncInProgress||nucleoRoCentralRefreshPromise||syncNow.inProgress)return;
     const now=Date.now();
+    if(now<nucleoUrlFetchQuotaUntil)return;
     if(!force && now-__nucleoLastAutoSyncAttempt<300000)return;
     __nucleoLastAutoSyncAttempt=now;
     syncPortalBackend(false);
@@ -12153,6 +12181,7 @@ async function nucleoRunFullSync(options={}){
   const foreground=!!options.foreground;
   const forceRos=options.forceRos!==false;
   const source=String(options.source||'auto');
+  if(source!=='manual'&&Date.now()<nucleoUrlFetchQuotaUntil)return false;
 
   if(nucleoFullSyncPromise && nucleoFullSyncToken===token){
     return nucleoFullSyncPromise;
@@ -12207,7 +12236,7 @@ async function nucleoRunFullSync(options={}){
       // Depois de confirmar a configuração central, prioriza as planilhas.
       let centralOk=false;
       let centralError='';
-      for(let attempt=1;attempt<=3;attempt++){
+      for(let attempt=1;attempt<=1;attempt++){
         if(getSession()?.authToken!==token)return false;
 
         try{
@@ -12224,10 +12253,7 @@ async function nucleoRunFullSync(options={}){
         centralError=nucleoCentralSyncState.status==='error'
           ? nucleoCentralSyncState.message : centralError;
         if(!navigator.onLine)break;
-        if(attempt<3){
-          if(status)status.textContent=(centralError||'A base central não confirmou os dados.')+' Nova tentativa em andamento…';
-          await new Promise(resolve=>setTimeout(resolve,attempt*500));
-        }
+        
       }
 
       if(!centralOk){
