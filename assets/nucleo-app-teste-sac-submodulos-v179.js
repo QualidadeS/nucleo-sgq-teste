@@ -502,7 +502,7 @@ function pendingHubData(){
       return true;
     });
 
-  const actions=actionDashboardItems().filter(x=>x.status.code!=='done');
+  const actions=actionDashboardItems().filter(x=>x.status.code!=='done'&&x.participantRole!=='Ciência');
   const contests=getContestations().filter(c=>c.status==='pending'&&(admin||sameSector(c.sector)));
 
   // Mantém a fila "Aguardando triagem" coerente com renderTriage().
