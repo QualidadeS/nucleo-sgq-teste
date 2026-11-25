@@ -3049,6 +3049,7 @@ function setSession(data){
   queueMicrotask(() => {
     nucleoPersonalSessionChanged();
     nucleoSistemaAtualizarMenu();
+    nucleoRefreshBudgetsMenu(data);
     if (data?.authToken && getSession()?.authToken === data.authToken) {
       void nucleoSistemaEnviar('portal_sistema_access');
     }
@@ -17516,8 +17517,23 @@ function nucleoPersonCan(module,manage=false){
  return p.modules[module]?.[manage?'manage':'view']===true;
 }
 function nucleoPersonUnits(user){return Array.isArray(user.accessUnits)?user.accessUnits:user.role==='admin'?['matriz','filial']:user.role==='quality'?['filial']:[explicitPortalUnit(user.unit)||'matriz'];}
+function nucleoCanOpenBudgets(user){
+  if(!user?.authToken)return false;
+  const sectors=[user.sector,...(user.managedSectors||[]),
+    ...(user.sectorMemberships||[]).map(m=>m.sector)];
+  return sectors.some(sector=>/^comercial(?:$|[\s-])/.test(normalizeAnswer(sector||'')));
+}
+function nucleoRefreshBudgetsMenu(user=getSession()){
+  const button=document.getElementById('navBudgets');
+  if(button)button.hidden=!nucleoCanOpenBudgets(user);
+}
+function nucleoOpenBudgets(){
+  if(!nucleoCanOpenBudgets(getSession()))return;
+  window.open('https://central-de-orcamentos-seta.onrender.com/','_blank','noopener,noreferrer');
+}
 function nucleoApplyPersonAccess(){
  const user=getSession();
+ nucleoRefreshBudgetsMenu(user);
  const catalog=document.getElementById('navMyAccess');
  if(catalog)catalog.hidden=!user||(!user.permissions&&!user.managedSectors?.length)||(nucleoPersonPermissions(user).sgq===true&&!user.managedSectors?.length);
  nucleoRefreshAuditMenu(user);
@@ -18800,7 +18816,7 @@ async function nucleoSavePersonalSettings(){
   }
 }
 function nucleoPersonalMenuIds(){
-  return ['navRos','moduleRo','moduleSac','modulePersonal','navDocumentRequests','moduleManagement',
+  return ['navRos','moduleRo','moduleSac','navBudgets','modulePersonal','navDocumentRequests','moduleManagement',
     'navEquipment','navTraining','navNcCapa','navProcesses','navUsersConsult','navSectorsConsult',
     'navAudit5s','navIndicators','navAnnouncements'];
 }
