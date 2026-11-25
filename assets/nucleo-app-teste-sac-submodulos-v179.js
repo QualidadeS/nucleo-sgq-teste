@@ -31,7 +31,7 @@ function nucleoLoadAdminModule(){
   if(nucleoAdminModulePromise)return nucleoAdminModulePromise;
   nucleoAdminModulePromise=new Promise((resolve,reject)=>{
     const script=document.createElement('script');
-    script.src=new URL('assets/modules/admin-workspaces.js?v=20261125-fluxo-documentos',document.baseURI).href;
+    script.src=new URL('assets/modules/admin-workspaces.js?v=20261125-catalogo-documentos',document.baseURI).href;
     const timer=setTimeout(()=>finish(new Error('Tempo limite ao carregar o módulo.')),20000);
     function finish(error){clearTimeout(timer);script.onload=script.onerror=null;if(error){script.remove();nucleoAdminModulePromise=null;reject(error)}else resolve();}
     script.onload=()=>finish();
@@ -13296,6 +13296,13 @@ function saveAdminOperationalRecord(key,id){
   const existing=id?adminModuleRecord(id):null;
   const r=collectAdminModuleForm(key,existing);
   if(key==='equipment'&&!['matriz','filial'].includes(r.unit)){alert('Selecione a unidade do equipamento.');return;}
+  if(key==='documents'&&!existing&&!isAdmin()){
+    const selection=document.getElementById('ndRequestDocument');
+    if(!r.code||!selection||selection.disabled||!selection.value){alert('Escolha a categoria e um documento disponível, ou selecione Não encontrei o documento.');return;}
+    r.requestedStandardId=selection.value==='__other__'?'':selection.value;
+    r.catalogChoice=selection.value==='__other__'?'other':'document';
+    r.title=r.requestedStandardId?selection.selectedOptions[0].dataset.title:standardDocumentTypeLabel(r.code,r.unit)+' — solicitação ao SGQ';
+  }
   if(!r.title){alert('Informe o título/nome principal do registro.');return}
   if(key==='nccapa'&&r.ncType==='supplier'){
     if(!r.supplier){alert('Informe o fornecedor da RNC.');return}
@@ -19481,7 +19488,7 @@ function nucleoTestDocsApplyRequest(r){
  const all=getAdminModuleRecordsRaw().filter(x=>x.id!==r.id);saveAdminModuleRecords([r,...all]);
 }
 async function nucleoTestDocsSaveRequest(r,existing){
- const form=document.getElementById('adminModuleContent');if(!existing&&form){const signature=JSON.stringify([r.unit,r.title,r.code,r.product,r.description,r.language,r.recipientEmail,r.order,r.invoice,r.quantity,r.action,r.dueDate]);if(form._docRequestSignature===signature)r.id=form._docRequestId;else{form._docRequestSignature=signature;form._docRequestId=r.id;}}
+ const form=document.getElementById('adminModuleContent');if(!existing&&form){const signature=JSON.stringify([r.unit,r.title,r.code,r.requestedStandardId,r.catalogChoice,r.product,r.description,r.language,r.recipientEmail,r.order,r.invoice,r.quantity,r.action,r.dueDate]);if(form._docRequestSignature===signature)r.id=form._docRequestId;else{form._docRequestSignature=signature;form._docRequestId=r.id;}}
  try{
   const result=await nucleoTestDocsOperation(existing?'request_update':'request',{id:r.id,data:JSON.stringify(r)});
   nucleoTestDocsApplyRequest(result.record);nucleoTestDocsApplyHistory(result.history);
