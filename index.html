@@ -3546,6 +3546,11 @@ html[data-nucleo-theme="dark"] :is(.side-item,.small,.help,.crumbs,.label){color
   </nav>
 
   <section class="settings-block" id="nucleoOperationHistory">
+    <style>
+      #nucleoOperationHistory .system-table table { table-layout: auto; }
+      #nucleoOperationHistory :is(th, td):nth-child(-n+4) { width: 1%; }
+      #nucleoOperationHistory :is(th, td):nth-child(2) { white-space: nowrap; overflow-wrap: normal; word-break: normal; }
+    </style>
     <h3>Histórico completo de operações</h3>
     <div class="actions">
       <label>Data <input type="date" id="nucleoOperationHistoryDay"></label>
@@ -8450,4 +8455,4 @@ html[data-nucleo-accent] .sidebar #modulePersonal .side-module-body .side-item.a
   <form method="dialog" style="display:flex;justify-content:flex-end"><button class="btn secondary">Fechar</button></form>
   <div id="roInvestigationDialogContent"></div>
 </dialog>
-<script src="assets/ro-investigacao.js?v=20261125-v2"></script><script src="assets/ro-tipo-historico.js?v=20261125"></script></body></html>
+<script src="assets/ro-investigacao.js?v=20261125-v2"></script><script src="assets/ro-tipo-historico.js?v=20261126-historico-resumido"></script></body></html>
