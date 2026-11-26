@@ -998,7 +998,7 @@ function portalJsonp(params,timeoutMs=60000,baseOverride='',options={}){
   });
 }
 function portalPostForm(params){
-  if (params?.acao !== 'portal_auth_v2' && !(params?.acao==='nucleo_test_ro_investigation'&&params.mode==='add') && !['nucleo_test_standard_upload','nucleo_test_docs_mutation'].includes(params?.acao)) return false;
+  if (params?.acao !== 'portal_auth_v2' && !(params?.acao==='nucleo_test_ro_investigation'&&params.mode==='add') && !['nucleo_test_standard_upload','nucleo_test_docs_mutation','nucleo_test_pdca_review'].includes(params?.acao)) return false;
   params={...(params||{})};if(params.acao==='portal_upload_standard_document'){const metadata=JSON.parse(params.metadata||'{}');if(!metadata.unit&&!metadata.unidade)metadata.unit=getSession()?.role==='quality'?'filial':document.getElementById('ndStandardUnit')?.value||document.getElementById('qualityConfigUnit')?.value||explicitPortalUnit(getSession()?.unit);params.metadata=JSON.stringify(metadata);}
   const authToken=getSession()?.authToken;if(authToken&&!params.token)params.token=authToken;
   if(authToken && nucleoActionNeedsCentralConfirmation(params.acao,params) && !nucleoCentralDataConfirmed())return false;
@@ -8742,8 +8742,61 @@ function pdcaQualityIssues(){
   const visibleIds=new Set(pdcaQuestions.map(([id])=>id));
   return issues.filter(issue=>visibleIds.has(issue.id)||issue.id==='extra');
 }
+let pdcaGeminiReview=null;
+function pdcaReviewQuestions(){
+  return pdcaQuestions.map(([id,question,guidance])=>({
+    id,question,guidance,answer:id==='p13'
+      ? [answers.p13,answers.sectorResponsibilities].filter(Boolean).join(' — ')
+      : String(answers[id]||'').trim()
+  })).filter(item=>item.answer);
+}
+function pdcaReviewKey(questions){
+  return JSON.stringify([getSession()?.authToken,selected?.numero,questions]);
+}
+function currentPdcaGeminiIssues(){
+  return pdcaGeminiReview?.key===pdcaReviewKey(pdcaReviewQuestions()) ? pdcaGeminiReview.issues : null;
+}
+async function analyzePdcaWithGemini(button){
+  if(!nucleoFeatureRequire('pdca','respond')||button.disabled)return;
+  const feedback=document.getElementById('pdcaGeminiStatus');
+  const questions=pdcaReviewQuestions();
+  if(!questions.length){feedback.textContent='Preencha pelo menos uma resposta para revisar.';return;}
+  const key=pdcaReviewKey(questions);
+  if(pdcaGeminiReview?.key===key){runPdcaQualityCheck(true);return;}
+  const requestId=crypto.randomUUID();
+  const token=getSession()?.authToken;
+  button.disabled=true;
+  feedback.textContent='Gemini está revisando as respostas…';
+  try{
+    if(!portalPostForm({acao:'nucleo_test_pdca_review',requestId,data:JSON.stringify(questions)}))
+      throw Error('Não foi possível iniciar a revisão. Sincronize o Núcleo e tente novamente.');
+    const deadline=Date.now()+95000;
+    while(Date.now()<deadline){
+      await new Promise(resolve=>setTimeout(resolve,2500));
+      if(token!==getSession()?.authToken)return;
+      const result=await portalJsonp({acao:'nucleo_test_pdca_review_status',requestId},10000).catch(()=>null);
+      if(!result||result.pending)continue;
+      if(!result.sucesso)throw Error(result.erro||'Gemini não concluiu a revisão.');
+      if(key!==pdcaReviewKey(pdcaReviewQuestions())){
+        feedback.textContent='As respostas mudaram durante a revisão. Clique para revisar a versão atual.';
+        return;
+      }
+      pdcaGeminiReview={key,issues:result.issues};
+      feedback.textContent='Revisão do Gemini concluída.';
+      runPdcaQualityCheck(true);
+      return;
+    }
+    throw Error('A revisão demorou mais que o esperado. Tente novamente.');
+  }catch(error){
+    feedback.textContent=error.message||'Gemini está indisponível.';
+  }finally{button.disabled=false;}
+}
 function runPdcaQualityCheck(scrollToFirst=false){
-  const issues=pdcaQualityIssues(),box=document.getElementById('pdcaQualityList'),sum=document.getElementById('pdcaQualitySummary');
+  const reviewed=currentPdcaGeminiIssues();
+  const issues=reviewed??pdcaQualityIssues(),box=document.getElementById('pdcaQualityList'),sum=document.getElementById('pdcaQualitySummary');
+  const feedback=document.getElementById('pdcaGeminiStatus');
+  if(feedback&&!document.getElementById('pdcaGeminiButton')?.disabled)
+    feedback.textContent=reviewed?'Revisão do Gemini concluída.':'Clique em Revisar com Gemini para analisar as respostas em contexto.';
   setTimeout(()=>{try{refreshPdcaInlineAlerts()}catch(e){}},0);
   const allIds=stages.flatMap(s=>s.items.map(x=>x[0]));
   const answered=allIds.filter(id=>String(answers[id]||'').trim()).length;
@@ -16384,7 +16437,7 @@ function showAssignedRos(){
   setNav('plan');
 }
 function pdcaIssueForQuestion(id){
-  return pdcaQualityIssues().filter(x=>x.id===id);
+  return (currentPdcaGeminiIssues()??pdcaQualityIssues()).filter(x=>x.id===id);
 }
 function pdcaIssueHtml(x){
   const items=(x.items||[]).map(v=>`<li>${escapeHtml(v)}</li>`).join('');
