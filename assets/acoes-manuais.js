@@ -134,9 +134,14 @@ function unifiedActionCanCreateFor(mode,targetUser=''){
   }
   return mode==='self';
 }
+function unifiedIsSgq(){
+  const session=getSession();
+  return !!session&&nucleoPersonPermissions(session).sgq===true;
+}
+
 function unifiedActionCanSee(record){
   if(!record)return false;
-  if(isAdmin())return true;
+  if(unifiedIsSgq()||isAdmin())return true;
   const me=unifiedCurrentUserKey();
   if(unifiedSharedExecutors(record).includes(me)||unifiedSharedObservers(record).includes(me))return true;
   if(String(record.createdByKey||'').toLowerCase()===me)return true;
@@ -736,13 +741,20 @@ async function deleteUnifiedManualAction(id){
 }
 
 function actionDashboardItems(){
-  const sent=getAllSentPdcas();const admin=isAdmin();const items=[];
+  const sgq=unifiedIsSgq();
+  const admin=isAdmin(),items=[];
+  const previousScope=nucleoManagerRendering;
+  let sent;
+  try{
+    if(sgq)nucleoManagerRendering=false;
+    sent=getAllSentPdcas();
+  }finally{nucleoManagerRendering=previousScope;}
 
   // Ações originadas de PDCA.
   sent.forEach(p=>{
     allPdcaActionsForRecord(p).forEach(a=>{
       const assigned=parseResponsibleSectors(a.responsibleSectors?.length?a.responsibleSectors:a.owner);
-      const visible=admin||assigned.some(s=>normalizeAnswer(s)===normalizeAnswer(currentSector())||(isManager()&&managesSector(s)));
+      const visible=sgq||admin||assigned.some(s=>normalizeAnswer(s)===normalizeAnswer(currentSector())||(isManager()&&managesSector(s)));
       if(!visible)return;
       const pseudo={...p,answers:{...(p.answers||{}),p11:a.action,p12:a.deadline,p13:a.owner},acaoConferidaEm:a.completedAt||a.acaoConferidaEm};
       const status=inferActionStatus(pseudo);
@@ -774,7 +786,7 @@ function actionDashboardItems(){
   const me=unifiedCurrentUserKey();
   manualActions.filter(a=>{
     if(!unifiedActionCanSee(a))return false;
-    if(!a.dependencySector)return true;
+    if(sgq||!a.dependencySector)return true;
     // A gestão acompanha as partes na ação principal.
     // A fila operacional contém apenas as atribuições do próprio responsável.
     return admin?!mainGroups.has(a.groupId):unifiedSharedExecutors(a).includes(me)||unifiedSharedObservers(a).includes(me);
@@ -782,7 +794,7 @@ function actionDashboardItems(){
     const status=unifiedManualActionStatus(a);
     items.push({
       source:a.source==='self'?'self':'assigned',
-      sourceLabel:a.source==='self'?'Pessoal':'Atribuída',
+      sourceLabel:a.dependencySector?'Dependência':a.source==='self'?'Pessoal':'Atribuída',
       id:a.actionCode||unifiedActionCodePrefix(a.ro)+legacySequences.get(a.id),
       createdAt:a.createdAt||'',
       type:a.type||'Ação',
@@ -821,7 +833,7 @@ function populateActionsSectorFilter(){
   const items=actionDashboardItems();
   const current=sel.value||'all';
 
-  if(!isAdmin()&&!isManager()){
+  if(!unifiedIsSgq()&&!isAdmin()&&!isManager()){
     wrap.style.display='none';
   }else{
     wrap.style.display='';
@@ -882,7 +894,7 @@ function renderActionsDashboard(){
   const urgencyFilter=document.getElementById('actionsUrgencyFilter')?.value||'all';
 
   const counts={pending:0,overdue:0,review:0,done:0};
-  items.forEach(x=>{ if(x.participantRole!=='Ciência'&&counts[x.status.code]!==undefined) counts[x.status.code]++; });
+  items.forEach(x=>{ if((unifiedIsSgq()||x.participantRole!=='Ciência')&&counts[x.status.code]!==undefined) counts[x.status.code]++; });
   ['sumPending','sumOverdue','sumReview','sumDone'].forEach((id,i)=>{
     const key=['pending','overdue','review','done'][i];
     const el=document.getElementById(id);if(el)el.textContent=counts[key]||0;
@@ -893,7 +905,7 @@ function renderActionsDashboard(){
     if(originFilter!=='all' && x.source!==originFilter)return false;
     if(urgencyFilter!=='all' && normalizeAnswer(x.urgency)!==normalizeAnswer(urgencyFilter))return false;
     if(personFilter!=='all' && ![x.responsavel,...(x.manualAction?.executors||[]).map(u=>u.name)].some(n=>normalizeAnswer(n)===normalizeAnswer(personFilter)))return false;
-    if((isAdmin()||isManager()) && sectorFilter!=='all' && !(x.responsibleSectors||[]).some(s=>normalizeAnswer(s)===normalizeAnswer(sectorFilter)))return false;
+    if((unifiedIsSgq()||isAdmin()||isManager()) && sectorFilter!=='all' && !(x.responsibleSectors||[]).some(s=>normalizeAnswer(s)===normalizeAnswer(sectorFilter)))return false;
     if(search){
       const hay=normalizeAnswer([
         x.id,x.sourceLabel,x.type,x.project,x.ro,x.subject,x.setor,x.acao,x.responsavel,
@@ -918,7 +930,7 @@ function renderActionsDashboard(){
     <td><b>${escapeHtml(x.id||'—')}</b><div class="small">${escapeHtml(x.ro||'—')}</div></td>
     <td><div class="action-main-text action-summary-text">${escapeHtml(x.acao)}</div></td>
     <td>${escapeHtml(x.responsavel)}<div class="small">${escapeHtml(x.setor)}${x.participantRole?' · '+escapeHtml(x.participantRole):''}</div></td>
-    <td><span class="action-pill ${x.status.code}">${escapeHtml(x.status.label)}</span></td>
+    <td><span class="action-pill ${x.status.code}">${escapeHtml(x.status.label)}</span>${unifiedIsSgq()&&x.prazo&&!['-','—'].includes(x.prazo)?'<div class="small">Prazo: '+escapeHtml(x.prazo)+'</div>':''}</td>
     <td><button class="btn secondary" type="button" data-action-consult="${index}">Consultar</button></td>
   </tr>`).join(''):'<tr><td colspan="5" style="text-align:center;padding:24px">Nenhuma ação encontrada nesta visão.</td></tr>';
   body.querySelectorAll('[data-action-consult]').forEach(button=>{
@@ -1051,7 +1063,7 @@ function showActionsDashboard(){
     populateActionsSectorFilter();
     const scope=document.getElementById('actionsScopeLabel');
     if(scope){
-      scope.textContent=isAdmin()
+      scope.textContent=unifiedIsSgq()
         ?'SGQ · todas as ações'
         :isManager()
           ?'Gestor · minhas + liderados'
