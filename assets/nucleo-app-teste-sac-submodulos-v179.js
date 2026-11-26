@@ -8539,57 +8539,30 @@ function pdcaQualityIssues(){
     const n=norm(v);
     return /\b(previst|programad|planejad|agendad|nao inici|não inici|a iniciar|pendente|em andamento|andamento|parcial|em execucao|em execução|iniciad|conclu|finaliz|realiz|cancelad|suspens|aguardando)\w*/i.test(n);
   };
-  const causalDepth=(v)=>{
-    const n=norm(v);
-    const connectors=(n.match(/\b(porque|pois|devido|devido a|por causa|ocorre porque|acontece porque|isso leva|isso ocorre|faz com que|resulta|decorrente|causado)\b/g)||[]).length;
-    const separators=(v.match(/(?:->|→|;|\n|\d+\s*[\.\-\)])/g)||[]).length;
-    const clauses=v.split(/[.;\n]/).filter(x=>x.trim().length>8).length;
-    return connectors+separators+(clauses>=3?1:0);
-  };
 
   // PLAN
-  if(text('p1') && tooShort(text('p1'),15))
-    add('p1','O problema ainda está pouco definido.',[
-      'Descreva o que aconteceu de forma objetiva.',
-      'Informe qual foi o desvio observado.',
-      'Evite colocar a solução neste campo.'
-    ],'Ex.: “Foram expedidos itens em quantidade diferente da solicitada no pedido.”');
+  if(text('p1')){
+    const description=norm(text('p1')).normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    const missing=[];
+    if(!/\b(?:na|no|em|durante|linha|etapa|setor|maquina|turno|unidade)\b/.test(description))
+      missing.push('Onde acontece? Informe o setor, a etapa ou o equipamento.');
+    if(!/\b(?:diari\w*|semanal\w*|mensal\w*|ocasional\w*|sempre|raramente|frequent\w*|reinciden\w*|vez(?:es)?|por (?:turno|lote|dia|semana|mes)|todo(?:s)? (?:os )?(?:dia|turno|lote)s?)\b/.test(description))
+      missing.push('Com que frequência acontece? Informe quantas vezes ou em quais situações se repete.');
+    if(!/\b(?:retrabalh\w*|atras\w*|refug\w*|descart\w*|reprov\w*|perd\w*|prejuiz\w*|impact\w*|parad\w*|devolu\w*|reclam\w*|consequen\w*|ger\w*|imped\w*)\b/.test(description))
+      missing.push('Qual é o impacto? Explique o prejuízo ou a dificuldade que o desvio gera.');
+    if(missing.length)add('p1','Confira o que ainda falta na descrição do problema.',missing);
+  }
 
-  if(text('p2') && tooShort(text('p2'),12))
-    add('p2','O impacto ainda está pouco explicado.',[
-      'Diga qual consequência o problema gera para o cliente, processo ou empresa.',
-      'Se souber, complemente com retrabalho, atraso, custo, perda, risco ou outra consequência.'
-    ],'Ex.: “Gera retrabalho, atraso na entrega e necessidade de reposição do pedido.”');
-
-  if(text('p3') && tooShort(text('p3'),3))
-    add('p3','O local ou processo precisa ser identificado.',[
-      'Informe o setor, etapa, equipamento, linha ou ponto do processo onde o problema ocorre.'
-    ],'Ex.: “Expedição, na etapa de separação dos pedidos.”');
-
-  if(text('p4') && !hasFrequency(text('p4')))
-    add('p4','A frequência ainda não está clara.',[
-      'Informe quantas vezes ocorre ou qual é a periodicidade observada.',
-      'Pode escrever números por extenso ou usar termos como diariamente, semanalmente, por lote ou ocasionalmente.',
-      'Não precisa ter um número exato se ele não for conhecido.'
-    ],'Ex.: “Acontece umas cinco a seis vezes por semana.”');
-
-  if(text('p5') && tooShort(text('p5'),18))
-    add('p5','A análise de possíveis causas pode ser aprofundada.',[
-      'Registre mais de uma hipótese quando houver.',
-      'Considere os grupos do 5M que realmente se aplicam ao caso.',
-      'Não é obrigatório preencher todos os 5M.'
-    ],'Ex.: “Método: não há conferência final. Mão de obra: orientação não padronizada.”');
-
-  if(text('p6')){
-    const v=text('p6');
-    // Só alerta se a resposta for curta ou parecer mera lista de causas sem aprofundamento.
-    if(tooShort(v,35) || (causalDepth(v)===0 && v.split(/\s+/).length<18))
-      add('p6','O raciocínio dos 5 Porquês pode ser aprofundado.',[
-        'Explique por que as causas citadas acontecem.',
-        'Vá aprofundando até chegar a uma origem que possa ser tratada.',
-        'Você não precisa escrever literalmente “por quê?” cinco vezes; o importante é mostrar a sequência de causa e origem.',
-        'Se já houver uma sequência lógica na resposta, mantenha-a e apenas complemente os pontos que ainda ficaram sem explicação.'
-      ],'Ex.: “A contagem falha porque não existe uma etapa formal de conferência; isso ocorre porque o fluxo atual libera o pedido direto após a separação.”');
+  if(text('p5')){
+    const causes=text('p5').split(/\n|;/).map(item=>item.trim()).filter(Boolean);
+    const hasReason=cause=>/\b(?:porque|pois|devid[oa]|por causa|quando|ocorre por|acontece por)\b/i.test(cause);
+    const hasEffect=cause=>/\b(?:leva a|faz com que|resulta|provoca|gera|causa|reduz|afeta|compromete|prejudica)\b/i.test(cause);
+    const missing=[];
+    if(causes.some(cause=>!hasReason(cause)))
+      missing.push('Por que cada hipótese pode ocorrer? Descreva a condição concreta por trás de cada uma.');
+    if(causes.some(cause=>!hasEffect(cause)))
+      missing.push('Como cada hipótese contribui para o desvio? Explique o efeito no processo ou no produto.');
+    if(missing.length)add('p5','Confira o que ainda falta nas possíveis causas.',missing);
   }
 
   if(text('p7') && tooShort(text('p7'),10))
@@ -15188,7 +15161,7 @@ function badgeClass(status){if(status==="Em contestação")return"badge warn";if
     const pendingPdca=awaitingPresentation?getPdcaReturnForRo(r,pdcaByRo):null;
     const displayDecisionLabel=awaitingPresentation?'Aguardando apresentação':nucleoAssignedDecisionLabel(r,tri,displayStatus);
 
-    const viewRoAction=`<button class="ro-eye-btn" type="button" onclick="openRoReport('${escapeHtml(r.numero)}')" title="Visualizar R.O." aria-label="Visualizar R.O. ${escapeHtml(r.numero)}">👁</button><button class="btn secondary" type="button" onclick="nucleoOpenRoInvestigation('${escapeHtml(r.numero)}')">Investigação</button>`;
+    const viewRoAction=`<button class="ro-eye-btn" type="button" onclick="openRoReport('${escapeHtml(r.numero)}')" title="Visualizar R.O." aria-label="Visualizar R.O. ${escapeHtml(r.numero)}">👁</button>${nucleoPersonPermissions(getSession()||{}).sgq===true?`<button class="btn secondary" type="button" onclick="nucleoOpenRoInvestigation('${escapeHtml(r.numero)}')">Investigação</button>`: ''}`;
     let operationalActions='';
     if(!admin){
       const respondDisabled=noPdca||contest||alreadySent;
