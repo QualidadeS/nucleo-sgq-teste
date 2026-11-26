@@ -296,6 +296,15 @@ function loadPdcaDraftForRo(ro){
     return false;
   }
   answers={...(draft.answers||{})};
+  if(!answers.consolidatedQuestions){
+    const groups={p1:{p2:'Impacto',p3:'Local',p4:'Frequência'},p5:{p6:'Por que ocorre'},p8:{p9:'Prazo da meta',p10:'Situação da meta'},d1:{d2:'Verificação da compreensão',d3:'Status do treinamento'},a1:{a2:'Acompanhamento'}};
+    for(const [target,oldFields] of Object.entries(groups)){
+      const extra=Object.entries(oldFields).filter(([id])=>String(answers[id]||'').trim())
+        .map(([id,label])=>label+': '+answers[id]);
+      if(extra.length)answers[target]=[answers[target],...extra].filter(Boolean).join('\n');
+    }
+    answers.consolidatedQuestions='sim';
+  }
   pdcaExtraActions=Array.isArray(draft.actions)?draft.actions.map(x=>({...x})):[];
   return true;
 }
@@ -376,11 +385,13 @@ function updateExtraActionResponsibleSectors(id){
 function renderPdcaResponsibleSectorQuestion(it,stage,global,answered){
   return `<div class="question" style="border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin-bottom:12px;background:#fff">
     <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">
-      <div class="small" style="font-weight:700">Pergunta ${global} de 26 · ${stage.name}</div>
+      <div class="small" style="font-weight:700">Pergunta ${global} de ${pdcaQuestions.length} · ${stage.name}</div>
       <span class="status-badge ${answered?'answered':''}">${answered?'Respondida':'Obrigatória'}</span>
     </div>
     <h4 style="margin:7px 0 4px">${it[1]}</h4>
-    <p style="margin:0;color:#667085">Selecione todos os setores que precisam executar ou acompanhar esta ação.</p>
+    <p style="margin:0;color:#667085">${escapeHtml(it[2])}</p>
+    <label class="small" for="pdcaSectorResponsibilities">Responsabilidade de cada setor</label>
+    <textarea id="pdcaSectorResponsibilities" oninput="answers.sectorResponsibilities=this.value;schedulePdcaDraftSave()">${escapeHtml(answers.sectorResponsibilities||'')}</textarea>
     <div class="small" style="margin-top:7px;padding:9px 10px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc">
       Cada setor selecionado receberá a ação como pendência. Setores adicionais poderão contestar a participação; o SGQ decidirá se a vinculação permanece.
     </div>
@@ -8593,15 +8604,16 @@ function pdcaQualityIssues(){
       add('p8','A resposta parece descrever uma ação, e não o resultado da meta.',[
         'Informe qual resultado se espera alcançar.',
         'Inclua uma forma de medir esse resultado, como quantidade, percentual, índice, frequência ou redução esperada.',
-        'Não precisa colocar prazo aqui; existe uma pergunta específica para o prazo da meta.',
+        'Inclua a data ou o período para alcançar a meta.',
         'A forma de executar a melhoria deve ficar na pergunta da ação.'
       ],'Ex.: “Reduzir em 80% as divergências na expedição.”');
     else if(!hasMeasure(v))
       add('p8','A meta ainda não mostra claramente como o resultado será medido.',[
         'Indique qual resultado permitirá verificar se a melhoria funcionou.',
         'Pode ser quantidade, percentual, índice, frequência, tempo ou eliminação/redução do problema.',
-        'Não precisa colocar prazo neste campo.'
+        'Inclua a data ou o período para alcançar a meta.'
       ],'Ex.: “Reduzir as divergências para no máximo 2 ocorrências por mês.”');
+    if(!hasDateOrPeriod(v))add('p8','Informe até quando a meta deve ser atingida.',['Inclua uma data ou um prazo mensurável.']);
   }
 
   if(text('p9') && !hasDateOrPeriod(text('p9')))
@@ -8749,14 +8761,15 @@ function pdcaQualityIssues(){
       ]);
   });
 
-  return issues;
+  const visibleIds=new Set(pdcaQuestions.map(([id])=>id));
+  return issues.filter(issue=>visibleIds.has(issue.id)||issue.id==='extra');
 }
 function runPdcaQualityCheck(scrollToFirst=false){
   const issues=pdcaQualityIssues(),box=document.getElementById('pdcaQualityList'),sum=document.getElementById('pdcaQualitySummary');
   setTimeout(()=>{try{refreshPdcaInlineAlerts()}catch(e){}},0);
   const allIds=stages.flatMap(s=>s.items.map(x=>x[0]));
   const answered=allIds.filter(id=>String(answers[id]||'').trim()).length;
-  if(sum)sum.textContent=issues.length?answered+'/26 respondidas · '+issues.length+' ponto(s) para revisar.':answered+'/26 respondidas · Nenhum alerta de qualidade encontrado.';
+  if(sum)sum.textContent=issues.length?answered+'/'+pdcaQuestions.length+' respondidas · '+issues.length+' ponto(s) para revisar.':answered+'/'+pdcaQuestions.length+' respondidas · Nenhum alerta de qualidade encontrado.';
   if(box)box.innerHTML=issues.length?issues.slice(0,10).map(x=>`<div class="pdca-quality-item warn">${pdcaIssueHtml(x)}</div>`).join(''):'<div class="pdca-quality-item ok">✓ As respostas preenchidas passaram nas verificações automáticas atuais.</div>';
   if(scrollToFirst&&issues[0]?.id&&issues[0].id!=='extra'){
     const target=stages.findIndex(s=>s.items.some(i=>i[0]===issues[0].id));
@@ -9678,7 +9691,7 @@ function getPdcaPrintAttachments(p){
 
 function pdcaPrintQuestionLines(keys,answers,labels){
   return keys.map((k,i)=>{
-    const answer=String(answers[k]??'').trim()||'—';
+    const answer=(k==='p13'?[answers.p13,answers.sectorResponsibilities].filter(Boolean).join('\n'):String(answers[k]??'')).trim()||'—';
     return `<div class="pdca-answer-line"><b>${i+1}. ${pdcaPrintEsc(labels[k])}</b><span class="pdca-answer-value">${pdcaPrintEsc(answer)}</span></div>`;
   }).join('');
 }
@@ -9770,25 +9783,25 @@ function renderPdcaPrintDocument(p){
         <section class="pdca-q pdca-q-act">
           <div class="pdca-q-head">ACT (AGIR)</div>
           <div class="pdca-q-watermark">A</div>
-          <div class="pdca-q-body">${pdcaPrintQuestionLines(['a1','a2','a3','a4'],a,labels)}</div>
+          <div class="pdca-q-body">${pdcaPrintQuestionLines(pdcaReportKeys('act',p),a,pdcaReportLabels(labels,p))}</div>
         </section>
 
         <section class="pdca-q pdca-q-plan">
           <div class="pdca-q-head">PLAN (PLANEJAR)</div>
           <div class="pdca-q-watermark">P</div>
-          <div class="pdca-q-body">${pdcaPrintQuestionLines(['p1','p2','p3','p4','p5','p6','p7','p8','p9','p10','p11','p12','p13','p14'],a,labels)}</div>
+          <div class="pdca-q-body">${pdcaPrintQuestionLines(pdcaReportKeys('plan',p),a,pdcaReportLabels(labels,p))}</div>
         </section>
 
         <section class="pdca-q pdca-q-check">
           <div class="pdca-q-head">CHECK (VERIFICAR)</div>
           <div class="pdca-q-watermark">C</div>
-          <div class="pdca-q-body">${pdcaPrintQuestionLines(['c1','c2','c3'],a,labels)}</div>
+          <div class="pdca-q-body">${pdcaPrintQuestionLines(pdcaReportKeys('check',p),a,pdcaReportLabels(labels,p))}</div>
         </section>
 
         <section class="pdca-q pdca-q-do">
           <div class="pdca-q-head">DO (FAZER)</div>
           <div class="pdca-q-watermark">D</div>
-          <div class="pdca-q-body">${pdcaPrintQuestionLines(['d1','d2','d3','d4','d5'],a,labels)}</div>
+          <div class="pdca-q-body">${pdcaPrintQuestionLines(pdcaReportKeys('do',p),a,pdcaReportLabels(labels,p))}</div>
         </section>
       </div>
 
@@ -10141,10 +10154,10 @@ function openPdcaReport(pdcaId){
   };
 
   const groups=[
-    ['PLAN',['p1','p2','p3','p4','p5','p6','p7','p8','p9','p10','p11','p12','p13','p14']],
-    ['DO',['d1','d2','d3','d4','d5']],
-    ['CHECK',['c1','c2','c3']],
-    ['ACT',['a1','a2','a3','a4']]
+    ['PLAN',pdcaReportKeys('plan',p)],
+    ['DO',pdcaReportKeys('do',p)],
+    ['CHECK',pdcaReportKeys('check',p)],
+    ['ACT',pdcaReportKeys('act',p)]
   ];
 
   const ro=p.ro||p.numeroRo||p.roNumero||'-';
@@ -10157,7 +10170,7 @@ function openPdcaReport(pdcaId){
     groups.map(([title,keys])=>{
       return `<h2 style="margin:20px 0 8px">${title}</h2>`+
         `<table class="ro-report-table">`+
-        keys.map(k=>`<tr><td style="width:43%"><b>${esc(labels[k]||k)}</b></td><td>${esc(a[k]||'-')}</td></tr>`).join('')+
+        keys.map(k=>`<tr><td style="width:43%"><b>${esc(pdcaReportLabels(labels,p)[k]||k)}</b></td><td>${esc((k==='p13'?[a.p13,a.sectorResponsibilities].filter(Boolean).join('\n'):a[k])||'-')}</td></tr>`).join('')+
         `</table>`;
     }).join('');
 
@@ -10290,7 +10303,11 @@ async function downloadCurrentPdcaPdf(){
   }
 
   function buildItems(){
-    const get=k=>ans[k]||'Não informado';
+    const get=k=>(k==='p13'?[ans.p13,ans.sectorResponsibilities].filter(Boolean).join('\n'):ans[k])||'Não informado';
+    if(p.questionnaireVersion===2){
+      const items=stage=>stages.find(item=>item.id===stage).items.map(([id,label])=>[label,get(id)]);
+      return {plan:items('plan'),doing:items('do'),check:items('check'),act:items('act')};
+    }
     return {
       plan:[
         ['Problema',get('p1')],['Impacto',get('p2')],['Local',get('p3')],['Frequencia',get('p4')],
@@ -14722,7 +14739,137 @@ function goStage(idx){
   setNav(['plan','do','check','act'][idx]);
 }
 
-const stages=[{"id": "plan", "number": "01", "name": "Planejar", "subtitle": "Entender antes de agir", "items": [["p1", "Qual é o problema?", "Descrever de forma clara, objetiva e baseada em fatos."], ["p2", "Qual é o impacto do problema?", "Registrar custos, tempo, qualidade, segurança, produtividade, atrasos ou retrabalho."], ["p3", "Onde o problema ocorre?", "Identificar o local ou processo da ocorrência."], ["p4", "Com que frequência o problema ocorre?", "Registrar a frequência observada para direcionar a análise."], ["p5", "Quais são as possíveis causas do problema?", "Analisar pelo 5M: método, máquina, mão de obra, material e meio ambiente."], ["p6", "Por que essas causas ocorrem?", "Aplicar a técnica dos 5 Porquês."], ["p7", "Qual é a causa raiz que deve ser bloqueada?", "Validar a causa com dados, evidências ou observação do processo."], ["p8", "Qual é a meta SMART?", "Definir o resultado esperado para resolver o problema."], ["p9", "Qual é o prazo para atingir a meta?", "Registrar o prazo previsto para a conclusão das ações."], ["p10", "Qual é o status atual da meta?", "Informe se está planejada, em andamento ou concluída."], ["p11", "Qual ação será executada?", "Descrever o que será feito para bloquear ou eliminar a causa raiz."], ["p12", "Qual é o prazo da ação?", "Registrar quando a ação deve ser executada."], ["p13", "Quais setores são responsáveis pela ação?", "Selecione um ou mais setores que executarão ou acompanharão a ação."], ["p14", "Existe algum risco na implantação da ação?", "Registrar possíveis efeitos colaterais da solução."]]}, {"id": "do", "number": "02", "name": "Fazer", "subtitle": "Colocar o plano em prática", "items": [["d1", "A equipe foi treinada?", "Registrar o treinamento da equipe."], ["d2", "A equipe compreendeu a nova forma de trabalho?", "Confirmar se todos sabem o que e como fazer."], ["d3", "Qual é o status do treinamento?", "Registrar o status da pergunta anterior."], ["d4", "Os recursos necessários estão disponíveis?", "Verificar se a execução pode acontecer sem interrupções."], ["d5", "Como a execução será registrada?", "Registrar também os desvios do plano."]]}, {"id": "check", "number": "03", "name": "Checar", "subtitle": "Olhar para o que aconteceu", "items": [["c1", "Os resultados estão conforme a meta SMART?", "Verificar se o objetivo foi alcançado."], ["c2", "A causa raiz foi eliminada?", "Usar os dados coletados para validar a eficácia da ação."], ["c3", "Houve algum efeito colateral?", "Identificar consequências não previstas na mudança."]]}, {"id": "act", "number": "04", "name": "Agir", "subtitle": "Consolidar o próximo passo", "items": [["a1", "A melhoria foi padronizada?", "Registrar instrução de trabalho, check list ou treinamento."], ["a2", "Como o novo padrão será acompanhado?", "Definir o acompanhamento periódico."], ["a3", "A meta foi atingida?", "Se não foi atingida, registre onde ocorreu a falha: P, D ou C."], ["a4", "Quais foram as lições aprendidas?", "Registrar problemas e aprendizados para o próximo ciclo."]]}];const ros=[];
+const stages=[
+  {
+    "id": "plan",
+    "number": "01",
+    "name": "PLAN — Planejamento",
+    "subtitle": "Entender antes de agir",
+    "items": [
+      [
+        "p1",
+        "Qual é o problema identificado?",
+        "Descreva o que está acontecendo, onde acontece, com que frequência ocorre e quais prejuízos ou dificuldades esse problema gera. Informe também a situação atual, utilizando dados sempre que possível."
+      ],
+      [
+        "p5",
+        "Quais são as possíveis causas do problema e por que ocorrem?",
+        "Liste todas as situações que podem estar contribuindo para o problema. Para cada possível causa identificada, explique por que ela acontece e de que forma contribui para o problema."
+      ],
+      [
+        "p7",
+        "Qual é a causa raiz que deve ser bloqueada?",
+        "Entre as causas investigadas, identifique aquela ou aquelas que efetivamente originam o problema. Explique por que foram consideradas as principais responsáveis e quais evidências sustentam essa conclusão. Pense: se resolvermos essa causa, evitaremos que o problema volte a acontecer?"
+      ],
+      [
+        "p8",
+        "Qual é a meta SMART?",
+        "Defina qual resultado deseja alcançar, quanto pretende melhorar e até quando. A meta deve ser específica, mensurável, alcançável, relevante e possuir um prazo definido. Evite respostas genéricas como “melhorar o processo” ou “reduzir os problemas”.",
+        "Reduzir a quantidade de ocorrências de erro de impressão de 10 para, no máximo, 2 ocorrências mensais até 31/03/2027."
+      ],
+      [
+        "p11",
+        "Quais ações serão executadas?",
+        "Descreva o que será feito na prática para bloquear a causa raiz e evitar que o problema volte a ocorrer. Informe quais mudanças serão realizadas e como serão executadas. Não descreva apenas o que deseja alcançar, mas o que fará para alcançar esse resultado."
+      ],
+      [
+        "p12",
+        "Qual é o prazo de execução das ações?",
+        "Informe até quando cada ação deverá estar concluída. Caso existam várias ações, estabeleça um prazo individual para cada uma."
+      ],
+      [
+        "p13",
+        "Quais setores são responsáveis pelas ações?",
+        "Identifique quais setores participarão da execução das ações e descreva o que ficará sob responsabilidade de cada um."
+      ],
+      [
+        "p14",
+        "Existe algum risco na implantação das ações?",
+        "Avalie se as mudanças propostas podem gerar dificuldades, novos problemas ou impactos negativos em outros processos, setores, equipamentos ou produtos. Caso existam riscos, explique como poderão ser evitados ou controlados."
+      ]
+    ]
+  },
+  {
+    "id": "do",
+    "number": "02",
+    "name": "DO — Execução",
+    "subtitle": "Colocar o plano em prática",
+    "items": [
+      [
+        "d1",
+        "Como foi realizado o treinamento da equipe?",
+        "Informe quais pessoas foram orientadas ou treinadas, o que foi apresentado e como foi verificado se compreenderam a nova forma de trabalho. Caso a ação não necessite de treinamento, explique o motivo."
+      ],
+      [
+        "d6",
+        "Houve dificuldades ou desvios durante a execução das ações?",
+        "Informe se as ações foram realizadas conforme o planejamento. Caso algo tenha sido alterado, atrasado ou não executado, explique o que aconteceu, por que aconteceu e como a situação foi tratada."
+      ],
+      [
+        "d5",
+        "Quais são as evidências da execução das ações?",
+        "Apresente informações que comprovem que as ações foram efetivamente realizadas, como registros, fotografias, documentos, procedimentos atualizados, listas de presença ou outros comprovantes aplicáveis."
+      ]
+    ]
+  },
+  {
+    "id": "check",
+    "number": "03",
+    "name": "CHECK — Verificação",
+    "subtitle": "Olhar para o que aconteceu",
+    "items": [
+      [
+        "c1",
+        "Quais foram os resultados obtidos em relação à meta SMART?",
+        "Compare a situação anterior à implantação das ações com a situação atual. Apresente os resultados obtidos e informe se foram suficientes para atingir a meta estabelecida no planejamento. Utilize dados e evidências sempre que possível."
+      ],
+      [
+        "c2",
+        "A causa raiz foi efetivamente bloqueada?",
+        "Verifique se as ações realizadas resolveram a causa que originava o problema, e não apenas suas consequências. Explique como foi possível confirmar que a causa foi eliminada ou está sendo controlada."
+      ],
+      [
+        "c3",
+        "Houve algum efeito colateral?",
+        "Verifique se as mudanças realizadas geraram novos problemas, dificuldades ou consequências não previstas, inclusive em outros setores ou processos. Caso tenham ocorrido, descreva quais foram."
+      ]
+    ]
+  },
+  {
+    "id": "act",
+    "number": "04",
+    "name": "ACT — Padronização e melhoria contínua",
+    "subtitle": "Consolidar o próximo passo",
+    "items": [
+      [
+        "a1",
+        "Como a melhoria será padronizada e acompanhada?",
+        "Explique como a nova forma de trabalho será incorporada à rotina e o que será feito para garantir que continue sendo aplicada. Informe se serão utilizados procedimentos, instruções de trabalho, indicadores, auditorias ou outras formas de acompanhamento."
+      ],
+      [
+        "a5",
+        "Existem ações complementares necessárias?",
+        "Avalie se ainda existe algo que precisa ser corrigido, ajustado ou melhorado. Caso a meta não tenha sido atingida ou a causa raiz não tenha sido totalmente bloqueada, descreva o que ainda precisa ser feito."
+      ],
+      [
+        "a4",
+        "Quais foram as lições aprendidas?",
+        "Descreva o que foi aprendido durante a resolução do problema, o que poderia ter sido feito de maneira diferente e quais aprendizados poderiam ser aplicados em outros processos ou setores da empresa."
+      ]
+    ]
+  }
+];const ros=[];
+const pdcaQuestions=stages.flatMap(stage=>stage.items);
+const pdcaLegacyGroups={"plan": ["p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8", "p9", "p10", "p11", "p12", "p13", "p14"], "do": ["d1", "d2", "d3", "d4", "d5"], "check": ["c1", "c2", "c3"], "act": ["a1", "a2", "a3", "a4"]};
+function pdcaReportKeys(stage, record){
+  if(record.questionnaireVersion!==2)return pdcaLegacyGroups[stage];
+  return stages.find(item=>item.id===stage).items.map(item=>item[0]);
+}
+function pdcaReportLabels(labels, record){
+  return record.questionnaireVersion===2
+    ? {...labels,...Object.fromEntries(pdcaQuestions.map(([id,label])=>[id,label]))}
+    : labels;
+}
 // R.O.s carregadas pela base central após login, sem migração síncrona na abertura.
 let detailReturnView='ros';
 let selected=ros[0],activeStage=0;let answers={};
@@ -16348,15 +16495,16 @@ function renderStage(){
     if(it[0]==='p13')return renderPdcaResponsibleSectorQuestion(it,s,global,answered);
     return `<div class="question" style="border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin-bottom:12px;background:#fff">
       <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">
-        <div class="small" style="font-weight:700">Pergunta ${global} de 26 · ${s.name}</div>
+        <div class="small" style="font-weight:700">Pergunta ${global} de ${pdcaQuestions.length} · ${s.name}</div>
         <span class="status-badge ${answered?'answered':''}">${answered?'Respondida':'Obrigatória'}</span>
       </div>
       <h4 style="margin:7px 0 4px">${it[1]}</h4>
-      <p style="margin:0 0 10px;color:#667085">${it[2]}</p>
+      <p style="margin:0 0 10px;color:#667085">${escapeHtml(it[2])}</p>
+      ${it[3]?`<p class="small"><b>Exemplo de resposta</b><br>${escapeHtml(it[3])}</p>`:''}
       <div class="question-answer-tools"><button class="mic-answer-btn" type="button" onclick="dictatePdcaAnswer('${it[0]}',this)">🎤 Falar resposta</button></div>
       <textarea id="answer_${it[0]}" spellcheck="true"
         oninput="answers['${it[0]}']=this.value;updateCompletion();renderPdcaStageOverview();schedulePdcaDraftSave();refreshPdcaInlineAlerts()"
-        placeholder="Escreva ou fale aqui sua resposta...">${answers[it[0]]||''}</textarea>
+        placeholder="Escreva ou fale aqui sua resposta...">${escapeHtml(answers[it[0]]||'')}</textarea>
       ${pdcaInlineAlertHtml(it[0])}
       <div style="margin-top:10px"><div class="small" style="margin-bottom:5px">Evidência ou foto (opcional)</div><input type="file" style="font-size:12px"></div>
     </div>`;
@@ -16635,7 +16783,7 @@ function renderPdcaStageOverview(){
 function goFirstMissingQuestion(){
   const missing=[];
   stages.forEach((stage,si)=>stage.items.forEach(it=>{if(!(answers[it[0]]||'').trim())missing.push({id:it[0],stage:si});}));
-  if(!missing.length){alert('Todas as 26 perguntas já foram respondidas.');return;}
+  if(!missing.length){alert('Todas as '+pdcaQuestions.length+' perguntas já foram respondidas.');return;}
   activeStage=missing[0].stage; renderStage();
   setTimeout(()=>{const el=document.getElementById('answer_'+missing[0].id);if(el){el.focus();el.scrollIntoView({behavior:'smooth',block:'center'});el.closest('.question')?.classList.add('missing');}},50);
 }
@@ -16827,6 +16975,7 @@ async function finishPDCA(){
       sentAt:now.toISOString(),
       envio:now.toLocaleDateString('pt-BR')+' '+now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),
       status:'Enviado',
+      questionnaireVersion:2,
       answers:{...answers},
       actions:pdcaExtraActions.filter(x=>String(x.action||'').trim()).map(x=>({...x}))
     };
