@@ -27,8 +27,7 @@
   }
 
   const connectionBootstrapKey='nucleo-test-connection-bootstrap:'+location.pathname.replace(/\/+$/,'');
-  function bootstrapApiUrl(){
-    try{const selected=validApiUrl(localStorage.getItem(connectionBootstrapKey));if(selected)return selected;}catch(_){}
+  function publishedBootstrapApiUrl(){
     const runtime=validApiUrl(window.NUCLEO_RUNTIME_CONFIG?.apiUrl||'');
     if(runtime)return runtime;
     try{
@@ -38,6 +37,10 @@
       }
     }catch(_){}
     return '';
+  }
+
+  function bootstrapApiUrl(){
+    return publishedBootstrapApiUrl();
   }
 
   // Remove somente apiUrl de caches legados. Os demais campos locais podem
@@ -61,6 +64,7 @@
 
   let globalApiUrl=bootstrapApiUrl();
   let resolvingPromise=null;
+  let validatedApiUrl='';
 
   function directJsonp(url,params={},timeoutMs=25000){
     return new Promise((resolve,reject)=>{
@@ -105,41 +109,32 @@
     const candidate=validApiUrl(url);
     if(!candidate)throw new Error('Informe uma URL válida do Web App terminando em /exec.');
     const data=await directJsonp(candidate,{acao:'nucleo_test_integration_status',nucleoAction:'nucleo_test_integration_status'},25000);
-    if(!data?.sucesso)throw new Error(data?.erro||'A URL não respondeu como backend do Núcleo.');
+    if(!data?.sucesso||data.ambiente!=='TESTE')throw new Error(data?.erro||'A URL inicial publicada no GitHub não confirmou uma implantação do Núcleo Teste. Confira assets/nucleo-runtime-config.js.');
     return data;
   }
 
   async function resolveGlobalApiUrl(force=false){
-    if(resolvingPromise&&!force)return resolvingPromise;
+    if(resolvingPromise)return resolvingPromise;
+    if(globalApiUrl&&validatedApiUrl===globalApiUrl&&!force)return globalApiUrl;
 
     resolvingPromise=(async()=>{
       let current=bootstrapApiUrl();
-      if(!current)throw new Error('A URL bootstrap global do Núcleo não está configurada.');
+      if(!current)throw new Error('A URL inicial do Núcleo Teste não foi configurada.');
 
       const seen=new Set();
       for(let hop=0;hop<6;hop++){
-        if(seen.has(current))break;
+        if(seen.has(current))throw new Error('A configuração da API de teste contém um ciclo de endereços.');
         seen.add(current);
-
-        let data;
-        try{
-          data=await probeApi(current);
-        }catch(e){
-          // Se ao menos o bootstrap existe, mantém essa URL como fallback global.
-          if(hop===0){globalApiUrl=current;return current;}
-          break;
-        }
-
-        const next=validApiUrl(data?.config?.apiUrl||'');
+        const data=await probeApi(current);
+        const next=validApiUrl(data.config?.apiUrl);
         if(!next||next===current){
           globalApiUrl=current;
+          validatedApiUrl=current;
           return current;
         }
         current=next;
       }
-
-      globalApiUrl=current;
-      return current;
+      throw new Error('A configuração da API de teste tem encaminhamentos demais.');
     })().finally(()=>{resolvingPromise=null;});
 
     return resolvingPromise;
@@ -163,9 +158,11 @@
 
   const originalPortalJsonp=window.portalJsonp;
   if(typeof originalPortalJsonp==='function'){
-    window.portalJsonp=function(params,timeoutMs=60000,baseOverride=''){
-      if(baseOverride)return originalPortalJsonp.call(this,params,timeoutMs,baseOverride);
-      return resolveGlobalApiUrl(false).then(base=>originalPortalJsonp.call(this,params,timeoutMs,base));
+    window.portalJsonp=function(params,timeoutMs=60000,baseOverride='',options={}){
+      if(baseOverride)return originalPortalJsonp.call(this,params,timeoutMs,baseOverride,options);
+      const sessionBase=typeof nucleoSessionApiBase==='function'?nucleoSessionApiBase():'';
+      if(sessionBase&&!['portal_login','portal_login_jsonp','portal_auth_v2'].includes(params?.acao))return originalPortalJsonp.call(this,params,timeoutMs,sessionBase,options);
+      return resolveGlobalApiUrl(false).then(base=>originalPortalJsonp.call(this,params,timeoutMs,base,options));
     };
   }
 
@@ -272,8 +269,8 @@
       if(target.ambiente!=='TESTE')throw new Error('Escolha uma implantação identificada como TESTE. A API de produção não será usada.');
       const session=getSession();
       const previousBase=validApiUrl(typeof nucleoSessionApiBase==='function'?nucleoSessionApiBase(session?.authToken):'')||validApiUrl(globalApiUrl)||bootstrapApiUrl();
-      const currentBase=candidate;
-      if(!currentBase||!session?.authToken)throw new Error('Entre novamente para confirmar a conta administrativa.');
+      const publishedBase=publishedBootstrapApiUrl();
+      if(!publishedBase||!session?.authToken)throw new Error('Entre novamente para confirmar a conta administrativa.');
 
       // Lê apenas os campos da integração; não carrega registros do Supabase.
       const value=(id,fallback='')=>document.getElementById(id)?.value??fallback;
@@ -282,27 +279,42 @@
         roSyncPeriod:value('roSyncPeriod','all'),roSyncDateFrom:value('roSyncDateFrom'),
         roSyncDateTo:'',__savedAt:new Date().toISOString()
       };
-      // Salva no backend global ATUAL. Assim a cadeia bootstrap -> atual -> nova
-      // é comum a todos os dispositivos e não depende de estado local.
-      // Recuperação de conexão: usa somente a rota isolada e a sessão autenticada.
-      // Não passa pelo transporte de operações dependentes da sincronização central.
-      let activeToken=previousBase===candidate?session.authToken:await revalidateIntegrationSession(candidate,session);
-      const saveWithToken=token=>directJsonp(currentBase,{
-        acao:'nucleo_test_integration',token,
-        dados:JSON.stringify(nextConfig),ator:session.name||'SGQ'
-      },60000);
-      let saved=await saveWithToken(activeToken);
-      if(!saved?.sucesso&&/sess[aã]o.*(?:inv[aá]lida|expirada)|token.*(?:invalid|expir)/i.test(String(saved?.erro||''))){
-        activeToken=await revalidateIntegrationSession(currentBase,session);
-        saved=await saveWithToken(activeToken);
+      // O endereço inicial publicado é o ponto de entrada de um navegador novo.
+      // Confirme que ele também aceita a configuração antes de salvar o destino.
+      if(publishedBase!==candidate){
+        try{await probeApi(publishedBase);}
+        catch(error){
+          throw new Error('O endereço inicial publicado em assets/nucleo-runtime-config.js está indisponível ou não é uma API de teste. Atualize o apiUrl desse arquivo para a URL de teste atual. '+error.message);
+        }
       }
-      if(!saved?.sucesso)throw new Error(saved?.erro||'A implantação não confirmou a URL do teste.');
 
-      const confirmed=await probeApi(currentBase);
-      if(validApiUrl(confirmed?.config?.apiUrl)!==candidate)throw new Error('A implantação não confirmou a URL nova. O endereço digitado foi mantido para tentar novamente.');
-      try{localStorage.setItem(connectionBootstrapKey,candidate);}
-      catch(_){throw new Error('A conexão foi confirmada, mas o navegador bloqueou guardar o endereço inicial. Libere o armazenamento deste site e tente novamente.');}
+      async function saveAt(base,token){
+        const write=token=>directJsonp(base,{acao:'nucleo_test_integration',token,dados:JSON.stringify(nextConfig)},60000);
+        let result=token?await write(token):null;
+        if(!result||(!result.sucesso&&/sess[aã]o|token|autentica/i.test(String(result.erro||'')))){
+          token=await revalidateIntegrationSession(base,session);
+          result=await write(token);
+        }
+        if(!result?.sucesso)throw new Error(result?.erro||'A implantação não confirmou a configuração.');
+        return token;
+      }
+
+      const activeToken=await saveAt(candidate,previousBase===candidate?session.authToken:'');
+      const confirmed=await probeApi(candidate);
+      if(validApiUrl(confirmed.config?.apiUrl)!==candidate)throw new Error('A implantação de destino não confirmou a URL configurada.');
+
+      if(publishedBase!==candidate){
+        const published=await probeApi(publishedBase);
+        // Duas implantações de um mesmo projeto já compartilham a configuração.
+        if(validApiUrl(published.config?.apiUrl)!==candidate){
+          await saveAt(publishedBase,previousBase===publishedBase?session.authToken:'');
+        }
+        const entry=await probeApi(publishedBase);
+        if(validApiUrl(entry.config?.apiUrl)!==candidate)throw new Error('O endereço inicial ainda não confirmou a URL para outros navegadores.');
+      }
+      try{localStorage.removeItem(connectionBootstrapKey);}catch(_){}
       globalApiUrl=candidate;
+      validatedApiUrl=candidate;
       if(typeof setSession==='function')setSession({...session,authToken:activeToken,authApiBase:candidate,sessionExpiresAt:Date.now()+21600000,sessionExpiryClockVersion:2});
       try{nucleoAuthenticatedApi={token:activeToken,base:candidate};}catch(_){}
       try{nucleoApiUrlDirty=false;}catch(_){}
@@ -311,7 +323,7 @@
       if(input)input.value=candidate;
       if(st){
         st.classList.remove('hidden');
-        st.textContent='URL do teste salva na configuração isolada deste Apps Script.';
+        st.textContent='URL do teste confirmada na configuração central para todos os navegadores.';
       }
 
       if(previousBase!==candidate){
@@ -320,7 +332,7 @@
         return true;
       }
 
-      alert('URL do teste confirmada na configuração isolada.');
+      alert('URL do teste confirmada para todos os navegadores.');
       return true;
     }catch(e){
       if(st){
@@ -390,7 +402,7 @@
 
   window.nucleoGlobalApiReady=resolveGlobalApiUrl(true)
     .then(url=>{enableApiField();return url;})
-    .catch(e=>{console.error('[NÚCLEO] Falha ao resolver API global.',e);return bootstrapApiUrl();});
+    .catch(e=>{console.error('[NÚCLEO] Falha ao resolver API global.',e);return '';});
 
   window.addEventListener('load',()=>{resolveGlobalApiUrl(true).then(enableApiField).catch(()=>{});},{once:true});
   console.info('[NÚCLEO] API GLOBAL CANÔNICA V40 ativa — localStorage não escolhe API e o campo SGQ não é sobrescrito.');
