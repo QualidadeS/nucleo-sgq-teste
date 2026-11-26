@@ -1149,6 +1149,18 @@ function unifiedRenderCreationPeople(){
  unifiedSharedPeoplePanel(host,unifiedActionDependencyUnit(),unifiedNewSharedSelection);
 }
 document.addEventListener('change',e=>{if(e.target.id==='unifiedActionRo'&&document.getElementById('unifiedActionOverlay')?.classList.contains('open'))unifiedRenderCreationPeople();});
+function unifiedEditedActionStatus(action, status, now, actor){
+ const done=unifiedManualActionStatus(action).code==='done';
+ if(status==='done'&&!done)return {progress:100,completedAt:now,completedBy:actor};
+ if(status==='open'&&done){
+  const previous=[...(action.history||[])].reverse().find(entry=>{
+   const progress=Number(entry.progress);
+   return entry.progress!=null&&Number.isFinite(progress)&&progress>=0&&progress<100;
+  });
+  return {progress:Number(previous?.progress)||0,completedAt:'',completedBy:''};
+ }
+ return {};
+}
 async function openUnifiedActionEdit(id){
  let a=getUnifiedManualActions().find(x=>x.id===id);
  if(!a||!unifiedSharedCanEdit(a))return;
@@ -1160,6 +1172,13 @@ async function openUnifiedActionEdit(id){
  const add=(k,label,multiline=false,type='text')=>{const node=document.createElement('label'),txt=document.createElement('span');txt.textContent=label;node.append(txt);const el=document.createElement(multiline?'textarea':'input');if(!multiline)el.type=type;else el.rows=3;el.value=a[k]||'';el.style.width='100%';node.append(el);form.append(node);fields[k]=el;};
  add('action','Descrição da ação',true);add('deadline','Prazo',false,'date');add('type','Tipo');add('project','Projeto / referência');add('subject','Cliente / assunto');add('note','Observações',true);add('nextStep','Próximo passo',true);add('remaining','O que falta');
  const urg=document.createElement('label');urg.textContent='Urgência';const select=document.createElement('select');for(const [value,label] of [['baixa','Baixa'],['media','Média'],['alta','Alta']]){const op=document.createElement('option');op.value=value;op.textContent=label;select.append(op);}select.value=a.urgency||'media';urg.append(select);form.append(urg);fields.urgency=select;
+ const statusLabel=document.createElement('label');statusLabel.textContent='Status';
+ const statusSelect=document.createElement('select');
+ statusSelect.add(new Option('Em aberto','open'));
+ statusSelect.add(new Option('Concluída','done'));
+ const wasDone=unifiedManualActionStatus(a).code==='done';
+ statusSelect.value=wasDone?'done':'open';
+ statusLabel.append(statusSelect);form.append(statusLabel);
  const host=document.createElement('div');form.append(host);
  const initial=new Map([...unifiedSharedObservers(a).map(k=>[k,'aware']),...unifiedSharedExecutors(a).map(k=>[k,'execute'])]);
  unifiedSharedPeoplePanel(host,explicitPortalUnit(a.roUnit||a.unit),initial,a.dependencySector||'');
@@ -1170,7 +1189,21 @@ async function openUnifiedActionEdit(id){
   const choices=unifiedReadSharedPeople(host),executorKeys=[...choices].filter(([,v])=>v==='execute').map(([k])=>k),awarenessKeys=[...choices].filter(([,v])=>v==='aware').map(([k])=>k);
   if(!fields.action.value.trim()||!executorKeys.length){alert('Informe a ação e selecione pelo menos um executor.');return;}
   const changes=Object.fromEntries(Object.entries(fields).map(([k,el])=>[k,el.value.trim()]));
-  const now=new Date().toISOString(),s=getSession(),updated={...a,...changes,sharedAction:true,executorKeys,awarenessKeys,assigneeKey:executorKeys[0],assigneeName:unifiedActionUserDisplay(executorKeys[0]),history:[...(a.history||[]),{id:'UPD-'+Date.now(),at:now,byKey:unifiedCurrentUserKey(),byName:s.name||s.email,text:'Ação editada: dados e participantes atualizados.',progress:Number(a.progress)||0,remaining:changes.remaining,nextStep:changes.nextStep}]};
+  const now=new Date().toISOString(),session=getSession();
+  const actor=session.name||session.email;
+  const statusChanges=unifiedEditedActionStatus(a,statusSelect.value,now,actor);
+  const reopened=wasDone&&statusSelect.value==='open';
+  if(reopened&&changes.nextStep==='Concluída')changes.nextStep='';
+  const historyText=reopened?'Ação reaberta.':!wasDone&&statusSelect.value==='done'?'Ação marcada como concluída.':'Ação editada: dados e participantes atualizados.';
+  const updated={
+   ...a,...changes,...statusChanges,sharedAction:true,executorKeys,awarenessKeys,
+   assigneeKey:executorKeys[0],assigneeName:unifiedActionUserDisplay(executorKeys[0]),
+   history:[...(a.history||[]),{
+    id:'UPD-'+Date.now(),at:now,byKey:unifiedCurrentUserKey(),byName:actor,
+    text:historyText,progress:Number(statusChanges.progress??a.progress)||0,
+    remaining:changes.remaining,nextStep:changes.nextStep
+   }]
+  };
   save.disabled=close.disabled=true;
   const guard=e=>{e.preventDefault();e.returnValue='';};window.addEventListener('beforeunload',guard);
   try{
