@@ -3754,11 +3754,15 @@ const EXTERNAL_RO_ALLOWED_SECTORS=[
   'SGQ'
 ];
 
+function canRegisterBothRoTypes(session){
+  return !!session&&(session.role==='admin'||session.role==='quality'||session.permissions?.sgq===true);
+}
+
 function canRegisterExternalRo(){
   const s=getSession();
   if(!s)return false;
+  if(canRegisterBothRoTypes(s))return true;
   if(s.permissions)return nucleoPersonPermissions(s).registerExternal;
-  if(s.role==='quality')return true;
   const current=normalizeAnswer(String(s.sector||s.setor||''));
   if(!current)return false;
   return EXTERNAL_RO_ALLOWED_SECTORS.some(sec=>normalizeAnswer(sec)===current);
@@ -3766,7 +3770,7 @@ function canRegisterExternalRo(){
 
 function openExternalRoRegistrationForm(){
   if(!canRegisterExternalRo()){
-    alert('O cadastro de R.O. Externa / SAC é restrito aos setores Comercial, Diretoria, Processos e SGQ.');
+    alert('O cadastro de R.O. Externa / SAC é restrito à Qualidade, ao SGQ e aos setores autorizados.');
     return;
   }
 
@@ -3797,16 +3801,13 @@ function refreshRoRegistrationAccess(){
   applyExternalRoAccessClass();
   const normalBtn=document.getElementById('navNewRo');
   const externalBtn=document.getElementById('navNewExternalRo');
-  const admin=getSession()?.permissions?!nucleoPersonPermissions(getSession()).registerRo:isAdmin()&&getSession()?.role!=='quality';
-
-  // Qualidade da filial também pode cadastrar ocorrências.
+  const session=getSession();
+  const canInternal=!!session&&(canRegisterBothRoTypes(session)||!session.permissions||nucleoPersonPermissions(session).registerRo);
   if(normalBtn){
-    normalBtn.classList.toggle('hidden',admin);
-    normalBtn.style.display=admin?'none':'';
+    normalBtn.classList.toggle('hidden',!canInternal);
+    normalBtn.style.display=canInternal?'':'none';
   }
 
-  // R.O. Externa / SAC depende exclusivamente do setor autorizado,
-  // independentemente de o perfil ser ADM ou operacional.
   const canExternal=canRegisterExternalRo();
   if(externalBtn){
     externalBtn.classList.toggle('hidden',!canExternal);
