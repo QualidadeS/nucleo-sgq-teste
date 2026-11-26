@@ -33,6 +33,22 @@ jobs:
         uses: actions/checkout@v4
       - name: Setup Pages
         uses: actions/configure-pages@v5
+      - name: Configurar API do Núcleo Teste
+        env:
+          NUCLEO_TESTE_API_URL: ${{ vars.NUCLEO_TESTE_API_URL }}
+        run: |
+          node <<'JS'
+          const fs = require('node:fs');
+          const url = (process.env.NUCLEO_TESTE_API_URL || '').trim();
+          if (!/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(url)) {
+            throw new Error('Configure NUCLEO_TESTE_API_URL com a URL /exec do Apps Script de teste.');
+          }
+          const file = 'assets/nucleo-runtime-config.js';
+          const source = fs.readFileSync(file, 'utf8');
+          const key = /^(\s*apiUrl:\s*)["'][^"'\r\n]*["']/m;
+          if (!key.test(source)) throw new Error('Campo apiUrl ausente na configuração do Núcleo.');
+          fs.writeFileSync(file, source.replace(key, (_, prefix) => prefix + JSON.stringify(url)));
+          JS
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
