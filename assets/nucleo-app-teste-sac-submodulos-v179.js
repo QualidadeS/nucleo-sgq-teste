@@ -788,14 +788,15 @@ function nucleoSetCentralSyncState(status,message='',serverAt=''){
     confirmedAt:status==='synced'?new Date().toLocaleString('pt-BR'):(nucleoCentralSyncState.confirmedAt||'')
   };
   nucleoRenderCentralSyncState();
-  const msg=document.getElementById('syncMsg');if(msg&&status!=='synced'&&msg.classList.contains('okline')){
-    msg.classList.remove('okline');msg.textContent=status==='error'?'Confirmação geral da base central indisponível.':'Confirmando dados da base central…';
+  const msg=document.getElementById('syncMsg');
+  if(msg){
+    msg.textContent=message||nucleoCentralStatusText();
+    msg.className='statusline'+(status==='synced'?' okline':'');
   }
 }
 function nucleoRequireCentralData(action='continuar'){
   if(nucleoCentralDataConfirmed())return true;
   const msg='A base central ainda não confirmou os dados deste dispositivo. Aguarde o indicador ficar verde antes de '+action+'.';
-  nucleoSetCentralSyncState(nucleoCentralSyncState.status==='error'?'error':'syncing',nucleoCentralSyncState.message||msg);
   try{nucleoAutoSyncIfDue(true)}catch(e){}
   alert(msg+'\n\nO que está na tela pode ser somente cache local e não será usado para uma operação crítica.');
   return false;
@@ -1427,7 +1428,7 @@ async function syncPortalBackend(showMessage=false,options={}){
 }
 async function loadPortalBackend(showMessage,options,load){
   const {token}=load;
-  if(Date.now()<nucleoUrlFetchQuotaUntil&&!options.foreground&&!showMessage){
+  if(Date.now()<nucleoUrlFetchQuotaUntil&&!options.manual&&!options.foreground&&!showMessage){
     nucleoSetCentralSyncState('error','Cota diária do Apps Script (UrlFetch) atingida. Atualização automática pausada; tente manualmente após a renovação da cota.');
     return false;
   }
@@ -1461,10 +1462,7 @@ async function loadPortalBackend(showMessage,options,load){
     for(let i=0;i<parts.length;i++){
       const [part,label]=parts[i];
       stage='Etapa '+(i+1)+' de '+parts.length+' · '+label;
-      if(load.afterRoSetup){
-        const status=document.getElementById('syncMsg');
-        if(status){status.textContent=stage;status.className='statusline'}
-      }
+      nucleoSetCentralSyncState('syncing',stage);
 
       if(foreground){
         try{updateNucleoLoading('Etapa '+(i+1)+' de '+parts.length+': '+label+'...')}catch(e){}
@@ -11595,7 +11593,13 @@ function showNucleoLoading(message,title){
   }
 
   // Dá ao navegador a chance de desenhar o overlay antes de iniciar trabalho pesado.
-  return new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+  return new Promise(resolve=>{
+    const fallback=setTimeout(resolve,200);
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{
+      clearTimeout(fallback);
+      resolve();
+    }));
+  });
 }
 
 function updateNucleoLoading(message,title){
@@ -12194,7 +12198,7 @@ async function nucleoRunFullSync(options={}){
   }
 
   nucleoFullSyncToken=token;
-  nucleoFullSyncPromise=(async()=>{
+  nucleoFullSyncPromise=Promise.resolve().then(async()=>{
     const status=document.getElementById('syncMsg');
 
     try{
@@ -12213,7 +12217,15 @@ async function nucleoRunFullSync(options={}){
       }
 
       if(!navigator.onLine)throw new Error('O dispositivo está sem conexão.');
-      if(window.nucleoGlobalApiReady?.then)await window.nucleoGlobalApiReady;
+      const apiReady=window.nucleoGlobalApiReady;
+      if(apiReady?.then){
+        let timer;
+        try{
+          await Promise.race([apiReady,new Promise((_,reject)=>{
+            timer=setTimeout(()=>reject(new Error('A configuração da API demorou para responder. Clique em Sincronizar para tentar novamente.')),15000);
+          })]);
+        }finally{clearTimeout(timer);}
+      }
       if(getSession()?.authToken!==token)return false;
 
       let roResult;
@@ -12233,32 +12245,10 @@ async function nucleoRunFullSync(options={}){
         }
       }
 
-      // Depois de confirmar a configuração central, prioriza as planilhas.
-      let centralOk=false;
-      let centralError='';
-      for(let attempt=1;attempt<=1;attempt++){
-        if(getSession()?.authToken!==token)return false;
-
-        try{
-          centralOk=await syncPortalBackend(false,{foreground:foreground && attempt===1,afterRoSetup:readOfficialRos});
-        }catch(e){
-          centralOk=false;
-          centralError=nucleoSyncDetail(e);
-          console.warn('[NÚCLEO AUTO SYNC] tentativa central '+attempt+' falhou:',e);
-        }
-
-        if(getSession()?.authToken!==token)return false;
-        if(centralOk)break;
-
-        centralError=nucleoCentralSyncState.status==='error'
-          ? nucleoCentralSyncState.message : centralError;
-        if(!navigator.onLine)break;
-        
-      }
-
-      if(!centralOk){
-        throw new Error(centralError||'A base central não confirmou os dados.');
-      }
+      const centralOk=await syncPortalBackend(false,{
+        foreground,manual:source==='manual',afterRoSetup:readOfficialRos
+      });
+      if(!centralOk)throw new Error(nucleoCentralSyncState.message||'A base central não confirmou os dados.');
 
       if(getSession()?.authToken!==token)return false;
 
@@ -12293,7 +12283,7 @@ async function nucleoRunFullSync(options={}){
     }catch(e){
       if(getSession()?.authToken!==token)return false;
       console.warn('[NÚCLEO AUTO SYNC] sincronização não concluída:',e);
-      const detail='Sincronização não concluída: '+nucleoSyncDetail(e);
+      const detail='Sincronização não concluída: '+(nucleoNoteUrlFetchQuota(e)?'Cota diária do Apps Script (UrlFetch) atingida. Atualização automática pausada.':nucleoSyncDetail(e));
       nucleoSetCentralSyncState('error',detail);
       if(status){
         status.textContent=detail;
@@ -12307,7 +12297,7 @@ async function nucleoRunFullSync(options={}){
         try{hideNucleoLoading(true)}catch(e){}
       }
     }
-  })();
+  });
 
   return nucleoFullSyncPromise;
 }
@@ -16983,9 +16973,6 @@ if(document.readyState==='loading'){
   document.addEventListener('DOMContentLoaded',nucleoStartAuthenticatedSync,{once:true});
 }else{
   setTimeout(nucleoStartAuthenticatedSync,0);
-}
-if(getSession()?.authToken){
-  nucleoSetCentralSyncState('syncing','Confirmando dados com a base central…');
 }
 refreshAccessUI();enforceAdminVisibility();refreshRoRegistrationAccess();
 try{refreshNotificationBell();refreshMenuNotificationBadges()}catch(e){}
