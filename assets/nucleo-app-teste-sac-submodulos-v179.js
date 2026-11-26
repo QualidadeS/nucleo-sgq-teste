@@ -8561,20 +8561,21 @@ function pdcaQualityIssues(){
   }
 
   if(text('p5')){
-    const causes=text('p5').split(/\n|;/).map(item=>item.trim()).filter(Boolean);
-    const hasReason=cause=>{
-      if(/\b(?:porque|pois|devid[oa]|por causa|quando|ocorre por|acontece por)\b/i.test(cause))return true;
-      const detail=cause.match(/[:–—]\s*(.+)$/)?.[1]||'';
-      return /\b(?:falta|aus[eê]ncia|sem|fora|varia|utiliza|usa|aplica|depende|diferen[tc]|inadequad)\w*\b/i.test(detail)
-        && detail.trim().split(/\s+/).length>=3;
-    };
-    const hasEffect=cause=>/\b(?:leva a|faz com que|resulta|provoca|gera|causa|reduz|afeta|compromete|prejudica)\b/i.test(cause);
+    const answer=text('p5');
+    const normalizeCause=value=>norm(value).normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    const topic=/^(?:viscosidade(?: da tinta)?|sujeira(?: no cliche)?|pressao(?: de impressao)?|regulagem(?: da maquina)?|temperatura(?: da tinta)?|maquina|operador(?:es)?|tinta|cliche|material|equipamento|metodo|processo)$/;
+    const clauses=answer.split(/\n|;|[.!?](?=\s|$)/).map(value=>value.trim().replace(/^(?:[-•]\s*|\d+[.)]\s+)/,'')).filter(Boolean);
     const missing=[];
-    if(causes.some(cause=>!hasReason(cause)))
-      missing.push('Por que cada hipótese pode ocorrer? Descreva a condição concreta por trás de cada uma.');
-    if(causes.some(cause=>!hasEffect(cause)))
-      missing.push('Como cada hipótese contribui para o desvio? Explique o efeito no processo ou no produto.');
-    if(missing.length)add('p5','Confira o que ainda falta nas possíveis causas.',missing);
+    for(let index=0;index<clauses.length;index++){
+      const clause=clauses[index];
+      const labels=clause.split(/,\s*|\s+e\s+/i).map(value=>value.trim().replace(/[:–—-]\s*$/,''));
+      const isList=labels.every(label=>topic.test(normalizeCause(label)));
+      const next=clauses[index+1];
+      // A heading can be followed by its explanation in a separate sentence or line.
+      if(!isList || (labels.length===1&&next&&!topic.test(normalizeCause(next))))continue;
+      labels.forEach(label=>missing.push('“'+label+'” — explique qual condição pode causar o problema e que efeito ela teria.'));
+    }
+    if(missing.length)add('p5','Complete as hipóteses que ficaram só no nome.',[...new Set(missing)]);
   }
 
   if(text('p7') && tooShort(text('p7'),10))
