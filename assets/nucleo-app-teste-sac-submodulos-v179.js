@@ -8546,8 +8546,15 @@ function pdcaQualityIssues(){
     const missing=[];
     if(!/\b(?:na|no|em|durante|linha|etapa|setor|maquina|turno|unidade)\b/.test(description))
       missing.push('Onde acontece? Informe o setor, a etapa ou o equipamento.');
-    if(!/\b(?:diari\w*|semanal\w*|mensal\w*|ocasional\w*|sempre|raramente|frequent\w*|reinciden\w*|vez(?:es)?|por (?:turno|lote|dia|semana|mes)|todo(?:s)? (?:os )?(?:dia|turno|lote)s?)\b/.test(description))
-      missing.push('Com que frequência acontece? Informe quantas vezes ou em quais situações se repete.');
+    const countedEvent=/\b\d[\d.,]*\s+(?:ocorrencias?|falhas?|casos?|defeitos?|reincidencias?|registros?|vez(?:es)?)\b/;
+    const count=description.match(countedEvent);
+    const reference=/\b(?:em|de|por|a cada|nos ultimos|nas ultimas)\s+\d[\d.,]*\s+(?:ordens?|lotes?|pedidos?|pecas?|caixas?|unidades?|dias?|semanas?|meses|turnos?)\b|\b(?:janeiro|fevereiro|marco|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro|neste mes|mes passado|esta semana|semana passada)\b/;
+    const cadence=/\b(?:diari\w*|semanal\w*|mensal\w*|ocasional\w*|sempre|raramente|frequent\w*|por (?:turno|lote|dia|semana|mes)|em todo inicio de turno|todo(?:s)? (?:os )?(?:dia|turno|lote)s?)\b/;
+    if(!cadence.test(description)&&!(count&&reference.test(description))){
+      missing.push(count
+        ? 'A quantidade já foi informada. Diga em qual período ou volume ela foi observada. Exemplos: “12 ocorrências em setembro” ou “12 ocorrências em 300 ordens”.'
+        : 'Diga com que frequência acontece. Exemplos: “duas vezes por semana”, “12 ocorrências em setembro” ou “em todo início de turno”.');
+    }
     if(!/\b(?:retrabalh\w*|atras\w*|refug\w*|descart\w*|reprov\w*|perd\w*|prejuiz\w*|impact\w*|parad\w*|devolu\w*|reclam\w*|consequen\w*|ger\w*|imped\w*)\b/.test(description))
       missing.push('Qual é o impacto? Explique o prejuízo ou a dificuldade que o desvio gera.');
     if(missing.length)add('p1','Confira o que ainda falta na descrição do problema.',missing);
@@ -8555,7 +8562,12 @@ function pdcaQualityIssues(){
 
   if(text('p5')){
     const causes=text('p5').split(/\n|;/).map(item=>item.trim()).filter(Boolean);
-    const hasReason=cause=>/\b(?:porque|pois|devid[oa]|por causa|quando|ocorre por|acontece por)\b/i.test(cause);
+    const hasReason=cause=>{
+      if(/\b(?:porque|pois|devid[oa]|por causa|quando|ocorre por|acontece por)\b/i.test(cause))return true;
+      const detail=cause.match(/[:–—]\s*(.+)$/)?.[1]||'';
+      return /\b(?:falta|aus[eê]ncia|sem|fora|varia|utiliza|usa|aplica|depende|diferen[tc]|inadequad)\w*\b/i.test(detail)
+        && detail.trim().split(/\s+/).length>=3;
+    };
     const hasEffect=cause=>/\b(?:leva a|faz com que|resulta|provoca|gera|causa|reduz|afeta|compromete|prejudica)\b/i.test(cause);
     const missing=[];
     if(causes.some(cause=>!hasReason(cause)))
@@ -8609,14 +8621,6 @@ function pdcaQualityIssues(){
         'A ação deve atuar sobre a causa raiz.',
         'Não precisa colocar prazo nem responsável aqui; existem campos próprios para isso.'
       ],'Ex.: “Implantar uma etapa de conferência dos itens antes da liberação do pedido.”');
-
-    // Relação causa→ação agora só alerta em casos muito claros de desconexão:
-    // precisa haver textos razoavelmente longos E ausência total de termos comuns.
-    if(text('p7') && v.length>=25 && text('p7').length>=25 && jaccardSimilarity(text('p7'),v)<0.01)
-      add('p11','Confira se a ação está ligada à causa raiz.',[
-        'Verifique se esta ação elimina, reduz ou bloqueia a causa raiz identificada.',
-        'Se a ligação já existir, deixe isso mais explícito na descrição da ação.'
-      ]);
   }
 
   if(text('p11')&&!text('p12'))
