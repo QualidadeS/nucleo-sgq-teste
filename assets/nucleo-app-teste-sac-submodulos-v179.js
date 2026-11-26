@@ -1484,8 +1484,8 @@ async function loadPortalBackend(showMessage,options,load){
       }
       if(getSession()?.authToken!==token)return false;
       if(!res||res.sucesso===false)throw new Error(res?.erro||res?.error||'A base não confirmou a etapa.');
-      if(!res.dados||typeof res.dados!=='object'||Array.isArray(res.dados)){
-        throw new Error(res?.erro||res?.error||'A resposta da sincronização não contém os registros esperados. Rota: nucleo_test_load_part; etapa: '+part+'.');
+      if(res.parte!==part||!res.dados||typeof res.dados!=='object'||Array.isArray(res.dados)){
+        throw new Error('A implantação conectada não reconheceu a etapa '+part+' da sincronização de teste. Confira se a URL publicada em assets/nucleo-runtime-config.js aponta para a implantação atual do Apps Script de teste.');
       }
 
       applyPortalBackendSnapshot(res);
@@ -3208,10 +3208,10 @@ async function saveSectorConfiguration(){
 
 }
 
-async function syncPublicPortalConfig(){
+async function syncPublicPortalConfig(confirmedBase=''){
   nucleoPublicConfigReady=false;
   try{
-    const base=portalApiBase();
+    const base=confirmedBase||(typeof window.nucleoResolveGlobalApiUrl==='function'?await window.nucleoResolveGlobalApiUrl():portalApiBase());
     if(!base)throw new Error('URL do Apps Script TESTE não configurada neste navegador.');
 
     const res=await portalJsonp({acao:'portal_public_config'},20000,base);
@@ -3344,14 +3344,15 @@ async function loginUser(){
   if(enterBtn)enterBtn.disabled=true;
   renderLoginMessage('Confirmando configuração central...','info');
   try{
-    if(!nucleoPublicConfigReady){
-      const publicOk=await syncPublicPortalConfig();
+    const base=typeof window.nucleoResolveGlobalApiUrl==='function'?await window.nucleoResolveGlobalApiUrl():portalApiBase();
+    if(!nucleoPublicConfigReady||nucleoConfirmedApiUrl!==base){
+      const publicOk=await syncPublicPortalConfig(base);
       if(!publicOk)throw new Error('Não foi possível confirmar a configuração central do Núcleo. Tente novamente.');
     }
     renderLoginMessage('Validando acesso...','info');
     const remote=await portalJsonp({
       acao:'portal_login_jsonp', nome:name, unidade:unit, setor:sector, senha:password
-    },60000);
+    },60000,base);
     if(!remote || remote.sucesso!==true){
       renderLoginMessage(loginReasonMessage(remote),'error');
       return;
@@ -3374,7 +3375,8 @@ async function loginUser(){
       approvalStatus:u.approvalStatus||'approved',
       authToken:String(remote.authToken||remote.token||'').trim(),
       sessionExpiresAt:Date.now()+21600000,
-      sessionExpiryClockVersion:2
+      sessionExpiryClockVersion:2,
+      authApiBase:base
     };
     if(!session.authToken)throw new Error('A API confirmou o login, mas não entregou um token de sessão.');
     // Persistência local não pode bloquear acesso válido.

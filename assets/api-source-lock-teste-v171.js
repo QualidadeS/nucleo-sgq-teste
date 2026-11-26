@@ -108,8 +108,16 @@
   async function probeApi(url){
     const candidate=validApiUrl(url);
     if(!candidate)throw new Error('Informe uma URL válida do Web App terminando em /exec.');
-    const data=await directJsonp(candidate,{acao:'nucleo_test_integration_status',nucleoAction:'nucleo_test_integration_status'},25000);
-    if(!data?.sucesso||data.ambiente!=='TESTE')throw new Error(data?.erro||'A URL inicial publicada no GitHub não confirmou uma implantação do Núcleo Teste. Confira assets/nucleo-runtime-config.js.');
+    let data=await directJsonp(candidate,{acao:'nucleo_test_integration_status',nucleoAction:'nucleo_test_integration_status'},25000);
+    if(data?.sucesso!==true||data.ambiente!=='TESTE'){
+      // Implantações antigas podem exigir sessão na rota nova. A configuração
+      // pública permite descobrir o destino antes do login, com o ambiente confirmado.
+      data=await directJsonp(candidate,{acao:'portal_public_config'},25000);
+      if(data?.sucesso!==true||!data.config||(data.ambiente||data.config.ambiente)!=='TESTE'){
+        throw new Error('A URL publicada não confirmou o ambiente Núcleo Teste pela configuração pública.');
+      }
+      return {...data,ambiente:'TESTE'};
+    }
     return data;
   }
 
