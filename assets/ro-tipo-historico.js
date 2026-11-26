@@ -39,6 +39,67 @@
     host.append(hint,button);
     return result;
   };
+  function historyRecord(event, details){
+    const id=String(event.recordId||'');
+    const code=[details.actionCode,details.code,id].map(value=>String(value||'').trim())
+      .find(value=>/^(?:(?:RO-(?:IN|EX)|ACT|PDCA|SAC|CDT|DP|DOC|SD|RNC)-?\d+(?:-[A-Z]?\d+)*|R\.?O\.?\s*\d+)$/i.test(value));
+    if(code)return code;
+    const ro=id.match(/(?:^|\b)RO-(?:IN|EX)-\d+/i);
+    if(ro)return ro[0];
+    if(/^ACT-DEP-/i.test(id))return 'Dependência de ação';
+    if(event.action==='nucleo_test_manual_actions')return 'Ação';
+    if(event.action==='Cadastro de documento padrão')return details.name||'Documento padrão';
+    if(event.action==='Configuração de integração')return 'Integração';
+    return details.title||'—';
+  }
+
+  function historySummary(event, details){
+    const mode=details.mode;
+    const status=details.status;
+    if(status==='Falha')return 'Operação não concluída.';
+    const sector=details.sector ? ' ('+details.sector+')' : '';
+    switch(event.action){
+      case 'nucleo_test_manual_actions': {
+        const previous=details.anterior;
+        if(mode==='delete')return /^ACT-DEP-/i.test(event.recordId) ? 'Dependência excluída.' : 'Ação excluída.';
+        if(mode==='dependency_roles')return 'Responsáveis e pessoas em ciência atualizados'+sector+'.';
+        if(mode==='save'){
+          if(!previous)return 'Ação cadastrada'+sector+'.';
+          const changes=[];
+          if(details.descricao!==undefined&&details.descricao!==previous.descricao)changes.push('descrição');
+          if(details.prazo!==undefined&&details.prazo!==previous.prazo)changes.push('prazo');
+          if(details.progress!==undefined&&details.progress!==previous.progresso)changes.push('progresso');
+          if(changes.length)return 'Alteração em '+changes.join(', ')+sector+'.';
+          return 'Ação atualizada'+sector+'.';
+        }
+        break;
+      }
+      case 'nucleo_test_save_triage': {
+        const decisions=Array.isArray(details.decision)?details.decision:[];
+        const sectors=[...new Set(decisions.map(item=>item.sector).filter(Boolean))];
+        if(sectors.length)return 'R.O. direcionada para '+sectors.join(', ')+'.';
+        const outcomes={record:'R.O. mantida como registro.',cancelled:'R.O. cancelada.',obsolete:'R.O. marcada como obsoleta.'};
+        return outcomes[decisions[0]?.decision]||'Triagem registrada.';
+      }
+      case 'nucleo_test_ro_investigation':
+        if(mode==='industrialization')return details.industrialization?'R.O. marcada como industrialização.':'Marcação de industrialização removida.';
+        if(mode==='add')return details.foto?'Complemento com foto adicionado.':'Complemento de investigação adicionado.';
+        if(mode==='edit')return 'Complemento de investigação editado.';
+        if(mode==='delete')return 'Complemento de investigação excluído.';
+        break;
+      case 'nucleo_test_email':
+        return 'Envio de teste confirmado.';
+      case 'Correção de tipo':
+        return details.novo?'Tipo da R.O. alterado para '+details.novo+'.':'Tipo da R.O. corrigido.';
+      case 'Cadastro de documento padrão':
+        return 'Documento padrão cadastrado.';
+      case 'Configuração de integração':
+        return 'Configuração de integração atualizada.';
+    }
+    if(details.title&&status&&status!=='Confirmado')return details.title+' · '+status;
+    return status==='Confirmado'?'Operação confirmada.':'Operação registrada.';
+  }
+
   let request=0,next=null;
   window.nucleoRenderOperationHistory=async function(more=false){
     if(!nucleoSistemaPodeAbrir())return;
@@ -55,7 +116,8 @@
       const names={nucleo_test_save_triage:'Triagem',nucleo_test_manual_actions:'Ações',nucleo_test_ro_investigation:'Investigação / industrialização',nucleo_test_email:'E-mail de teste'};
       for(const e of response.events||[]){
         const row=body.insertRow();
-        [formatDateTimeBR(e.at),e.actor||e.email,names[e.action]||e.action,e.recordId,JSON.stringify(e.details||{},null,2)].forEach(v=>row.insertCell().textContent=v||'—');
+        const details=e.details||{};
+        [formatDateTimeBR(e.at),e.actor||e.email,names[e.action]||e.action,historyRecord(e,details),historySummary(e,details)].forEach(value=>row.insertCell().textContent=value||'—');
       }
       next=response.next;
       button.hidden=next==null;button.onclick=()=>window.nucleoRenderOperationHistory(true);
