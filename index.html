@@ -3302,10 +3302,10 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
       <button id="registerTabBtn" class="btn secondary" style="flex:1" onclick="showAuthMode('register')">Cadastrar-se</button>
     </div>
 
-    <div id="loginMode">
+    <form id="loginMode" onsubmit="event.preventDefault();loginUser()">
       <p>Informe seus dados para entrar.</p>
       <div class="label">Nome</div>
-      <input id="loginName" autocomplete="name" autocapitalize="words" placeholder="Seu nome">
+      <input id="loginName" name="username" autocomplete="username" autocapitalize="words" placeholder="Seu nome">
       <div class="label">Unidade</div>
       <select id="loginUnit" onchange="refreshLoginSectorByUnit()">
         <option value="">Selecione a unidade...</option>
@@ -3315,14 +3315,18 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
       <div class="label">Setor</div>
       <select id="loginSector" disabled><option value="">Selecione primeiro a unidade...</option></select>
       <div class="label">Senha</div>
-      <input id="loginPassword" autocomplete="current-password" type="password" placeholder="Sua senha">
+      <input id="loginPassword" name="password" autocomplete="current-password" type="password" placeholder="Sua senha">
+      <label style="display:flex;align-items:center;gap:8px;margin-top:12px">
+        <input id="loginRemember" type="checkbox" style="width:auto;margin:0" onchange="if(!this.checked)forgetRememberedLogin()">
+        Lembrar meus dados neste navegador
+      </label>
       <div class="login-actions">
-        <button id="loginEnterBtn" class="btn primary" onclick="loginUser()">Entrar</button>
+        <button id="loginEnterBtn" type="submit" class="btn primary">Entrar</button>
       </div>
 
       <div id="loginMessage" class="small hidden" role="status" aria-live="polite"
         style="margin-top:12px;padding:10px 12px;border-radius:10px;font-weight:700;line-height:1.4"></div>
-    </div>
+    </form>
 
     <div id="registerMode" class="hidden">
       <p>Crie seu acesso. Novos cadastros entram como usuário operacional.</p>
@@ -6101,7 +6105,7 @@ html,body{max-width:100%;overflow-x:hidden!important}
 
 // Carrega a configuração compartilhada antes do login para que setores novos/renomeados
 // apareçam também em navegadores que nunca abriram o NÚCLEO antes.
-window.addEventListener('DOMContentLoaded',()=>{setTimeout(()=>syncPublicPortalConfig(),50)});
+window.addEventListener('DOMContentLoaded',()=>{restoreRememberedLogin();setTimeout(()=>syncPublicPortalConfig(),50)});
 
 
 /* NÚCLEO UX — feedback automático para esperas iniciadas pelo usuário.
@@ -6340,7 +6344,7 @@ function renderSupplierIndicatorsWorkspace(){
 <script src="assets/modules-v2/indicators/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/modules-v2/announcements/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/team-load-local-v47.js?v=20261027-team-local-central"></script>
-<script src="assets/nucleo-app-teste-sac-submodulos-v179.js?v=20261126-pdca-gemini"></script>
+<script src="assets/nucleo-app-teste-sac-submodulos-v179.js?v=20261127-lembrar-login"></script>
 <script src="assets/ro-apresentacao.js?v=20261125-escopo-pessoal"></script>
 <script src="assets/acoes-manuais.js?v=20261126-sgq-todas-acoes"></script>
 <script src="assets/api-source-lock-teste-v171.js?v=20261126-login-publico"></script>
