@@ -3066,7 +3066,7 @@ function ensurePreviewSession(){
     email:'sgq@empresa.com',
     password:'1234'
   };
-  localStorage.setItem(SESSION_KEY,JSON.stringify(previewAdmin));
+  sessionStorage.setItem(SESSION_KEY,JSON.stringify(previewAdmin));
 }
 
 let nucleoSessionMemory=null;
@@ -3079,10 +3079,6 @@ function nucleoParseSession(raw){
 }
 function getSession(){
   try{
-    const raw=localStorage.getItem(SESSION_KEY);
-    if(raw){const parsed=nucleoParseSession(raw);if(parsed)return parsed;}
-  }catch(e){}
-  try{
     const raw=sessionStorage.getItem(SESSION_KEY);
     if(raw){const parsed=nucleoParseSession(raw);if(parsed)return parsed;}
   }catch(e){}
@@ -3094,7 +3090,7 @@ function setSession(data){
   const raw=JSON.stringify(data||null);
   nucleoSessionLastRaw=raw;
   let saved=false;
-  try{localStorage.setItem(SESSION_KEY,raw);saved=true}catch(e){console.warn('localStorage da sessão indisponível:',e)}
+  try{localStorage.removeItem(SESSION_KEY)}catch(e){}
   try{sessionStorage.setItem(SESSION_KEY,raw);saved=true}catch(e){console.warn('sessionStorage da sessão indisponível:',e)}
   queueMicrotask(() => {
     nucleoPersonalSessionChanged();
@@ -3219,6 +3215,7 @@ async function saveSectorConfiguration(){
 
 }
 
+let loginPublicSectors={};
 async function syncPublicPortalConfig(confirmedBase=''){
   nucleoPublicConfigReady=false;
   try{
@@ -3233,13 +3230,13 @@ async function syncPublicPortalConfig(confirmedBase=''){
     // pois a cópia migrada pode conter a URL antiga de PRODUÇÃO.
     nucleoConfirmedApiUrl=base;
 
-    localStorage.setItem(
-      'nucleo-unit-public-sectors',
-      JSON.stringify(res.config.sectorListsByUnit||{})
-    );
-    const publicConfig={...getAdminConfig(),...res.config};
-    delete publicConfig.apiUrl;
-    localStorage.setItem(ADMIN_CONFIG_KEY,JSON.stringify(publicConfig));
+    loginPublicSectors=res.config.sectorListsByUnit||{};
+    try{
+      localStorage.setItem('nucleo-unit-public-sectors',JSON.stringify(loginPublicSectors));
+      const publicConfig={...getAdminConfig(),...res.config};
+      delete publicConfig.apiUrl;
+      localStorage.setItem(ADMIN_CONFIG_KEY,JSON.stringify(publicConfig));
+    }catch(error){}
 
     nucleoPublicConfigReady=true;
     refreshSectorSelectors();
@@ -3257,13 +3254,48 @@ function findKnownUserByNameSector(name,sector){
   const s=(sector||'').trim().toLowerCase();
   return getOperationalUsers().find(u=>(u.name||'').trim().toLowerCase()===n && (u.sector||'').trim().toLowerCase()===s) || null;
 }
+const rememberedLoginKey='nucleo-test-remember-login-v1';
+let rememberedLoginSector=null;
+
+function restoreRememberedLogin(){
+  try{
+    const saved=JSON.parse(localStorage.getItem(rememberedLoginKey)||'null');
+    if(!saved||typeof saved.name!=='string'||typeof saved.unit!=='string'||typeof saved.sector!=='string')return;
+    const unit=document.getElementById('loginUnit');
+    if(!Array.from(unit.options).some(option=>option.value===saved.unit))return;
+    document.getElementById('loginName').value=saved.name;
+    unit.value=saved.unit;
+    document.getElementById('loginRemember').checked=true;
+    rememberedLoginSector={unit:saved.unit,sector:saved.sector};
+    refreshLoginSectorByUnit();
+  }catch(error){}
+}
+
+function forgetRememberedLogin(){
+  rememberedLoginSector=null;
+  try{localStorage.removeItem(rememberedLoginKey);}catch(error){}
+}
+
+function rememberSuccessfulLogin(name,unit,sector,password){
+  if(!document.getElementById('loginRemember')?.checked){forgetRememberedLogin();return;}
+  try{localStorage.setItem(rememberedLoginKey,JSON.stringify({name,unit,sector}));}catch(error){}
+  try{
+    if(typeof window.PasswordCredential==='function'&&navigator.credentials?.store){
+      navigator.credentials.store(new window.PasswordCredential({id:name,password})).catch(()=>{});
+    }
+  }catch(error){}
+}
+
 function refreshLoginSectorByUnit(){
   const unit=(document.getElementById('loginUnit')?.value||'').trim();
   const sector=document.getElementById('loginSector');
   if(!sector)return;
 
-  const all=unit?nucleoPublicLoginSectors(normalizePortalUnit(unit)):[];
-  const current=sector.value||'';
+  const all=unit?normalizeSectorList(loginPublicSectors[normalizePortalUnit(unit)]):[];
+  if(unit&&nucleoPublicConfigReady&&normalizePortalUnit(unit)==='matriz'&&!all.some(value=>normalizeAnswer(value)==='sgq'))all.push('SGQ');
+  const remembered=rememberedLoginSector?.unit===unit?rememberedLoginSector.sector:'';
+  const current=sector.value||remembered;
+  if(nucleoPublicConfigReady)rememberedLoginSector=null;
   sector.innerHTML='<option value="">Selecione o setor...</option>'+all.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
   if(current && all.some(s=>normalizeAnswer(s)===normalizeAnswer(current))) sector.value=all.find(s=>normalizeAnswer(s)===normalizeAnswer(current));
   sector.disabled=!unit;
@@ -3347,6 +3379,7 @@ async function loginUser(){
   const password=(document.getElementById('loginPassword')?.value||'');
   const msg=document.getElementById('loginMessage');
   const enterBtn=document.getElementById('loginEnterBtn');
+  if(enterBtn?.disabled)return;
   if(msg)msg.classList.remove('hidden');
   if(!name||!unit||!sector||!password){
     renderLoginMessage('Preencha nome, unidade, setor e senha antes de entrar.','error');
@@ -3390,6 +3423,8 @@ async function loginUser(){
       authApiBase:base
     };
     if(!session.authToken)throw new Error('A API confirmou o login, mas não entregou um token de sessão.');
+    rememberSuccessfulLogin(name,unit,sector,password);
+    document.getElementById('loginPassword').value='';
     // Persistência local não pode bloquear acesso válido.
     document.body.classList.add('nucleo-authenticated');
     const login=document.getElementById('loginOverlay');
