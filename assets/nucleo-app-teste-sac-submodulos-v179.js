@@ -8826,7 +8826,7 @@ async function analyzePdcaWithGemini(){
       if(key!==pdcaReviewKey(pdcaReviewQuestions())){
         return;
       }
-      pdcaGeminiReview={key,issues:result.issues};
+      pdcaGeminiReview={key,issues:result.issues,reviewedIds:new Set(questions.map(question=>question.id))};
       feedback.textContent='Revisão do Gemini concluída.';
       runPdcaQualityCheck(false);
       return;
@@ -16490,9 +16490,15 @@ function pdcaIssueHtml(x){
   const example=x.example?`<div class="quality-example"><b>Exemplo:</b> ${escapeHtml(String(x.example).replace(/^Ex\.:\s*/i,''))}</div>`:'';
   return `<div class="quality-guidance"><div class="quality-guidance-title">⚠ ${escapeHtml(x.title||x.text||'Revise esta resposta.')}</div>${items?`<div class="quality-guidance-label">O que melhorar:</div><ul>${items}</ul>`:''}${example}</div>`;
 }
+function pdcaInlineReviewHtml(id,issues){
+  if(issues.length)return issues.map(pdcaIssueHtml).join('');
+  if(currentPdcaGeminiIssues()&&pdcaGeminiReview.reviewedIds.has(id))
+    return '<div class="small" style="color:#166534;margin:8px 0">✓ Gemini: resposta suficiente.</div>';
+  return '';
+}
 function pdcaInlineAlertHtml(id){
   const issues=pdcaIssueForQuestion(id);
-  return `<div id="quality_${id}" class="${issues.length?'question-inline-alert':''}">${issues.map(pdcaIssueHtml).join('')}</div>`;
+  return `<div id="quality_${id}" class="${issues.length?'question-inline-alert':''}">${pdcaInlineReviewHtml(id,issues)}</div>`;
 }
 function refreshPdcaInlineAlerts(){
   stages[activeStage].items.forEach(it=>{
@@ -16500,7 +16506,7 @@ function refreshPdcaInlineAlerts(){
     if(!el)return;
     const issues=pdcaIssueForQuestion(it[0]);
     el.className=issues.length?'question-inline-alert':'';
-    el.innerHTML=issues.map(pdcaIssueHtml).join('');
+    el.innerHTML=pdcaInlineReviewHtml(it[0],issues);
   });
 }
 let pdcaSpeechRecognition=null;
