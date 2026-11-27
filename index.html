@@ -3302,10 +3302,10 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
       <button id="registerTabBtn" class="btn secondary" style="flex:1" onclick="showAuthMode('register')">Cadastrar-se</button>
     </div>
 
-    <form id="loginMode" onsubmit="event.preventDefault();loginUser()">
+    <div id="loginMode">
       <p>Informe seus dados para entrar.</p>
       <div class="label">Nome</div>
-      <input id="loginName" name="username" autocomplete="username" autocapitalize="words" placeholder="Seu nome">
+      <input id="loginName" autocomplete="name" autocapitalize="words" placeholder="Seu nome">
       <div class="label">Unidade</div>
       <select id="loginUnit" onchange="refreshLoginSectorByUnit()">
         <option value="">Selecione a unidade...</option>
@@ -3315,18 +3315,14 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
       <div class="label">Setor</div>
       <select id="loginSector" disabled><option value="">Selecione primeiro a unidade...</option></select>
       <div class="label">Senha</div>
-      <input id="loginPassword" name="password" autocomplete="current-password" type="password" placeholder="Sua senha">
-      <label style="display:flex;align-items:center;gap:8px;margin-top:12px">
-        <input id="loginRemember" type="checkbox" style="width:auto;margin:0" onchange="if(!this.checked)forgetRememberedLogin()">
-        Lembrar meus dados neste navegador
-      </label>
+      <input id="loginPassword" autocomplete="current-password" type="password" placeholder="Sua senha">
       <div class="login-actions">
-        <button id="loginEnterBtn" type="submit" class="btn primary">Entrar</button>
+        <button id="loginEnterBtn" class="btn primary" onclick="loginUser()">Entrar</button>
       </div>
 
       <div id="loginMessage" class="small hidden" role="status" aria-live="polite"
         style="margin-top:12px;padding:10px 12px;border-radius:10px;font-weight:700;line-height:1.4"></div>
-    </form>
+    </div>
 
     <div id="registerMode" class="hidden">
       <p>Crie seu acesso. Novos cadastros entram como usuário operacional.</p>
@@ -3384,7 +3380,7 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
         <button class="side-item" id="navMySubmittedRos" type="button" onclick="nucleoOpenRoHistoryList()"><span class="side-num">◎</span><span><b>R.O.s cadastradas por mim</b><small>Acompanhar registros</small></span></button> 
         <button class="side-item" id="navAssignedRos" type="button" onclick="showAssignedRos()"><span class="side-num">↳</span><span><b>R.O.s atribuídas</b><small>Ocorrências para atuação</small></span></button>
         <button class="side-item" id="navSent" onclick="showSentPdcas()"><span class="side-num">✓</span><span><b>PDCAs recebidos</b><small>Histórico de respostas</small></span><span id="pdcaSidebarBadge" class="side-pending-badge hidden">0</span></button>
-        <button class="side-item" id="navPresentations" hidden type="button" onclick="showPendingPresentations()"><span class="side-num">↗</span><span><b>R.O.s a apresentar</b><small>Respostas aguardando apresentação</small></span></button>
+        <button class="side-item" id="navPresentations" type="button" onclick="showPendingPresentations()"><span class="side-num">↗</span><span><b>R.O.s a apresentar</b><small>Respostas aguardando apresentação</small></span></button>
         <button class="side-item side-independent-module" id="navExternalPdcas" onclick="nucleoDriveOpen('pdca')"><span class="side-num">↥</span><span><b>Importar PDCAs</b><small>Importação, histórico e pendências</small></span></button>
         <button class="side-item admin-only" id="navTriage" type="button" onclick="showTriage()" style="display:none"><span class="side-num">↳</span><span><b>Triagem de R.O.s</b><small>Classificar e direcionar</small></span><span id="triageSidebarBadge" class="side-pending-badge hidden">0</span></button>
       </div>
@@ -3401,8 +3397,6 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
         <button class="side-item admin-only" id="navSimpleRework" type="button" onclick="showSimpleRework()" style="display:none"><span class="side-num">↔</span><span><b>Retrabalho / reposição</b><small>Pedidos e acompanhamento</small></span></button>
       </div>
     </div>
-
-    <button class="side-item side-independent-module" id="navBudgets" type="button" hidden onclick="nucleoOpenBudgets()" title="Abrir Central de Orçamentos em nova aba"><span class="side-num side-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 3h12v18H6z M9 7h6 M9 11h6 M9 15h2 M13 15h2 M9 18h2 M13 18h2"/></svg></span><span><b>Orçamentos</b><small>Central de orçamentos</small></span></button>
 
     <div class="side-module" id="modulePersonal">
       <button class="side-module-head" type="button" onclick="toggleSideModule('modulePersonal')"><span class="side-num side-icon"><svg viewBox="0 0 24 24"><path d="M6 4h12v16H6z"/><path d="M9 8h6M9 12h6M9 16h4"/><path d="M9 4V2h6v2"/></svg></span><span><b>Meu acompanhamento</b><small>Pendências e perfil</small></span><span class="side-module-arrow">›</span></button>
@@ -3450,7 +3444,6 @@ dialog[open]::backdrop{background:rgba(15,23,42,.58)}
       </button>
       <div class="top-sync-controls">
         <button class="top-btn" type="button" onclick="syncNow()">↻ Sincronizar</button>
-        <button class="top-btn" type="button" id="nucleoTestMail" hidden>Enviar teste</button>
         <button class="top-btn top-kpi-button" type="button" onclick="nucleoOpenKpiEditor()" title="Personalizar indicadores" aria-label="Personalizar indicadores">⚙</button>
       </div>
       <span id="syncMsg" role="status" title="Clique para ler a mensagem completa" onclick="if(this.textContent)alert(this.textContent)" style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:calc(11px * var(--nucleo-font-scale, 1));cursor:pointer"></span>
@@ -3535,7 +3528,7 @@ html[data-nucleo-theme="dark"] :is(.side-item,.small,.help,.crumbs,.label){color
 </section>
 
 <style>
-#navSistemaTeste[hidden],.side-nav .side-item[hidden],#pdcaPresentBtn[hidden]{display:none!important}
+#navSistemaTeste[hidden]{display:none!important}
 #nucleoSistemaView table{width:100%}
 #nucleoSistemaView td{overflow-wrap:anywhere;white-space:pre-line}
 #nucleoSistemaView .system-table{overflow:auto}
@@ -3549,31 +3542,7 @@ html[data-nucleo-theme="dark"] :is(.side-item,.small,.help,.crumbs,.label){color
     <button class="btn secondary" type="button" onclick="document.getElementById('nucleoSystemEmailHistory').scrollIntoView()">Histórico de e-mails</button>
   </nav>
 
-  <section class="settings-block" id="nucleoOperationHistory">
-    <style>
-      #nucleoOperationHistory .system-table table { width: 100%; min-width: 38rem; table-layout: auto; }
-      #nucleoOperationHistory :is(th, td) { padding: .65rem .8rem; vertical-align: middle; }
-      #nucleoOperationHistory :is(th, td):nth-child(-n+4) {
-        width: 1%;
-        white-space: nowrap;
-        overflow-wrap: normal;
-        word-break: normal;
-      }
-      #nucleoOperationHistory :is(th, td):nth-child(1) { min-width: 10rem; }
-      #nucleoOperationHistory :is(th, td):nth-child(2) { min-width: 6rem; }
-      #nucleoOperationHistory :is(th, td):nth-child(3) { min-width: 6rem; }
-      #nucleoOperationHistory :is(th, td):nth-child(4) { min-width: 9rem; }
-    </style>
-    <h3>Histórico completo de operações</h3>
-    <div class="actions">
-      <label>Data <input type="date" id="nucleoOperationHistoryDay"></label>
-      <button class="btn secondary" type="button" onclick="nucleoRenderOperationHistory()">Consultar</button>
-    </div>
-    <p id="nucleoOperationHistoryStatus" role="status"></p>
-    <div class="system-table"><table><thead><tr><th>Horário</th><th>Conta</th><th>Operação</th><th>Registro</th><th>Detalhes</th></tr></thead><tbody id="nucleoOperationHistoryRows"></tbody></table></div>
-    <button class="btn secondary" id="nucleoOperationHistoryMore" hidden type="button">Carregar mais</button>
-  </section>
-  <div id="nucleoSistemaMonitoramento">
+  <div id="nucleoSistemaMonitoramento" hidden>
   <form class="actions" onsubmit="event.preventDefault();nucleoOpenSistemaTeste()">
     <label>Dia <input type="date" id="nucleoSistemaDay" required></label>
     <button class="btn primary" type="submit">Consultar</button>
@@ -3928,7 +3897,6 @@ html[data-nucleo-theme="dark"] :is(.side-item,.small,.help,.crumbs,.label){color
     <span id="dStatus" class="badge"></span>
   </div>
 </div><div class="grid" style="margin-top:18px"><div><div class="label">Unidade</div><div id="dUnidade" class="value"></div></div><div><div class="label">Setor responsável</div><div id="dSetor" class="value"></div></div><div><div class="label">Data da R.O.</div><div id="dData" class="value"></div></div><div><div class="label">Prazo de resposta</div><div id="dPrazo" class="value"></div></div><div class="full"><div class="label">Descrição da ocorrência</div><div id="dDescricao" class="value"></div></div></div><div id="dNotice" class="notice hidden"></div>
-<section id="roInvestigationDetail" class="settings-block" style="margin:12px 0"></section>
 <div id="contestUserStatusBox" class="hidden" style="margin-top:14px;padding:14px 16px;border:1px solid #f0c36a;background:#fff8e6;border-radius:12px">
   <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap">
     <div><b id="contestUserStatusTitle">Contestação em análise</b><div id="contestUserStatusText" class="small" style="margin-top:5px"></div></div>
@@ -4011,23 +3979,21 @@ html[data-nucleo-theme="dark"] :is(.side-item,.small,.help,.crumbs,.label){color
 <section id="pdcaView" class="card hidden"><button class="back" onclick="savePdcaDraftNow();showDetail()">← Voltar para a R.O.</button>
 <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap">
   <div><h2 style="margin:0">Responder PDCA</h2><div id="pRo" class="small"></div></div>
-  <span class="badge">17 perguntas obrigatórias</span>
+  <span class="badge">26 perguntas obrigatórias</span>
 </div>
-<section id="roInvestigationPdca" class="settings-block" style="margin:12px 0"></section>
 <div style="margin:14px 0 0;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
   <span class="status-badge">Nº PDCA: <b id="pdcaOwnNumber">será gerado no envio</b></span>
   <span id="pdcaDraftState" class="small">Rascunho ainda não salvo.</span>
 </div>
 <div style="margin:16px 0;padding:14px 16px;border:1px solid #d9e2ec;background:#f8fafc;border-radius:12px">
   <b>Como preencher</b>
-  <div class="small" style="margin-top:5px">Preencha uma etapa por vez. Você pode avançar e voltar quando quiser. O envio só será liberado quando as 17 perguntas estiverem respondidas.</div>
+  <div class="small" style="margin-top:5px">Preencha uma etapa por vez. Você pode avançar e voltar quando quiser. O envio só será liberado quando as 26 perguntas estiverem respondidas.</div>
   <div id="pdcaStageOverview" style="display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:8px;margin-top:12px"></div>
 </div><div class="meta-box"><div class="grid"><div><div class="label">Nº da R.O.</div><input id="pNumero" disabled></div><div><div class="label">Unidade</div><input id="pUnidade" disabled></div><div><div class="label">Cliente</div><input id="pCliente" disabled></div><div><div class="label">Setor</div><input id="pSetor" disabled></div></div></div><div id="stageTabs" class="stage-tabs"></div><div>
   <div style="margin-bottom:14px;display:flex;justify-content:space-between;gap:12px;align-items:flex-end;flex-wrap:wrap">
     <div><div id="stagePosition" class="small" style="font-weight:700;text-transform:uppercase;letter-spacing:.04em"></div><h3 id="stageTitle" class="section-title" style="margin:4px 0"></h3><div id="stageSubtitle" class="small"></div></div>
     <span id="stageCompletionBadge" class="status-badge">0/0 respondidas</span>
   </div>
-  <div id="pdcaGeminiStatus" class="small" role="status">O Gemini revisa automaticamente após uma pausa no preenchimento.</div>
   <div id="questions"></div>
 </div>
 
@@ -4037,6 +4003,7 @@ html[data-nucleo-theme="dark"] :is(.side-item,.small,.help,.crumbs,.label){color
       <b>Assistente de qualidade do PDCA</b>
       <div class="small">Analisa clareza, causa raiz, ação, responsável, prazo e coerência. Não responde o PDCA por você.</div>
     </div>
+    <button class="btn secondary" type="button" onclick="runPdcaQualityCheck(true)">Analisar respostas</button>
   </div>
   <div id="pdcaQualitySummary" class="small" style="margin-top:10px">A análise será atualizada durante o preenchimento.</div>
   <div id="pdcaQualityList" class="pdca-quality-list"></div>
@@ -4050,7 +4017,7 @@ html[data-nucleo-theme="dark"] :is(.side-item,.small,.help,.crumbs,.label){color
   <div id="pdcaActionsList"></div>
 </div>
 <div class="completion-box">
-  <div><b id="completionText">0 de 17 respondidas</b><div class="small">O envio só será liberado quando todo o PDCA estiver preenchido.</div></div>
+  <div><b id="completionText">0 de 26 respondidas</b><div class="small">O envio só será liberado quando todo o PDCA estiver preenchido.</div></div>
   <div class="completion-bar"><div id="completionFill" class="completion-fill"></div></div>
 </div>
 <div class="actions" style="justify-content:space-between">
@@ -4412,7 +4379,7 @@ Diretoria"></textarea>
           <textarea id="unifiedActionNote" rows="2" placeholder="Contexto, orientação ou critério de conclusão (opcional)."></textarea>
         </label>
       </div>
-      <div id="unifiedActionSharedPeople" style="margin-top:14px"></div><div id="unifiedActionTargetSummary" class="statusline" style="margin-top:12px"></div>
+      <div id="unifiedActionTargetSummary" class="statusline" style="margin-top:12px"></div>
       <div class="actions" style="justify-content:flex-end;margin-top:14px">
         <button class="btn secondary" type="button" onclick="closeUnifiedActionModal()">Cancelar</button>
         <button class="btn primary" type="button" onclick="saveUnifiedAction(this)">Criar ação</button>
@@ -4647,8 +4614,7 @@ Diretoria"></textarea>
       <button class="btn secondary" type="button" onclick="closeExternalRoControlModal()">Fechar</button>
     </div>
     <div class="triage-modal-body" style="max-height:76vh;overflow:auto">
-      <section id="roInvestigationSac" class="settings-block" style="margin:12px 0"></section>
-<input id="externalRoControlId" type="hidden">
+      <input id="externalRoControlId" type="hidden">
       <div id="externalTreatmentFollowupSummary" class="hidden" style="margin-bottom:12px;padding:12px;border:1px solid #dbe3ea;border-radius:10px;background:#f8fafc"></div>
       <div class="settings-grid">
         <label><div class="label">Nº da R.O. *</div><input id="externalRoNumber" placeholder="Ex.: RO-00123" onchange="prefillSacFromRo()" readonly></label>
@@ -5538,7 +5504,7 @@ Cancelada</textarea></label>
 </main>
 </div>
 </div><div id="contestModal" class="modal hidden"><div class="modal-box"><h3>Contestar R.O.</h3><div class="label">Motivo da contestação</div><textarea id="contestText" placeholder="Explique por que a R.O. deve ser revista, cancelada ou redirecionada."></textarea><div class="label" style="margin-top:10px">Setor que considera correto (opcional)</div><input id="contestSector" placeholder="Ex.: Expedição"><div class="modal-actions"><button class="btn secondary" type="button" onclick="closeContest()">Cancelar</button><button class="btn danger" type="button" onclick="submitContest()">Enviar contestação</button></div></div></div>
-<script src="assets/nucleo-runtime-config.js?v=20261126-sync-anonimo"></script>
+<script src="assets/nucleo-runtime-config.js?v=20261030-api-single-source-v20"></script>
 <script src="assets/model-save-fix-v38.js?v=20261017-model-save-v42"></script>
 
 <div id="presentationModal" class="presentation-modal">
@@ -5612,9 +5578,7 @@ Cancelada</textarea></label>
 
     <div class="triage-modal-body">
       <div id="triageRoSummary" class="triage-ro-summary"></div>
-      <div id="triageTypeCorrection"></div>
-      <section id="roInvestigationTriage" class="settings-block" style="margin:12px 0"></section>
-<div id="triageDuplicateWarning" class="intel-panel hidden" style="margin-top:12px">
+      <div id="triageDuplicateWarning" class="intel-panel hidden" style="margin-top:12px">
         <div class="duplicate-panel-head">
           <b>Possível duplicidade / reincidência</b>
           <button id="triageDuplicateExpandBtn" class="duplicate-expand-btn" type="button" onclick="openTriageDuplicateDetails()">Expandir ↗</button>
@@ -5823,8 +5787,7 @@ Cancelada</textarea></label>
       <button class="btn secondary" type="button" onclick="closeSacEditModal()">Fechar</button>
     </div>
     <div class="triage-modal-body">
-      <section id="roInvestigationSacEdit" class="settings-block" style="margin:12px 0"></section>
-<input id="sacEditRecordId" type="hidden">
+      <input id="sacEditRecordId" type="hidden">
 
       <div class="settings-block">
         <h3 style="margin-top:0">Identificação</h3>
@@ -6104,7 +6067,7 @@ html,body{max-width:100%;overflow-x:hidden!important}
 
 // Carrega a configuração compartilhada antes do login para que setores novos/renomeados
 // apareçam também em navegadores que nunca abriram o NÚCLEO antes.
-window.addEventListener('DOMContentLoaded',()=>{restoreRememberedLogin();setTimeout(()=>syncPublicPortalConfig(),50)});
+window.addEventListener('DOMContentLoaded',()=>{setTimeout(()=>syncPublicPortalConfig(),50)});
 
 
 /* NÚCLEO UX — feedback automático para esperas iniciadas pelo usuário.
@@ -6343,10 +6306,10 @@ function renderSupplierIndicatorsWorkspace(){
 <script src="assets/modules-v2/indicators/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/modules-v2/announcements/module.js?v=20261023-modular-full-test-v4-safe"></script>
 <script src="assets/team-load-local-v47.js?v=20261027-team-local-central"></script>
-<script src="assets/nucleo-app-teste-sac-submodulos-v179.js?v=20261127-gemini-aprovacao"></script>
-<script src="assets/ro-apresentacao.js?v=20261125-escopo-pessoal"></script>
-<script src="assets/acoes-manuais.js?v=20261126-sgq-todas-acoes"></script>
-<script src="assets/api-source-lock-teste-v171.js?v=20261126-login-publico"></script>
+<script src="assets/nucleo-app-producao-retrabalho-v156.js?v=20261127-login-transporte"></script>
+<script src="assets/ro-apresentacao.js?v=20261124"></script>
+<script src="assets/acoes-manuais.js?v=20261125-acoes-checklist"></script>
+<script src="assets/api-source-lock-v150.js"></script>
 
 <script id="nucleoModuleMaintenanceGuardV1">
 (function(){
@@ -8464,8 +8427,4 @@ html[data-nucleo-accent] .sidebar #modulePersonal .side-module-body .side-item.a
   ['fetch','portalJsonp','jsonpRequest','withNucleoLoading'].forEach(name=>wrap(name));
 })();
 </script>
-<dialog id="roInvestigationDialog" style="width:min(760px,calc(100% - 24px));max-height:85dvh;overflow:auto;border:1px solid var(--line);border-radius:14px;padding:18px;background:var(--card,#fff);color:inherit">
-  <form method="dialog" style="display:flex;justify-content:flex-end"><button class="btn secondary">Fechar</button></form>
-  <div id="roInvestigationDialogContent"></div>
-</dialog>
-<script src="assets/ro-investigacao.js?v=20261125-v2"></script><script src="assets/ro-tipo-historico.js?v=20261126-historico-resumido"></script></body></html>
+</body></html>
