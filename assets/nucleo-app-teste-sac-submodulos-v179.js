@@ -955,7 +955,7 @@ function portalJsonp(params,timeoutMs=60000,baseOverride='',options={}){
     const parts=[];
     const requestParams={...(params||{})};
     const actionName=String(requestParams.acao||'').toLowerCase();
-    if (!['nucleo_test_email','nucleo_test_mail_status','nucleo_test_personal_preferences','nucleo_test_integration','nucleo_test_integration_status','nucleo_test_load_part','nucleo_test_manual_actions','nucleo_test_ro_investigation','nucleo_test_save_triage','nucleo_test_correct_type','nucleo_test_system_history','nucleo_test_standard_list','nucleo_test_docs_read'].includes(actionName) &&
+    if (!['nucleo_test_email','nucleo_test_mail_status','nucleo_test_personal_preferences','nucleo_test_integration','nucleo_test_integration_status','nucleo_test_load_part','nucleo_test_manual_actions','nucleo_test_ro_investigation','nucleo_test_save_triage','nucleo_test_correct_type','nucleo_test_system_history','nucleo_test_standard_list','nucleo_test_docs_read','nucleo_test_pdca_review_status'].includes(actionName) &&
         !nucleoTesteLeituraPermitida(actionName,requestParams)) {
       delete window[cb];
       reject(new Error('A base central está em modo de consulta. Para conferir um e-mail, use Enviar teste.'));
@@ -8817,9 +8817,12 @@ async function analyzePdcaWithGemini(){
     while(Date.now()<deadline){
       await new Promise(resolve=>setTimeout(resolve,2500));
       if(token!==getSession()?.authToken)return;
-      const result=await portalJsonp({acao:'nucleo_test_pdca_review_status',requestId},10000).catch(()=>null);
+      const result=await portalJsonp({acao:'nucleo_test_pdca_review_status',requestId},10000);
       if(!result||result.pending)continue;
-      if(!result.sucesso)throw Error(result.erro||'Gemini não concluiu a revisão.');
+      if(!result.sucesso||!Array.isArray(result.issues)){
+        const message=result.erro||'O Apps Script de Teste não retornou o resultado da revisão. Confira a implantação do Gemini.';
+        throw Error(message);
+      }
       if(key!==pdcaReviewKey(pdcaReviewQuestions())){
         return;
       }
