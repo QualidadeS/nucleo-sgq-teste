@@ -955,7 +955,7 @@ function portalJsonp(params,timeoutMs=60000,baseOverride='',options={}){
     const parts=[];
     const requestParams={...(params||{})};
     const actionName=String(requestParams.acao||'').toLowerCase();
-    if (!['nucleo_test_email','nucleo_test_mail_status','nucleo_test_personal_preferences','nucleo_test_integration','nucleo_test_integration_status','nucleo_test_load_part','nucleo_test_manual_actions','nucleo_test_ro_investigation','nucleo_test_save_triage','nucleo_test_correct_type','nucleo_test_system_history','nucleo_test_standard_list','nucleo_test_docs_read','nucleo_test_pdca_review_status'].includes(actionName) &&
+    if (!['nucleo_test_email','nucleo_test_mail_status','nucleo_test_personal_preferences','nucleo_test_integration','nucleo_test_integration_status','nucleo_test_load_part','nucleo_test_manual_actions','nucleo_test_ro_investigation','nucleo_test_save_triage','nucleo_test_correct_type','nucleo_test_system_history','nucleo_test_standard_list','nucleo_test_docs_read','nucleo_test_pdca_review_status','nucleo_test_pdca_submit_status'].includes(actionName) &&
         !nucleoTesteLeituraPermitida(actionName,requestParams)) {
       delete window[cb];
       reject(new Error('A base central está em modo de consulta. Para conferir um e-mail, use Enviar teste.'));
@@ -999,7 +999,7 @@ function portalJsonp(params,timeoutMs=60000,baseOverride='',options={}){
   });
 }
 function portalPostForm(params){
-  if (params?.acao !== 'portal_auth_v2' && !(params?.acao==='nucleo_test_ro_investigation'&&params.mode==='add') && !['nucleo_test_standard_upload','nucleo_test_docs_mutation','nucleo_test_pdca_review'].includes(params?.acao)) return false;
+  if (params?.acao !== 'portal_auth_v2' && !(params?.acao==='nucleo_test_ro_investigation'&&params.mode==='add') && !['nucleo_test_standard_upload','nucleo_test_docs_mutation','nucleo_test_pdca_review','nucleo_test_pdca_submit'].includes(params?.acao)) return false;
   params={...(params||{})};if(params.acao==='portal_upload_standard_document'){const metadata=JSON.parse(params.metadata||'{}');if(!metadata.unit&&!metadata.unidade)metadata.unit=getSession()?.role==='quality'?'filial':document.getElementById('ndStandardUnit')?.value||document.getElementById('qualityConfigUnit')?.value||explicitPortalUnit(getSession()?.unit);params.metadata=JSON.stringify(metadata);}
   const authToken=getSession()?.authToken;if(authToken&&!params.token)params.token=authToken;
   if(authToken && nucleoActionNeedsCentralConfirmation(params.acao,params) && !nucleoCentralDataConfirmed())return false;
@@ -8778,66 +8778,94 @@ function pdcaQualityIssues(){
   const visibleIds=new Set(pdcaQuestions.map(([id])=>id));
   return issues.filter(issue=>visibleIds.has(issue.id)||issue.id==='extra');
 }
-let pdcaGeminiReview=null;
+let pdcaGeminiReview={scope:'',entries:new Map()};
 function pdcaReviewQuestions(){
   return pdcaQuestions.map(([id,question,guidance])=>({
     id,question,guidance,answer:id==='p13'
-      ? [answers.p13,answers.sectorResponsibilities].filter(Boolean).join(' — ')
+      ? [answers.p13,answers.sectorResponsibilities].filter(Boolean).join(' — ').trim()
       : String(answers[id]||'').trim()
   })).filter(item=>item.answer);
 }
-function pdcaReviewKey(questions){
-  return JSON.stringify([getSession()?.authToken,selected?.numero,questions]);
+function pdcaReviewRo(){return String(selected?.numero||selected?.id||selected?.codigo||'');}
+function pdcaReviewScope(){return JSON.stringify([getSession()?.authToken,pdcaReviewRo()]);}
+function pdcaReviewEntry(question){
+  if(pdcaGeminiReview.scope!==pdcaReviewScope())return null;
+  const entry=pdcaGeminiReview.entries.get(question.id);
+  return entry?.answer===question.answer&&entry.expires>Date.now()?entry:null;
 }
 function currentPdcaGeminiIssues(){
-  return pdcaGeminiReview?.key===pdcaReviewKey(pdcaReviewQuestions()) ? pdcaGeminiReview.issues : null;
+  const reviewed=pdcaReviewQuestions().map(pdcaReviewEntry).filter(Boolean);
+  return reviewed.length?reviewed.flatMap(entry=>entry.issues):null;
+}
+function pdcaApproved(){
+  const questions=pdcaReviewQuestions();
+  return questions.length===pdcaQuestions.length&&questions.every(question=>pdcaReviewEntry(question)?.issues.length===0);
 }
 let pdcaGeminiTimer;
 let pdcaGeminiPending=false;
+let pdcaSending=false;
+let pdcaSubmitAttempt=null;
 function schedulePdcaGeminiReview(){
   clearTimeout(pdcaGeminiTimer);
   pdcaGeminiTimer=setTimeout(analyzePdcaWithGemini,4000);
 }
+async function pollPdcaOperation(action,requestId,token){
+  const deadline=Date.now()+95000;
+  while(Date.now()<deadline){
+    await new Promise(resolve=>setTimeout(resolve,2500));
+    if(token!==getSession()?.authToken)throw Error('A sessão mudou.');
+    const result=await portalJsonp({acao:action,requestId},10000);
+    if(!result||result.pending)continue;
+    if(!result.sucesso){
+      const error=Error(result.erro||'O Apps Script de Teste não confirmou a operação.');
+      error.code=result.codigo;
+      throw error;
+    }
+    return result;
+  }
+  throw Error('O Apps Script de Teste demorou mais que o esperado.');
+}
 async function analyzePdcaWithGemini(){
   const view=document.getElementById('pdcaView');
-  if(!view||view.classList.contains('hidden')||pdcaGeminiPending||!getSession()?.authToken)return;
-  const feedback=document.getElementById('pdcaGeminiStatus');
-  const questions=pdcaReviewQuestions();
-  if(!questions.length)return;
-  const key=pdcaReviewKey(questions);
-  if(pdcaGeminiReview?.key===key)return;
-  const requestId=crypto.randomUUID();
   const token=getSession()?.authToken;
+  if(!view||view.classList.contains('hidden')||pdcaGeminiPending||pdcaSending||!token)return;
+  const feedback=document.getElementById('pdcaGeminiStatus');
+  const scope=pdcaReviewScope();
+  if(pdcaGeminiReview.scope!==scope)pdcaGeminiReview={scope,entries:new Map()};
+  const questions=pdcaReviewQuestions();
+  const pending=questions.filter(question=>!pdcaReviewEntry(question));
+  if(!pending.length)return;
   pdcaGeminiPending=true;
-  feedback.textContent='Gemini está revisando as respostas…';
+  feedback.textContent='Gemini está revisando as respostas novas ou alteradas…';
   try{
-    if(!portalPostForm({acao:'nucleo_test_pdca_review',requestId,data:JSON.stringify(questions)}))
-      throw Error('Não foi possível iniciar a revisão. Sincronize o Núcleo e tente novamente.');
-    const deadline=Date.now()+95000;
-    while(Date.now()<deadline){
-      await new Promise(resolve=>setTimeout(resolve,2500));
-      if(token!==getSession()?.authToken)return;
-      const result=await portalJsonp({acao:'nucleo_test_pdca_review_status',requestId},10000);
-      if(!result||result.pending)continue;
-      if(!result.sucesso||!Array.isArray(result.issues)){
-        const message=result.erro||'O Apps Script de Teste não retornou o resultado da revisão. Confira a implantação do Gemini.';
-        throw Error(message);
-      }
-      if(key!==pdcaReviewKey(pdcaReviewQuestions())){
-        return;
-      }
-      pdcaGeminiReview={key,issues:result.issues,reviewedIds:new Set(questions.map(question=>question.id))};
-      feedback.textContent='Revisão do Gemini concluída.';
-      runPdcaQualityCheck(false);
-      return;
-    }
-    throw Error('A revisão demorou mais que o esperado. Tente novamente.');
+    const requestId=crypto.randomUUID();
+    const targetIds=pending.map(question=>question.id);
+    if(!portalPostForm({acao:'nucleo_test_pdca_review',requestId,ro:pdcaReviewRo(),targets:JSON.stringify(targetIds),data:JSON.stringify(questions)}))
+      throw Error('Não foi possível iniciar a revisão. Tente novamente.');
+    const result=await pollPdcaOperation('nucleo_test_pdca_review_status',requestId,token);
+    if(scope!==pdcaReviewScope())return;
+    if(!Array.isArray(result.issues)||!result.expires)throw Error('Atualize a implantação do Apps Script de Teste para esta versão.');
+    const current=new Map(pdcaReviewQuestions().map(question=>[question.id,question.answer]));
+    pending.forEach(question=>{
+      if(current.get(question.id)===question.answer)
+        pdcaGeminiReview.entries.set(question.id,{answer:question.answer,issues:result.issues.filter(issue=>issue.id===question.id),expires:result.expires});
+    });
+    feedback.textContent='Revisão do Gemini concluída.';
   }catch(error){
-    feedback.textContent=error.message||'Gemini está indisponível.';
+    if(scope===pdcaReviewScope())feedback.textContent=error.message||'Gemini está indisponível.';
   }finally{
     pdcaGeminiPending=false;
-    if(token===getSession()?.authToken&&key!==pdcaReviewKey(pdcaReviewQuestions()))schedulePdcaGeminiReview();
+    updateCompletion();
+    runPdcaQualityCheck(false);
+    if(scope!==pdcaReviewScope()||JSON.stringify(questions)!==JSON.stringify(pdcaReviewQuestions()))schedulePdcaGeminiReview();
   }
+}
+async function submitApprovedPdca(record){
+  const requestId=crypto.randomUUID();
+  const token=getSession()?.authToken;
+  if(!portalPostForm({acao:'nucleo_test_pdca_submit',requestId,data:JSON.stringify(record)}))
+    throw Error('Não foi possível iniciar o envio do PDCA.');
+  return pollPdcaOperation('nucleo_test_pdca_submit_status',requestId,token);
 }
 function runPdcaQualityCheck(scrollToFirst=false){
   const reviewed=currentPdcaGeminiIssues();
@@ -16483,7 +16511,8 @@ function showAssignedRos(){
   schedulePdcaGeminiReview();
 }
 function pdcaIssueForQuestion(id){
-  return (currentPdcaGeminiIssues()??pdcaQualityIssues()).filter(x=>x.id===id);
+  const question=pdcaReviewQuestions().find(item=>item.id===id);
+  return question ? pdcaReviewEntry(question)?.issues||[] : [];
 }
 function pdcaIssueHtml(x){
   const items=(x.items||[]).map(v=>`<li>${escapeHtml(v)}</li>`).join('');
@@ -16492,7 +16521,8 @@ function pdcaIssueHtml(x){
 }
 function pdcaInlineReviewHtml(id,issues){
   if(issues.length)return issues.map(pdcaIssueHtml).join('');
-  if(currentPdcaGeminiIssues()&&pdcaGeminiReview.reviewedIds.has(id))
+  const question=pdcaReviewQuestions().find(item=>item.id===id);
+  if(question&&pdcaReviewEntry(question))
     return '<div class="small" style="color:#166534;margin:8px 0">✓ Gemini: resposta suficiente.</div>';
   return '';
 }
@@ -16610,13 +16640,12 @@ function updateCompletion(){
   const hint=document.getElementById('submitHint');
   if(txt) txt.textContent=`${completed} de ${total} respondidas`;
   if(fill) fill.style.width=pct+'%';
-  const requireAll=getRuleYes('rulePdcaRequireAll');
-  if(btn) btn.disabled=requireAll && completed!==total;
-  if(hint){
-    hint.textContent=requireAll
-      ? (completed===total?'PDCA completo. O envio está liberado.':`Faltam ${total-completed} resposta(s) para liberar o envio.`)
-      : (completed===total?'PDCA completo. O envio está liberado.':`Há ${total-completed} resposta(s) pendente(s), mas a regra atual permite o envio.`);
-  }
+  const approved=pdcaApproved();
+  if(btn)btn.disabled=pdcaSending||!approved;
+  if(hint&&!pdcaSending)hint.textContent=completed!==total
+    ? `Faltam ${total-completed} resposta(s). O envio exige aprovação do Gemini em todas.`
+    : approved?'Todas as respostas foram aprovadas. O envio está liberado.'
+      :'Envio bloqueado até o Gemini aprovar todas as respostas.';
   const stage=stages[activeStage];
   const stageDone=stage.items.filter(it=>(answers[it[0]]||'').trim()).length;
   const stageBadge=document.getElementById('stageCompletionBadge');
@@ -16995,22 +17024,15 @@ async function finishPDCA(){
   const btn=document.getElementById('sendPdcaBtn');
   const hint=document.getElementById('submitHint');
 
-  if(!highlightMissing())return;
-
-  const qualityIssues=runPdcaQualityCheck(false);
-  if(qualityIssues.length){
-    const proceed=confirm(
-      'O assistente encontrou '+qualityIssues.length+
-      ' ponto(s) que podem melhorar a qualidade do PDCA.\n\nDeseja enviar mesmo assim?'
-    );
-    if(!proceed)return;
-  }
+  if(pdcaSending||!pdcaApproved()){updateCompletion();return;}
+  const approvedScope=pdcaReviewScope();
 
   if(!selected){
     alert('Não foi possível identificar a R.O. deste PDCA. Abra a R.O. novamente e tente enviar.');
     return;
   }
 
+  pdcaSending=true;
   try{
     if(btn){
       btn.disabled=true;
@@ -17046,6 +17068,9 @@ async function finishPDCA(){
     }
 
     const roNumber=selected.numero||selected.id||selected.codigo||'';
+    const fingerprint=JSON.stringify([approvedScope,answers,pdcaExtraActions]);
+    if(pdcaSubmitAttempt?.fingerprint===fingerprint)pdcaNumber=pdcaSubmitAttempt.id;
+    pdcaSubmitAttempt={fingerprint,id:pdcaNumber};
     const record={
       id:pdcaNumber,
       ro:roNumber,
@@ -17063,71 +17088,21 @@ async function finishPDCA(){
       actions:pdcaExtraActions.filter(x=>String(x.action||'').trim()).map(x=>({...x}))
     };
 
+    if(approvedScope!==pdcaReviewScope()||!pdcaApproved())throw Error('As respostas mudaram. Aguarde a revisão.');
+    await submitApprovedPdca(record);
+
     // Registra no histórico em memória. Se o navegador estiver com o armazenamento
     // local cheio, isso não pode impedir o envio para a base central.
     sent.unshift(record);
     try{refreshPdcaSidebarBadge()}catch(e){}
-    const savedLocal=safeStorageSet(SENT_PDCA_KEY,JSON.stringify(sent));
+    safeStorageSet(SENT_PDCA_KEY,JSON.stringify(sent));
     try{safeStorageSet(SENT_PDCA_KEY,JSON.stringify(sent))}catch(e){}
 
     selected.status='PDCA enviado';
     selected.pdca='Enviado';
 
     // A base central é a persistência principal do envio.
-    const centralSaved=portalBackendSave('pdca_sent',record.id,record);
     allPdcaActionsForRecord(record).forEach(a=>portalBackendSave('pdca_actions',a.id,a));
-
-    const triageForSheet=overviewSafe(()=>getSavedTriageMap().get(String(roNumber||'').trim()),null);
-    const sheetSector=triageForSheet?.responsibleSector||record.setor||'';
-    const sheetPerson=triageForSheet?.responsibleUserName||'Todo o setor';
-    const sheetOrigin=String(selected?.origemBase||selected?.raw?.__origemBase||'Interna');
-
-    try{
-      const sheetFields=sheetOrigin==='Externa'
-        ? {
-            setor:sheetSector,
-            pessoa:sheetPerson,
-            prazoConclusao:record.answers?.p12||'',
-            status:'Enviado',
-            dataEnvio:record.envio||'',
-            resultado:'ENVIADO COM SUCESSO'
-          }
-        : {
-            setor:sheetSector,
-            pessoa:sheetPerson,
-            acaoPrevista:record.answers?.p11||'',
-            prazoConclusao:record.answers?.p12||'',
-            status:'Enviado',
-            dataEnvio:record.envio||''
-          };
-
-      const sheetResult=await portalUpdateRoSheetConfirmed(roNumber,sheetFields);
-      record.sheetUpdate={
-        ok:true,
-        origin:sheetResult?.origem||sheetOrigin,
-        at:new Date().toISOString()
-      };
-    }catch(sheetError){
-      record.sheetUpdate={
-        ok:false,
-        origin:sheetOrigin,
-        error:String(sheetError?.message||sheetError),
-        at:new Date().toISOString()
-      };
-
-      // Na Externa, Resultado precisa deixar explícito o motivo do erro.
-      if(sheetOrigin==='Externa'){
-        portalUpdateRoSheet(roNumber,{
-          setor:sheetSector,
-          pessoa:sheetPerson,
-          prazoConclusao:record.answers?.p12||'',
-          status:'Erro',
-          dataEnvio:record.envio||'',
-          resultado:'ERRO NO ENVIO: '+String(sheetError?.message||sheetError)
-        });
-      }
-      throw new Error('PDCA registrado, mas a atualização da planilha falhou: '+String(sheetError?.message||sheetError));
-    }
 
     clearPdcaDraft(roNumber);
 
@@ -17165,20 +17140,23 @@ async function finishPDCA(){
       });
     }catch(e){console.warn('Falha ao criar notificação do reclamante.',e)}
 
-    if(hint)hint.textContent=centralSaved
-      ? (savedLocal?'PDCA enviado. Sincronização com a base central solicitada.':'PDCA enviado para a base central. O armazenamento local do navegador está cheio.')
-      : (savedLocal?'PDCA salvo localmente. A sincronização central será tentada novamente.':'O navegador está sem espaço local e a sincronização central não pôde ser confirmada.');
+    if(hint)hint.textContent='PDCA confirmado na base de teste.';
 
     alert(pdcaNumber+' enviado e incluído no histórico.');
     showSentPdcas();
 
   }catch(err){
+    if(err?.code==='PDCA_REVIEW_REQUIRED'){
+      pdcaGeminiReview.entries.clear();
+      schedulePdcaGeminiReview();
+    }
     console.error('Portal SGQ: erro ao enviar PDCA.',err);
     if(hint)hint.textContent='Não foi possível concluir o envio: '+(err?.message||err);
     alert('Não foi possível enviar o PDCA: '+(err?.message||err));
   }finally{
+    pdcaSending=false;
+    updateCompletion();
     if(btn){
-      btn.disabled=false;
       btn.textContent=btn.dataset.originalText||'Enviar PDCA';
     }
   }
