@@ -284,6 +284,7 @@ function savePdcaDraftNow(){
   updateNetworkState();
 }
 function schedulePdcaDraftSave(){
+  schedulePdcaGeminiReview();
   savePdcaDraftLocal();
   clearTimeout(pdcaDraftSaveTimer);
   pdcaDraftSaveTimer=setTimeout(savePdcaDraftNow,900);
@@ -8791,16 +8792,23 @@ function pdcaReviewKey(questions){
 function currentPdcaGeminiIssues(){
   return pdcaGeminiReview?.key===pdcaReviewKey(pdcaReviewQuestions()) ? pdcaGeminiReview.issues : null;
 }
-async function analyzePdcaWithGemini(button){
-  if(!nucleoFeatureRequire('pdca','respond')||button.disabled)return;
+let pdcaGeminiTimer;
+let pdcaGeminiPending=false;
+function schedulePdcaGeminiReview(){
+  clearTimeout(pdcaGeminiTimer);
+  pdcaGeminiTimer=setTimeout(analyzePdcaWithGemini,4000);
+}
+async function analyzePdcaWithGemini(){
+  const view=document.getElementById('pdcaView');
+  if(!view||view.classList.contains('hidden')||pdcaGeminiPending||!getSession()?.authToken)return;
   const feedback=document.getElementById('pdcaGeminiStatus');
   const questions=pdcaReviewQuestions();
-  if(!questions.length){feedback.textContent='Preencha pelo menos uma resposta para revisar.';return;}
+  if(!questions.length)return;
   const key=pdcaReviewKey(questions);
-  if(pdcaGeminiReview?.key===key){runPdcaQualityCheck(true);return;}
+  if(pdcaGeminiReview?.key===key)return;
   const requestId=crypto.randomUUID();
   const token=getSession()?.authToken;
-  button.disabled=true;
+  pdcaGeminiPending=true;
   feedback.textContent='Gemini está revisando as respostas…';
   try{
     if(!portalPostForm({acao:'nucleo_test_pdca_review',requestId,data:JSON.stringify(questions)}))
@@ -8813,25 +8821,24 @@ async function analyzePdcaWithGemini(button){
       if(!result||result.pending)continue;
       if(!result.sucesso)throw Error(result.erro||'Gemini não concluiu a revisão.');
       if(key!==pdcaReviewKey(pdcaReviewQuestions())){
-        feedback.textContent='As respostas mudaram durante a revisão. Clique para revisar a versão atual.';
         return;
       }
       pdcaGeminiReview={key,issues:result.issues};
       feedback.textContent='Revisão do Gemini concluída.';
-      runPdcaQualityCheck(true);
+      runPdcaQualityCheck(false);
       return;
     }
     throw Error('A revisão demorou mais que o esperado. Tente novamente.');
   }catch(error){
     feedback.textContent=error.message||'Gemini está indisponível.';
-  }finally{button.disabled=false;}
+  }finally{
+    pdcaGeminiPending=false;
+    if(token===getSession()?.authToken&&key!==pdcaReviewKey(pdcaReviewQuestions()))schedulePdcaGeminiReview();
+  }
 }
 function runPdcaQualityCheck(scrollToFirst=false){
   const reviewed=currentPdcaGeminiIssues();
   const issues=reviewed??pdcaQualityIssues(),box=document.getElementById('pdcaQualityList'),sum=document.getElementById('pdcaQualitySummary');
-  const feedback=document.getElementById('pdcaGeminiStatus');
-  if(feedback&&!document.getElementById('pdcaGeminiButton')?.disabled)
-    feedback.textContent=reviewed?'Revisão do Gemini concluída.':'Clique em Revisar com Gemini para analisar as respostas em contexto.';
   setTimeout(()=>{try{refreshPdcaInlineAlerts()}catch(e){}},0);
   const allIds=stages.flatMap(s=>s.items.map(x=>x[0]));
   const answered=allIds.filter(id=>String(answers[id]||'').trim()).length;
@@ -16470,6 +16477,7 @@ function showAssignedRos(){
   const st=document.getElementById('pdcaDraftState');
   if(st)st.textContent=continuing?'Rascunho recuperado. Continue de onde parou.':'Rascunho será salvo automaticamente.';
   setNav('plan');
+  schedulePdcaGeminiReview();
 }
 function pdcaIssueForQuestion(id){
   return (currentPdcaGeminiIssues()??pdcaQualityIssues()).filter(x=>x.id===id);
